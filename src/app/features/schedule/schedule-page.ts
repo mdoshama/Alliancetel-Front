@@ -5,7 +5,20 @@ import { Router, RouterLink } from '@angular/router';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { addDays, formatDay, formatWeekRange, today, weekStartOf } from '../../core/date-utils';
-import { Area, DAY_TYPE_LABELS, DayCell, DayType, EmployeeRow, ROLE_LABELS, Schedule } from '../../core/models';
+import {
+  Area,
+  DAY_TYPE_LABELS,
+  DayCell,
+  DayHours,
+  DayType,
+  EmployeeRow,
+  ROLE_LABELS,
+  Schedule,
+  STORE_ROLE_HELP,
+  STORE_ROLE_LABELS,
+  StoreRef,
+} from '../../core/models';
+import { formatHours, formatTime } from '../../core/store-hours';
 import { ConfirmService } from '../../core/confirm.service';
 import { ToastService } from '../../core/toast.service';
 import { Modal } from '../../shared/modal';
@@ -43,6 +56,8 @@ export class SchedulePage implements OnInit {
 
   // "Edit day" panel
   protected readonly editing = signal<{ row: EmployeeRow; dayIndex: number } | null>(null);
+  protected readonly storeRoleLabels = STORE_ROLE_LABELS;
+  protected readonly storeRoleHelp = STORE_ROLE_HELP;
   protected editType: DayType = 'WORK';
   protected editStoreId: number | null = null;
   protected readonly swapWith = signal<number | null>(null);
@@ -271,6 +286,41 @@ export class SchedulePage implements OnInit {
     return c.minStaffPerDay > 0 ? `${n}/${c.minStaffPerDay}${n < c.minStaffPerDay ? ' · short' : ''}` : `${n}`;
   }
 
+  /** "10am–8pm", or "Closed". */
+  protected hoursLabel(h: DayHours): string {
+    return formatHours(h);
+  }
+
+  /** The shift for a work day, which follows the store's hours that day. */
+  protected shiftHours(cell: DayCell): string {
+    return cell.opensAt && cell.closesAt ? `${formatTime(cell.opensAt)}–${formatTime(cell.closesAt)}` : '';
+  }
+
+  /** The store's hours on the given day of this week (index 0 = Monday). */
+  private storeHoursOn(store: StoreRef, dayIndex: number): DayHours | undefined {
+    const day = this.schedule()?.dates[dayIndex];
+    if (!day) {
+      return undefined;
+    }
+    const weekday = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'][
+      new Date(day + 'T00:00:00').getDay()
+    ];
+    return store.hours?.find((h) => h.day === weekday);
+  }
+
+  protected storeClosedOn(store: StoreRef, dayIndex: number): boolean {
+    return !!this.storeHoursOn(store, dayIndex)?.closed;
+  }
+
+  /** Shown next to each store in the pickers, e.g. "10am–8pm · 1/2 · short that day". */
+  protected storeOptionNote(store: StoreRef, dayIndex: number): string {
+    const h = this.storeHoursOn(store, dayIndex);
+    if (h?.closed) {
+      return 'closed that day';
+    }
+    return `${h ? formatHours(h) + ' · ' : ''}${this.storeCount(store.id, dayIndex)} that day`;
+  }
+
   /** Greys out cells at other stores when a store filter is on. */
   protected dimmed(cell: DayCell): boolean {
     const store = this.storeFilter();
@@ -278,7 +328,7 @@ export class SchedulePage implements OnInit {
   }
 
   protected chipLabel(cell: DayCell): string {
-    return cell.type === 'WORK' ? (cell.storeLabel ?? 'No store') : this.dayTypeLabels[cell.type];
+    return cell.type === 'WORK' ? (cell.storeName ?? 'No store') : this.dayTypeLabels[cell.type];
   }
 
   protected openCell(row: EmployeeRow, dayIndex: number): void {
@@ -287,7 +337,7 @@ export class SchedulePage implements OnInit {
     }
     const cell = row.days[dayIndex];
     this.editType = cell.type;
-    this.editStoreId = cell.storeId ?? row.homeStoreId;
+    this.editStoreId = cell.storeId ?? this.openHomeStore(row, dayIndex);
     this.weekStoreId = cell.storeId ?? row.homeStoreId;
     this.swapWith.set(null);
     this.editing.set({ row, dayIndex });
@@ -297,7 +347,21 @@ export class SchedulePage implements OnInit {
     this.editing.set(null);
   }
 
-  protected saveDay(): void {
+  /** The person's home store if it is open on that day; otherwise a store has to be picked. */
+  private openHomeStore(row: EmployeeRow, dayIndex: number): number | null {
+    const home = this.schedule()?.stores.find((st) => st.id === row.homeStoreId);
+    return home && !this.storeClosedOn(home, dayIndex) ? home.id : null;
+  }
+
+  /** A work day must have a store whenever the area has stores. */
+  protected storeMissing(): boolean {
+    return this.editType === 'WORK' && this.editStoreId === null && (this.schedule()?.stores.length ?? 0) > 0;
+  }
+
+  protected async saveDay(): Promise<void> {
+    if (this.storeMissing()) {
+      return;
+    }
     const s = this.schedule();
     const e = this.editCell();
     if (!s || !e) {
@@ -308,14 +372,28 @@ export class SchedulePage implements OnInit {
       this.closeEditor();
       return;
     }
+    const when = 'on ' + formatDay(e.cell.date, { weekday: 'long', month: 'short', day: 'numeric' });
+    if (!(await this.confirmPrimaryMove(e.row, storeId, when, e.dayIndex))) {
+      return;
+    }
     this.run(this.api.updateScheduleEntry(s.id, e.cell.entryId, this.editType, storeId), 'Day updated.', true);
   }
 
-  protected swap(): void {
+  protected async swap(): Promise<void> {
     const s = this.schedule();
     const e = this.editCell();
     const other = this.swapCandidates().find((c) => c.cell.entryId === this.swapWith());
     if (!s || !e || !other) {
+      return;
+    }
+    // After a swap each person takes the other's store; warn if that pulls a primary away from home.
+    const when = 'on ' + formatDay(e.cell.date, { weekday: 'long', month: 'short', day: 'numeric' });
+    const newStoreForMe = other.cell.type === 'WORK' ? other.cell.storeId : null;
+    const newStoreForOther = e.cell.type === 'WORK' ? e.cell.storeId : null;
+    if (
+      !(await this.confirmPrimaryMove(e.row, newStoreForMe, when, e.dayIndex)) ||
+      !(await this.confirmPrimaryMove(other.row, newStoreForOther, when, e.dayIndex))
+    ) {
       return;
     }
     this.run(
@@ -325,10 +403,13 @@ export class SchedulePage implements OnInit {
     );
   }
 
-  protected moveWeek(): void {
+  protected async moveWeek(): Promise<void> {
     const s = this.schedule();
     const e = this.editCell();
     if (!s || !e || this.weekStoreId == null) {
+      return;
+    }
+    if (!(await this.confirmPrimaryMove(e.row, this.weekStoreId, 'for the whole week', null))) {
       return;
     }
     const store = s.stores.find((x) => x.id === this.weekStoreId);
@@ -339,12 +420,55 @@ export class SchedulePage implements OnInit {
     );
   }
 
+  /**
+   * Primaries stay at their home store unless a manager deliberately moves them, so ask first.
+   * Resolves true when it is fine to go ahead (not a primary, staying home, or the manager confirmed).
+   */
+  private confirmPrimaryMove(
+    row: EmployeeRow,
+    storeId: number | null,
+    when: string,
+    dayIndex: number | null,
+  ): Promise<boolean> {
+    if (row.storeRole !== 'PRIMARY' || storeId == null || storeId === row.homeStoreId) {
+      return Promise.resolve(true);
+    }
+    const first = row.employeeName.split(' ')[0];
+    const home = row.homeStoreName ?? 'their store';
+    const to = this.schedule()?.stores.find((x) => x.id === storeId)?.name ?? 'another store';
+    const notes = [
+      `Generate and Auto-fill never move a primary. This is kept as a manual change.`,
+    ];
+    if (dayIndex !== null && row.homeStoreId != null) {
+      const cov = this.schedule()?.storeCoverage.find((c) => c.storeId === row.homeStoreId);
+      if (cov) {
+        const left = cov.dailyHeadCount[dayIndex] - 1;
+        notes.unshift(
+          cov.minStaffPerDay > 0
+            ? `${home} would have ${left} of ${cov.minStaffPerDay} needed that day.`
+            : `${home} would have ${left} working that day.`,
+        );
+      }
+    }
+    return this.confirm.ask({
+      title: `Move ${first} away from ${home}?`,
+      message: `${first} is the primary at ${home}. Moving them to ${to} ${when} takes ${home}'s primary away.`,
+      icon: 'bi-exclamation-triangle',
+      tone: 'warning',
+      notes,
+      confirmText: `Move to ${to}`,
+    });
+  }
+
   /** Plain-language description of a cell, e.g. "Work at Oceanside". */
   protected describe(cell: DayCell): string {
     if (cell.type !== 'WORK') {
       return this.dayTypeLabels[cell.type];
     }
-    const where = cell.storeName ? `Work at ${cell.storeName}` : 'Work (no store)';
+    const shift = this.shiftHours(cell);
+    const where = cell.storeName
+      ? `Work at ${cell.storeName}${cell.storeClosed ? ' (store closed that day)' : shift ? ', ' + shift : ''}`
+      : 'Work (no store)';
     return cell.autoAssigned ? `${where} (moved automatically to cover the minimum)` : where;
   }
 

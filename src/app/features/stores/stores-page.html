@@ -39,7 +39,7 @@
             <tr>
               <th>Store</th>
               <th>Code</th>
-              <th>Address</th>
+              <th>Hours</th>
               <th class="text-center">Min staff / day</th>
               <th class="text-center">Home staff</th>
               <th>Status</th>
@@ -49,9 +49,12 @@
           <tbody>
             @for (s of g.stores; track s.id) {
               <tr [class.opacity-50]="!s.active">
-                <td class="fw-semibold"><i class="bi bi-shop text-primary me-2"></i>{{ s.name }}</td>
-                <td>@if (s.code) { <span class="store-tag">{{ s.code }}</span> } @else { — }</td>
-                <td class="text-muted-2">{{ s.address || '—' }}</td>
+                <td class="fw-semibold"><span class="store-dot me-2" [style.--store-color]="s.color"></span>{{ s.name }}</td>
+                <td>@if (s.code) { <span class="store-tag" [style.--store-color]="s.color">{{ s.code }}</span> } @else { — }</td>
+                <td class="small">
+                  <div class="text-nowrap-md"><i class="bi bi-clock text-muted-2 me-1"></i>{{ summarizeWeek(s.hours) }}</div>
+                  @if (s.address) { <div class="text-muted-2">{{ s.address }}</div> }
+                </td>
                 <td class="text-center">
                   @if (s.minStaffPerDay > 0) {
                     <span class="fw-semibold">{{ s.minStaffPerDay }}</span>
@@ -117,6 +120,63 @@
         <input id="sMin" type="number" min="0" max="50" class="form-control" formControlName="minStaffPerDay"
                [class.is-invalid]="form.controls.minStaffPerDay.touched && form.controls.minStaffPerDay.invalid" />
         <div class="invalid-feedback">0–50</div>
+      </div>
+      <div class="col-12">
+        <span class="form-label d-block mb-1">Color <span class="small text-muted-2">(shown on the schedule)</span></span>
+        <div class="color-swatches" role="radiogroup" aria-label="Store color">
+          @if (!editing()) {
+            <button type="button" class="swatch swatch-auto" role="radio" [attr.aria-checked]="color === null"
+                    [class.selected]="color === null" (click)="color = null" title="Pick an unused color automatically">
+              Auto
+            </button>
+          }
+          @for (c of palette; track c) {
+            <button type="button" class="swatch" role="radio" [attr.aria-checked]="color === c" [attr.aria-label]="c"
+                    [class.selected]="color === c" [style.--store-color]="c" (click)="color = c"
+                    [attr.title]="usedColors().get(c) ? 'Also used by ' + usedColors().get(c) : c">
+              @if (color === c) { <i class="bi bi-check-lg"></i> }
+              @else if (usedColors().has(c)) { <span class="swatch-used"></span> }
+            </button>
+          }
+          <label class="swatch swatch-custom" title="Custom color">
+            <input type="color" [value]="color ?? '#2563EB'" (input)="color = $any($event.target).value.toUpperCase()"
+                   aria-label="Custom color" />
+            <i class="bi bi-eyedropper"></i>
+          </label>
+        </div>
+        @if (color && usedColors().get(color); as other) {
+          <div class="small text-warning-emphasis mt-1">{{ other }} already uses this color.</div>
+        }
+      </div>
+      <div class="col-12">
+        <div class="d-flex align-items-baseline mb-1">
+          <span class="form-label mb-0">Opening hours <span class="small text-muted-2">(shifts follow these)</span></span>
+          <button type="button" class="btn btn-sm btn-link ms-auto p-0 text-nowrap" (click)="copyToAll(hoursRows[0])">
+            Copy Monday to all days
+          </button>
+        </div>
+        <div class="hours-editor border rounded-3">
+          @for (h of hoursRows; track h.day) {
+            <div class="hours-row" [class.is-closed]="h.closed">
+              <span class="hours-day">{{ dayShort[h.day] }}</span>
+              <input type="time" class="form-control form-control-sm" [attr.aria-label]="dayShort[h.day] + ' opens'"
+                     [(ngModel)]="h.opensAt" [ngModelOptions]="{ standalone: true }" [disabled]="h.closed" step="900"
+                     [class.is-invalid]="hoursTouched && hoursError(h)" />
+              <span class="text-muted-2">–</span>
+              <input type="time" class="form-control form-control-sm" [attr.aria-label]="dayShort[h.day] + ' closes'"
+                     [(ngModel)]="h.closesAt" [ngModelOptions]="{ standalone: true }" [disabled]="h.closed" step="900"
+                     [class.is-invalid]="hoursTouched && hoursError(h)" />
+              <div class="form-check mb-0 ms-1">
+                <input class="form-check-input" type="checkbox" [id]="'closed-' + h.day"
+                       [(ngModel)]="h.closed" [ngModelOptions]="{ standalone: true }" />
+                <label class="form-check-label small" [for]="'closed-' + h.day">Closed</label>
+              </div>
+              @if (hoursTouched && hoursError(h); as err) {
+                <div class="hours-error small text-danger w-100">{{ err }}</div>
+              }
+            </div>
+          }
+        </div>
       </div>
       <div class="col-12">
         <div class="form-check form-switch">

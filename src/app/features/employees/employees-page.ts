@@ -4,7 +4,7 @@ import { DatePipe } from '@angular/common';
 import { Observable } from 'rxjs';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
-import { Area, Credentials, Employee, ROLE_LABELS, Role, Store } from '../../core/models';
+import { Area, Credentials, Employee, ROLE_LABELS, Role, Store, STORE_ROLE_HELP, STORE_ROLE_LABELS } from '../../core/models';
 import { ConfirmService } from '../../core/confirm.service';
 import { ToastService } from '../../core/toast.service';
 import { Modal } from '../../shared/modal';
@@ -72,6 +72,9 @@ export class EmployeesPage implements OnInit {
     };
   });
 
+  protected readonly storeRoleLabels = STORE_ROLE_LABELS;
+  protected readonly storeRoleHelp = STORE_ROLE_HELP;
+
   protected readonly form = this.fb.nonNullable.group({
     employeeCode: ['', [Validators.required, Validators.maxLength(20)]],
     firstName: ['', [Validators.required, Validators.maxLength(60)]],
@@ -81,6 +84,7 @@ export class EmployeesPage implements OnInit {
     role: ['EMPLOYEE' as Role, Validators.required],
     areaId: [null as number | null],
     homeStoreId: [null as number | null],
+    primaryAtStore: [false],
     workDaysPerWeek: [6, [Validators.required, Validators.min(1), Validators.max(7)]],
     active: [true],
   });
@@ -132,6 +136,7 @@ export class EmployeesPage implements OnInit {
       role: 'EMPLOYEE',
       areaId: this.areaFilter,
       homeStoreId: null,
+      primaryAtStore: false,
       workDaysPerWeek: 6,
       active: true,
     });
@@ -149,6 +154,7 @@ export class EmployeesPage implements OnInit {
       role: e.role,
       areaId: e.areaId,
       homeStoreId: e.homeStoreId,
+      primaryAtStore: e.storeRole === 'PRIMARY',
       workDaysPerWeek: e.workDaysPerWeek,
       active: e.active,
     });
@@ -170,6 +176,7 @@ export class EmployeesPage implements OnInit {
       phone: v.phone.trim() || null,
       areaId: v.areaId == null ? null : Number(v.areaId),
       homeStoreId: v.homeStoreId == null ? null : Number(v.homeStoreId),
+      primaryAtStore: v.homeStoreId != null && v.primaryAtStore,
       workDaysPerWeek: Number(v.workDaysPerWeek),
     };
     const current = this.editing();
@@ -209,6 +216,29 @@ export class EmployeesPage implements OnInit {
     if (v.homeStoreId != null && !this.storesIn(v.areaId).some((s) => s.id === v.homeStoreId)) {
       this.form.controls.homeStoreId.setValue(null);
     }
+  }
+
+  /** Switches someone between primary and secondary at their home store, from the list. */
+  protected setPrimary(e: Employee, primary: boolean): void {
+    if (primary === (e.storeRole === 'PRIMARY')) {
+      return;
+    }
+    this.movingId.set(e.id);
+    this.api.changeHomeStore(e.id, e.homeStoreId, primary).subscribe({
+      next: (updated) => {
+        this.movingId.set(null);
+        this.employees.update((list) => list.map((x) => (x.id === updated.id ? updated : x)));
+        this.toast.success(
+          primary
+            ? `${updated.firstName} is now the primary at ${updated.homeStoreName}. Auto-fill will keep them there.`
+            : `${updated.firstName} is now a secondary at ${updated.homeStoreName}.`,
+        );
+      },
+      error: () => {
+        this.movingId.set(null);
+        this.employees.update((list) => [...list]);
+      },
+    });
   }
 
   /** Quick rotation from the list: move someone to another store in their area. */

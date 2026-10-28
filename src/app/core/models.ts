@@ -2,6 +2,19 @@ export type Role = 'ADMIN' | 'MANAGER' | 'EMPLOYEE';
 export type DayOffStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 export type DayType = 'WORK' | 'OFF' | 'REQUESTED_OFF';
 export type ScheduleStatus = 'DRAFT' | 'PUBLISHED';
+export type StoreRole = 'PRIMARY' | 'SECONDARY' | 'FLOATER';
+
+export const STORE_ROLE_LABELS: Record<StoreRole, string> = {
+  PRIMARY: 'Primary',
+  SECONDARY: 'Secondary',
+  FLOATER: 'Floater',
+};
+
+export const STORE_ROLE_HELP: Record<StoreRole, string> = {
+  PRIMARY: 'Always at their home store; only moved by hand',
+  SECONDARY: 'Home store, but auto-fill can send them to cover other stores',
+  FLOATER: 'No home store; auto-fill places them where needed',
+};
 
 export interface Area {
   id: number;
@@ -17,6 +30,16 @@ export interface AreaRequest {
   active: boolean;
 }
 
+export type DayOfWeek = 'MONDAY' | 'TUESDAY' | 'WEDNESDAY' | 'THURSDAY' | 'FRIDAY' | 'SATURDAY' | 'SUNDAY';
+
+/** Opening hours on one weekday; times are "HH:mm" (the API may add ":ss"). */
+export interface DayHours {
+  day: DayOfWeek;
+  opensAt: string | null;
+  closesAt: string | null;
+  closed: boolean;
+}
+
 export interface Store {
   id: number;
   areaId: number;
@@ -30,6 +53,10 @@ export interface Store {
   minStaffPerDay: number;
   active: boolean;
   employeeCount: number;
+  /** Seven entries, Monday first. Days never set are 10:00–20:00. */
+  hours: DayHours[];
+  /** Hex color like "#2563EB" used for the store on the schedule. */
+  color: string;
 }
 
 export interface StoreRequest {
@@ -39,6 +66,10 @@ export interface StoreRequest {
   address: string | null;
   minStaffPerDay: number;
   active: boolean;
+  /** Leave out to keep the current hours. */
+  hours?: DayHours[];
+  /** Leave out to keep the current color. */
+  color?: string;
 }
 
 export interface Employee {
@@ -54,6 +85,8 @@ export interface Employee {
   areaName: string | null;
   homeStoreId: number | null;
   homeStoreName: string | null;
+  /** Primary or secondary at the home store; floater without one. */
+  storeRole: StoreRole;
   workDaysPerWeek: number;
   active: boolean;
   loginEnabled: boolean;
@@ -94,6 +127,8 @@ export interface EmployeeRequest {
   homeStoreId: number | null;
   workDaysPerWeek: number;
   active: boolean;
+  /** Primary (true) or secondary (false) at the home store. */
+  primaryAtStore?: boolean;
 }
 
 export interface EmployeeFilter {
@@ -117,6 +152,36 @@ export interface DayOffRequest {
   reviewNote: string | null;
   reviewedAt: string | null;
   createdAt: string;
+  /** After approval: how that week's existing schedule was updated. */
+  scheduleUpdate?: string | null;
+}
+
+export type ImpactLevel = 'OK' | 'TIGHT' | 'SHORT';
+
+export interface Shortage {
+  storeName: string;
+  date: string;
+  scheduled: number;
+  required: number;
+}
+
+/** What approving a day off would do to staffing that week. */
+export interface DayOffImpact {
+  requestId: number;
+  employeeName: string;
+  date: string;
+  level: ImpactLevel;
+  summary: string;
+  workingBefore: number;
+  workingAfter: number;
+  neededThatDay: number;
+  /** Their regular day off that becomes a work day instead. */
+  replacementWorkDay: string | null;
+  scheduleStatus: ScheduleStatus | null;
+  alreadyOff: string[];
+  alsoRequested: string[];
+  newShortages: Shortage[];
+  existingShortages: number;
 }
 
 export interface CreateDayOffRequest {
@@ -140,9 +205,15 @@ export interface DayCell {
   storeId: number | null;
   storeName: string | null;
   storeLabel: string | null;
+  storeColor: string | null;
   /** Sent away from the home store automatically to cover another store's minimum. */
   autoAssigned: boolean;
   manuallyEdited: boolean;
+  /** The store's hours that day (the shift); null without a store. */
+  opensAt: string | null;
+  closesAt: string | null;
+  /** The assigned store is closed that day. */
+  storeClosed: boolean;
 }
 
 export interface StoreRef {
@@ -151,6 +222,9 @@ export interface StoreRef {
   code: string | null;
   label: string;
   minStaffPerDay: number;
+  /** Seven entries, Monday first. */
+  hours: DayHours[];
+  color: string;
 }
 
 /** Head count per store per day; storeId null means work days with no store assigned. */
@@ -160,6 +234,10 @@ export interface StoreCoverage {
   label: string;
   minStaffPerDay: number;
   dailyHeadCount: number[];
+  /** The store's hours on each date of the week. */
+  dailyHours: DayHours[];
+  /** Null for the "no store assigned" row. */
+  color: string | null;
 }
 
 /** A store with fewer people than its minimum on a day. */
@@ -178,6 +256,8 @@ export interface EmployeeRow {
   role: Role;
   homeStoreId: number | null;
   homeStoreName: string | null;
+  /** Primary or secondary at the home store; floater without one. */
+  storeRole: StoreRole;
   expectedWorkDays: number;
   scheduledWorkDays: number;
   days: DayCell[];

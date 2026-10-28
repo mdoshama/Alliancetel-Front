@@ -10,7 +10,7 @@ import { ConfirmService } from '../core/confirm.service';
     @if (confirm.current(); as req) {
       <div class="modal d-block confirm-modal" tabindex="-1" role="alertdialog" aria-modal="true"
            [attr.aria-labelledby]="'confirm-title'" (keydown.escape)="cancel()"
-           (click)="$event.target === $event.currentTarget && cancel()">
+           (click)="onBackdropClick($event)">
         <div class="modal-dialog modal-dialog-centered">
           <div class="modal-content confirm-card shadow-lg">
             <div class="modal-body p-4">
@@ -40,7 +40,7 @@ import { ConfirmService } from '../core/confirm.service';
             </div>
             <div class="modal-footer border-0 pt-0 px-4 pb-4">
               <button type="button" class="btn btn-light" (click)="cancel()">{{ req.cancelText ?? 'Cancel' }}</button>
-              <button #okButton type="button" class="btn" [class]="'btn btn-' + (req.tone === 'danger' ? 'danger' : req.tone === 'warning' ? 'warning' : 'primary')"
+              <button #okButton type="button" class="btn" [class]="'btn btn-' + (req.tone === 'danger' ? 'danger' : req.tone === 'warning' ? 'warning' : req.tone === 'success' ? 'success' : 'primary')"
                       (click)="ok()">{{ req.confirmText ?? 'Confirm' }}</button>
             </div>
           </div>
@@ -71,12 +71,25 @@ export class ConfirmDialog {
   }
 
   protected defaultIcon(tone?: string): string {
-    return tone === 'danger' ? 'bi-exclamation-octagon' : tone === 'warning' ? 'bi-exclamation-triangle' : 'bi-question-circle';
+    return tone === 'danger'
+      ? 'bi-exclamation-octagon'
+      : tone === 'warning'
+        ? 'bi-exclamation-triangle'
+        : tone === 'success'
+          ? 'bi-check-circle'
+          : 'bi-question-circle';
   }
 
   protected ok(): void {
     const req = this.confirm.current();
     req?.resolve(req.input ? this.text.trim() : '');
+  }
+
+  /** Cancels when the dimmed area is clicked. Returns nothing: a false return would cancel clicks inside the card. */
+  protected onBackdropClick(event: MouseEvent): void {
+    if (event.target === event.currentTarget) {
+      this.cancel();
+    }
   }
 
   protected cancel(): void {

@@ -7,6 +7,7 @@ import {
   CreateDayOffRequest,
   Credentials,
   DayOffFilter,
+  DayOffImpact,
   DayOffRequest,
   DayType,
   Employee,
@@ -69,8 +70,9 @@ export class ApiService {
     return this.http.post<Credentials>(`${this.base}/employees`, body);
   }
   /** Move someone to another store in their area (managers can do this for their own area). */
-  changeHomeStore(id: number, storeId: number | null): Observable<Employee> {
-    return this.http.patch<Employee>(`${this.base}/employees/${id}/home-store`, { storeId });
+  /** primary: true = primary, false = secondary, undefined = keep. */
+  changeHomeStore(id: number, storeId: number | null, primary?: boolean): Observable<Employee> {
+    return this.http.patch<Employee>(`${this.base}/employees/${id}/home-store`, { storeId, primary: primary ?? null });
   }
   resetPassword(id: number): Observable<Credentials> {
     return this.http.post<Credentials>(`${this.base}/employees/${id}/reset-password`, {});
@@ -88,6 +90,9 @@ export class ApiService {
   }
   createDayOff(body: CreateDayOffRequest): Observable<DayOffRequest[]> {
     return this.http.post<DayOffRequest[]>(`${this.base}/day-off-requests`, body);
+  }
+  dayOffImpact(id: number): Observable<DayOffImpact> {
+    return this.http.get<DayOffImpact>(`${this.base}/day-off-requests/${id}/impact`);
   }
   approveDayOff(id: number, note?: string): Observable<DayOffRequest> {
     return this.http.post<DayOffRequest>(`${this.base}/day-off-requests/${id}/approve`, { note: note ?? null });

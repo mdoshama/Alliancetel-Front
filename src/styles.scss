@@ -877,6 +877,11 @@ body {
     background: #fff4d6;
     color: #8a5a00;
   }
+
+  &.tone-success {
+    background: #e2f5ea;
+    color: #146c43;
+  }
 }
 
 .confirm-notes {
@@ -912,5 +917,281 @@ body {
   &.tone-danger {
     background: #fdecec;
     color: #8f1d1d;
+  }
+
+  &.tone-success {
+    background: #f3f6fb;
+    color: #3d4659;
+
+    li::before {
+      content: '\F431'; /* bi-info-circle */
+      color: #6b7a99;
+    }
+  }
+}
+
+/* ---------- Store hours ---------- */
+
+.hours-editor {
+  padding: 0.35rem 0.75rem;
+}
+
+.hours-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0;
+
+  & + & {
+    border-top: 1px solid var(--at-border);
+  }
+
+  .hours-day {
+    width: 2.5rem;
+    font-weight: 600;
+    font-size: 0.85rem;
+  }
+
+  input[type='time'] {
+    width: 7.5rem;
+  }
+
+  &.is-closed .hours-day {
+    color: #8a93a6;
+  }
+
+  .hours-error {
+    padding-left: 3rem;
+  }
+}
+
+.day-chip .chip-hours {
+  display: block;
+  font-size: 0.62rem;
+  font-weight: 500;
+  opacity: 0.7;
+  white-space: nowrap;
+}
+
+.day-chip.store-closed {
+  background: #fde7e7;
+  color: #a12626;
+}
+
+.schedule-grid tfoot tr.store-row .day-hours {
+  display: block;
+  font-size: 0.65rem;
+  font-weight: 400;
+  color: #8a93a6;
+  white-space: nowrap;
+}
+
+.schedule-grid tfoot tr.store-row td.store-closed-day {
+  background: repeating-linear-gradient(-45deg, #f6f7fb, #f6f7fb 6px, #eef0f5 6px, #eef0f5 12px);
+  color: #8a93a6;
+}
+
+.schedule-grid tfoot tr.store-row td.store-closed-day.has-staff {
+  background: #fde7e7;
+  color: #a12626;
+  font-weight: 700;
+}
+
+/* ---------- Store colors ---------- */
+/* Each store sets --store-color; boxes use a light tint of it with a solid stripe on the left. */
+
+.store-dot {
+  display: inline-block;
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+  background: var(--store-color, #94a3b8);
+  vertical-align: -0.05em;
+  flex-shrink: 0;
+}
+
+.store-tag[style*='--store-color'] {
+  background: color-mix(in srgb, var(--store-color) 14%, #fff);
+  color: color-mix(in srgb, var(--store-color) 80%, #000);
+}
+
+.legend-store {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: color-mix(in srgb, var(--store-color) 80%, #000);
+}
+
+.day-chip.type-WORK.has-store {
+  background: color-mix(in srgb, var(--store-color) 14%, #fff);
+  color: color-mix(in srgb, var(--store-color) 78%, #000);
+  border: 1px solid color-mix(in srgb, var(--store-color) 30%, #fff);
+  border-left: 4px solid var(--store-color);
+
+  &.auto-moved {
+    border-style: dashed;
+    border-left-style: solid;
+    border-color: var(--store-color);
+  }
+
+  &.editable:hover {
+    border-color: var(--store-color);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--store-color) 25%, transparent);
+  }
+}
+
+.day-chip .chip-name {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  max-width: 7.5rem;
+  font-size: 0.74rem;
+  font-weight: 700;
+  line-height: 1.15;
+  text-align: center;
+  white-space: normal;
+}
+
+.schedule-grid .day-chip {
+  width: 100%;
+  max-width: 8.5rem;
+}
+
+.day-chip.type-WORK.store-closed {
+  background: #fde7e7;
+  color: #a12626;
+  border-left-color: #dc3545;
+}
+
+.color-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+
+  .swatch {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    background: var(--store-color);
+    color: #fff;
+    box-shadow: 0 0 0 1px var(--at-border);
+    cursor: pointer;
+    padding: 0;
+
+    &.selected {
+      box-shadow: 0 0 0 2px var(--store-color, var(--at-primary));
+    }
+  }
+
+  .swatch-auto {
+    width: auto;
+    padding: 0 0.7rem;
+    border-radius: 1rem;
+    background: #f3f5fa;
+    color: #4a5266;
+    font-size: 0.78rem;
+    font-weight: 600;
+  }
+
+  .swatch-used {
+    width: 0.4rem;
+    height: 0.4rem;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.85);
+  }
+
+  .swatch-custom {
+    background: conic-gradient(#ef4444, #f59e0b, #22c55e, #06b6d4, #6366f1, #d946ef, #ef4444);
+    overflow: hidden;
+
+    input {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+    }
+
+    i {
+      pointer-events: none;
+      text-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
+    }
+  }
+}
+
+/* ---------- Day-off staffing check ---------- */
+
+.impact-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+
+  &.impact-ok {
+    background: #e2f5ea;
+    color: #146c43;
+  }
+
+  &.impact-tight {
+    background: #fff4d6;
+    color: #8a5a00;
+  }
+
+  &.impact-short {
+    background: #fde7e7;
+    color: #a12626;
+  }
+}
+
+/* ---------- Store roles (primary / secondary / floater) ---------- */
+
+.store-role {
+  display: inline-block;
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  vertical-align: 0.1em;
+
+  &.role-PRIMARY {
+    background: #1e293b;
+    color: #fff;
+  }
+
+  &.role-SECONDARY {
+    background: #eef0f3;
+    color: #4a5266;
+  }
+
+  &.role-FLOATER {
+    background: #efe7fd;
+    color: #5b21b6;
+  }
+}
+
+.store-role-toggle .btn {
+  --bs-btn-padding-y: 0.05rem;
+  --bs-btn-padding-x: 0.5rem;
+  --bs-btn-font-size: 0.72rem;
+  border: 1px solid var(--at-border);
+  color: #4a5266;
+  background: #fff;
+
+  &.active {
+    background: #1e293b;
+    border-color: #1e293b;
+    color: #fff;
   }
 }

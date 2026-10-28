@@ -100,8 +100,21 @@
                     </select>
                     @if (movingId() === e.id) { <span class="spinner-border spinner-border-sm text-primary"></span> }
                   </div>
+                  <div class="mt-1">
+                    @if (e.homeStoreId) {
+                      <div class="btn-group btn-group-sm store-role-toggle" role="group" [attr.aria-label]="'Store role for ' + e.fullName">
+                        <button type="button" class="btn" [class.active]="e.storeRole === 'PRIMARY'" [disabled]="movingId() === e.id"
+                                (click)="setPrimary(e, true)" [attr.title]="storeRoleHelp.PRIMARY">Primary</button>
+                        <button type="button" class="btn" [class.active]="e.storeRole === 'SECONDARY'" [disabled]="movingId() === e.id"
+                                (click)="setPrimary(e, false)" [attr.title]="storeRoleHelp.SECONDARY">Secondary</button>
+                      </div>
+                    } @else {
+                      <span class="store-role role-FLOATER" [attr.title]="storeRoleHelp.FLOATER">Floater</span>
+                    }
+                  </div>
                 } @else {
                   {{ e.homeStoreName || '—' }}
+                  <div><span class="store-role role-{{ e.storeRole }}" [attr.title]="storeRoleHelp[e.storeRole]">{{ storeRoleLabels[e.storeRole] }}</span></div>
                 }
               </td>
               <td class="text-center">{{ e.workDaysPerWeek }}</td>
@@ -206,6 +219,25 @@
       <div class="col-md-3">
         <label class="form-label" for="eDays">Days / week</label>
         <input id="eDays" type="number" min="1" max="7" class="form-control" formControlName="workDaysPerWeek" />
+      </div>
+      <div class="col-12">
+        @if (form.controls.homeStoreId.value != null) {
+          <span class="form-label d-block mb-1">At this store</span>
+          <div class="d-flex flex-wrap gap-3">
+            <div class="form-check">
+              <input class="form-check-input" type="radio" id="ePrimary" [value]="true" formControlName="primaryAtStore" />
+              <label class="form-check-label" for="ePrimary"><strong>Primary</strong>
+                <span class="small text-muted-2 d-block">{{ storeRoleHelp.PRIMARY }}</span></label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="radio" id="eSecondary" [value]="false" formControlName="primaryAtStore" />
+              <label class="form-check-label" for="eSecondary"><strong>Secondary</strong>
+                <span class="small text-muted-2 d-block">{{ storeRoleHelp.SECONDARY }}</span></label>
+            </div>
+          </div>
+        } @else {
+          <div class="small text-muted-2"><span class="store-role role-FLOATER me-1">Floater</span>{{ storeRoleHelp.FLOATER }}.</div>
+        }
       </div>
       <div class="col-12">
         <div class="form-check form-switch">

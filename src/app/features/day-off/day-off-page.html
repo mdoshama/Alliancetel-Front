@@ -45,6 +45,7 @@
             <th>Day off</th>
             <th>Reason</th>
             <th>Status</th>
+            @if (auth.canManage() && status() === 'PENDING') { <th>Staffing</th> }
             <th class="text-end">Actions</th>
           </tr>
         </thead>
@@ -67,6 +68,28 @@
                 }
               </td>
               <td><span class="badge status-badge status-{{ r.status }}">{{ r.status | titlecase }}</span></td>
+              @if (auth.canManage() && status() === 'PENDING') {
+                <td style="max-width: 280px">
+                  @if (impacts().get(r.id); as im) {
+                    <span class="impact-badge {{ impactBadge[im.level].css }}">
+                      <i class="bi {{ impactBadge[im.level].icon }} me-1"></i>{{ impactBadge[im.level].label }}
+                    </span>
+                    <div class="small text-muted-2 mt-1">{{ im.summary }}</div>
+                    @if (im.alreadyOff.length || im.alsoRequested.length) {
+                      <div class="small text-muted-2">
+                        <i class="bi bi-people me-1"></i>
+                        @if (im.alreadyOff.length) { {{ im.alreadyOff.length }} already off }
+                        @if (im.alreadyOff.length && im.alsoRequested.length) { · }
+                        @if (im.alsoRequested.length) { {{ im.alsoRequested.length }} more asked }
+                      </div>
+                    }
+                  } @else if (canReview(r)) {
+                    <span class="small text-muted-2"><span class="spinner-border spinner-border-sm me-1"></span>Checking…</span>
+                  } @else {
+                    <span class="small text-muted-2">—</span>
+                  }
+                </td>
+              }
               <td class="text-end text-nowrap">
                 @if (r.status === 'PENDING' && canReview(r)) {
                   <button type="button" class="btn btn-sm btn-success me-1" [disabled]="busyId() === r.id" (click)="approve(r)">

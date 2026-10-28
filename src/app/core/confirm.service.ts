@@ -1,6 +1,7 @@
 import { Injectable, signal } from '@angular/core';
 
-export type ConfirmTone = 'primary' | 'danger' | 'warning';
+/** 'success' is for a safe go-ahead: green button, notes shown as plain information rather than warnings. */
+export type ConfirmTone = 'primary' | 'danger' | 'warning' | 'success';
 
 export interface ConfirmOptions {
   title: string;

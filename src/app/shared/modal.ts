@@ -6,7 +6,7 @@ import { Component, input, output } from '@angular/core';
   template: `
     @if (open()) {
       <div class="modal d-block" tabindex="-1" role="dialog" aria-modal="true" (keydown.escape)="closed.emit()"
-           (click)="$event.target === $event.currentTarget && closed.emit()">
+           (click)="onBackdropClick($event)">
         <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" [class]="'modal-' + size()">
           <div class="modal-content shadow">
             <div class="modal-header">
@@ -31,4 +31,11 @@ export class Modal {
   readonly title = input('');
   readonly size = input<'sm' | 'md' | 'lg' | 'xl'>('md');
   readonly closed = output<void>();
+
+  /** Closes when the dimmed area around the dialog is clicked. Returns nothing so clicks inside keep working. */
+  protected onBackdropClick(event: MouseEvent): void {
+    if (event.target === event.currentTarget) {
+      this.closed.emit();
+    }
+  }
 }

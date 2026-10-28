@@ -2,7 +2,17 @@ import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { ApiService } from '../../core/api.service';
-import { Area, Store } from '../../core/models';
+import { Area, DayHours, Store } from '../../core/models';
+import { STORE_PALETTE } from '../../core/store-colors';
+import {
+  DAY_SHORT,
+  DEFAULT_CLOSES,
+  DEFAULT_OPENS,
+  WEEK_DAYS,
+  hhmm,
+  hoursError,
+  summarizeWeek,
+} from '../../core/store-hours';
 import { ConfirmService } from '../../core/confirm.service';
 import { ToastService } from '../../core/toast.service';
 import { Modal } from '../../shared/modal';
@@ -32,6 +42,29 @@ export class StoresPage implements OnInit {
   protected readonly modalOpen = signal(false);
   protected readonly editing = signal<Store | null>(null);
   protected areaFilter: number | null = null;
+
+  protected readonly dayShort = DAY_SHORT;
+  protected readonly summarizeWeek = summarizeWeek;
+  protected readonly hoursError = hoursError;
+  /** The seven days being edited in the form, Monday first. */
+  protected hoursRows: DayHours[] = defaultWeek();
+  protected hoursTouched = false;
+  protected readonly palette = STORE_PALETTE;
+  /** Color being edited; null on a new store means "pick one automatically". */
+  protected color: string | null = null;
+
+  /** Colors already used by other stores in the area being edited. */
+  protected usedColors(): Map<string, string> {
+    const areaId = this.form.controls.areaId.value;
+    const current = this.editing()?.id;
+    const used = new Map<string, string>();
+    for (const s of this.stores()) {
+      if (s.areaId === areaId && s.id !== current) {
+        used.set(s.color.toUpperCase(), s.name);
+      }
+    }
+    return used;
+  }
 
   /** Stores grouped under their area, in area order. */
   protected readonly groups = computed<AreaGroup[]>(() => {
@@ -73,6 +106,9 @@ export class StoresPage implements OnInit {
   protected openCreate(areaId: number | null = this.areaFilter): void {
     this.editing.set(null);
     this.form.reset({ areaId, name: '', code: '', address: '', minStaffPerDay: 1, active: true });
+    this.hoursRows = defaultWeek();
+    this.hoursTouched = false;
+    this.color = null;
     this.modalOpen.set(true);
   }
 
@@ -86,12 +122,21 @@ export class StoresPage implements OnInit {
       minStaffPerDay: store.minStaffPerDay,
       active: store.active,
     });
+    this.hoursRows = WEEK_DAYS.map((day) => {
+      const h = store.hours?.find((x) => x.day === day);
+      return h
+        ? { day, opensAt: hhmm(h.opensAt) || DEFAULT_OPENS, closesAt: hhmm(h.closesAt) || DEFAULT_CLOSES, closed: h.closed }
+        : { day, opensAt: DEFAULT_OPENS, closesAt: DEFAULT_CLOSES, closed: false };
+    });
+    this.hoursTouched = false;
+    this.color = store.color?.toUpperCase() ?? null;
     this.modalOpen.set(true);
   }
 
   protected save(): void {
     const v = this.form.getRawValue();
-    if (this.form.invalid || v.areaId == null) {
+    this.hoursTouched = true;
+    if (this.form.invalid || v.areaId == null || this.hoursRows.some((h) => hoursError(h))) {
       this.form.markAllAsTouched();
       return;
     }
@@ -102,6 +147,13 @@ export class StoresPage implements OnInit {
       address: v.address.trim() || null,
       minStaffPerDay: Number(v.minStaffPerDay),
       active: v.active,
+      hours: this.hoursRows.map((h) => ({
+        day: h.day,
+        opensAt: h.closed ? null : h.opensAt,
+        closesAt: h.closed ? null : h.closesAt,
+        closed: h.closed,
+      })),
+      ...(this.color ? { color: this.color } : {}),
     };
     const current = this.editing();
     const request = current ? this.api.updateStore(current.id, body) : this.api.createStore(body);
@@ -115,6 +167,11 @@ export class StoresPage implements OnInit {
       },
       error: () => this.saving.set(false),
     });
+  }
+
+  /** Copies one day's hours to every day of the week. */
+  protected copyToAll(from: DayHours): void {
+    this.hoursRows = this.hoursRows.map((h) => ({ ...h, opensAt: from.opensAt, closesAt: from.closesAt, closed: from.closed }));
   }
 
   protected async remove(store: Store): Promise<void> {
@@ -134,4 +191,8 @@ export class StoresPage implements OnInit {
       this.load();
     });
   }
+}
+
+function defaultWeek(): DayHours[] {
+  return WEEK_DAYS.map((day) => ({ day, opensAt: DEFAULT_OPENS, closesAt: DEFAULT_CLOSES, closed: false }));
 }

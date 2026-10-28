@@ -101,9 +101,16 @@
           @for (cell of me.days; track cell.entryId) {
             <div class="text-center">
               <div class="small text-muted-2 mb-1">{{ format(cell.date, { weekday: 'short' }) }}</div>
-              <span class="day-chip type-{{ cell.type }}" [attr.title]="describe(cell)">
-                {{ dayTypeLabels[cell.type] }}
-                @if (cell.type === 'WORK') { <span class="chip-store">{{ cell.storeLabel ?? 'No store' }}</span> }
+              <span class="day-chip type-{{ cell.type }}" [attr.title]="describe(cell)"
+                    [class.has-store]="cell.type === 'WORK' && !!cell.storeId"
+                    [class.no-store]="cell.type === 'WORK' && !cell.storeId"
+                    [style.--store-color]="cell.type === 'WORK' ? cell.storeColor : null">
+                @if (cell.type === 'WORK') {
+                  <span class="chip-name">{{ cell.storeName ?? 'Work · no store' }}</span>
+                  @if (cell.opensAt) { <span class="chip-hours">{{ shiftHours(cell) }}</span> }
+                } @else {
+                  {{ dayTypeLabels[cell.type] }}
+                }
               </span>
             </div>
           }
@@ -213,11 +220,13 @@
         </select>
       }
       <div class="legend ms-auto">
-        @for (t of dayTypes; track t) {
-          <span><span class="day-chip type-{{ t }}">{{ dayTypeLabels[t] }}</span></span>
+        @for (st of s.stores; track st.id) {
+          <span class="legend-store" [style.--store-color]="st.color"><span class="store-dot"></span>{{ st.name }}</span>
         }
+        <span><span class="day-chip type-OFF">{{ dayTypeLabels['OFF'] }}</span></span>
+        <span><span class="day-chip type-REQUESTED_OFF">{{ dayTypeLabels['REQUESTED_OFF'] }}</span></span>
         @if (auth.canManage()) {
-          <span class="d-flex align-items-center gap-1"><span class="day-chip type-WORK auto-moved px-2"><i class="bi bi-arrow-left-right"></i></span> auto-moved</span>
+          <span class="d-flex align-items-center gap-1"><span class="day-chip type-WORK has-store auto-moved px-2" style="--store-color: #475569"><i class="bi bi-arrow-left-right"></i></span> auto-moved</span>
           <span class="d-flex align-items-center gap-1"><span class="day-chip type-OFF px-2"><span class="edited-dot"></span>&nbsp;</span> edited</span>
         }
       </div>
@@ -250,19 +259,27 @@
                 <div class="small text-muted-2">
                   {{ row.employeeCode }}
                   @if (row.role === 'MANAGER') { · <span class="text-primary">{{ roleLabels[row.role] }}</span> }
-                  @if (row.homeStoreName) { · <i class="bi bi-shop"></i> {{ row.homeStoreName }} }
+                  · <span class="store-role role-{{ row.storeRole }}" [attr.title]="storeRoleHelp[row.storeRole]">{{ storeRoleLabels[row.storeRole] }}</span>
+                  @if (row.homeStoreName) { <i class="bi bi-shop"></i> {{ row.homeStoreName }} }
                 </div>
               </td>
               @for (cell of row.days; track cell.entryId; let i = $index) {
                 <td [class.dimmed]="dimmed(cell)">
                   <button type="button" class="day-chip type-{{ cell.type }}" [class.editable]="canEdit()"
                           [class.no-store]="cell.type === 'WORK' && !cell.storeId"
+                          [class.has-store]="cell.type === 'WORK' && !!cell.storeId"
+                          [style.--store-color]="cell.type === 'WORK' ? cell.storeColor : null"
                           [class.auto-moved]="cell.autoAssigned"
+                          [class.store-closed]="cell.type === 'WORK' && cell.storeClosed"
                           [disabled]="!canEdit() || working()" (click)="openCell(row, i)"
                           [attr.title]="describe(cell) + (canEdit() ? ' · click to change or swap' : '')">
                     @if (cell.type === 'WORK') {
-                      Work
-                      <span class="chip-store">@if (cell.autoAssigned) {<i class="bi bi-arrow-left-right me-1"></i>}{{ cell.storeLabel ?? 'No store' }}</span>
+                      <span class="chip-name">@if (cell.autoAssigned) {<i class="bi bi-arrow-left-right me-1"></i>}{{ cell.storeName ?? 'Work · no store' }}</span>
+                      @if (cell.storeClosed) {
+                        <span class="chip-hours">Store closed</span>
+                      } @else if (cell.opensAt) {
+                        <span class="chip-hours">{{ shiftHours(cell) }}</span>
+                      }
                     } @else {
                       {{ dayTypeLabels[cell.type] }}
                     }
@@ -292,17 +309,25 @@
               <tr class="store-row" [class.text-warning-emphasis]="c.storeId === null">
                 <td>
                   @if (c.storeId) {
-                    <i class="bi bi-shop me-1"></i>{{ c.storeName }}
+                    <span class="store-dot me-1" [style.--store-color]="c.color"></span>{{ c.storeName }}
                     @if (c.minStaffPerDay > 0) { <span class="text-muted-2 small">· min {{ c.minStaffPerDay }}</span> }
                   } @else {
                     <i class="bi bi-exclamation-triangle me-1"></i>{{ c.storeName }}
                   }
                 </td>
-                @for (n of c.dailyHeadCount; track $index) {
-                  <td [class.below-min]="isShort(c.storeId, c.minStaffPerDay, n)"
-                      [attr.title]="isShort(c.storeId, c.minStaffPerDay, n) ? (c.minStaffPerDay - n) + ' more needed' : null">
-                    {{ n }}@if (c.minStaffPerDay > 0) {<span class="min-of">/{{ c.minStaffPerDay }}</span>}
-                  </td>
+                @for (n of c.dailyHeadCount; track $index; let i = $index) {
+                  @if (c.storeId && c.dailyHours[i]?.closed) {
+                    <td class="store-closed-day" [class.has-staff]="n > 0"
+                        [attr.title]="n > 0 ? 'The store is closed but ' + n + ' scheduled here' : 'Store closed'">
+                      {{ n > 0 ? n : '' }}<span class="day-hours">Closed</span>
+                    </td>
+                  } @else {
+                    <td [class.below-min]="isShort(c.storeId, c.minStaffPerDay, n)"
+                        [attr.title]="isShort(c.storeId, c.minStaffPerDay, n) ? (c.minStaffPerDay - n) + ' more needed' : null">
+                      {{ n }}@if (c.minStaffPerDay > 0) {<span class="min-of">/{{ c.minStaffPerDay }}</span>}
+                      @if (c.storeId && c.dailyHours[i]) { <span class="day-hours">{{ hoursLabel(c.dailyHours[i]) }}</span> }
+                    </td>
+                  }
                 }
                 <td></td>
               </tr>
@@ -338,15 +363,21 @@
             }
           </div>
           @if (editType === 'WORK') {
-            <label class="form-label small" for="editStore">Store</label>
-            <select id="editStore" class="form-select mb-3" [(ngModel)]="editStoreId">
-              <option [ngValue]="null">No store</option>
+            <label class="form-label small" for="editStore">Store <span class="text-danger">*</span></label>
+            <select id="editStore" class="form-select" [class.mb-3]="!storeMissing()" [(ngModel)]="editStoreId"
+                    [class.is-invalid]="storeMissing()" aria-required="true">
+              <option [ngValue]="null" disabled>Select a store…</option>
               @for (st of schedule()?.stores ?? []; track st.id) {
-                <option [ngValue]="st.id">{{ st.name }} ({{ st.label }}) — {{ storeCount(st.id, e.dayIndex) }} that day</option>
+                <option [ngValue]="st.id" [disabled]="storeClosedOn(st, e.dayIndex)">
+                  {{ st.name }} ({{ st.label }}) — {{ storeOptionNote(st, e.dayIndex) }}
+                </option>
               }
             </select>
+            @if (storeMissing()) {
+              <div class="invalid-feedback d-block mb-3">Pick the store they work at that day.</div>
+            }
           }
-          <button type="button" class="btn btn-primary w-100" [disabled]="working()" (click)="saveDay()">Save day</button>
+          <button type="button" class="btn btn-primary w-100" [disabled]="working() || storeMissing()" (click)="saveDay()">Save day</button>
         </div>
       </div>
 
@@ -362,7 +393,9 @@
                   <span class="fw-semibold d-block small">{{ c.row.employeeName }}</span>
                   <span class="text-muted-2" style="font-size: 0.75rem">{{ describe(c.cell) }}</span>
                 </span>
-                <span class="day-chip type-{{ c.cell.type }}" [class.no-store]="c.cell.type === 'WORK' && !c.cell.storeId">
+                <span class="day-chip type-{{ c.cell.type }}" [class.no-store]="c.cell.type === 'WORK' && !c.cell.storeId"
+                      [class.has-store]="c.cell.type === 'WORK' && !!c.cell.storeId"
+                      [style.--store-color]="c.cell.type === 'WORK' ? c.cell.storeColor : null">
                   {{ chipLabel(c.cell) }}
                 </span>
               </button>
@@ -393,6 +426,7 @@
               <h6 class="fw-semibold mb-1"><i class="bi bi-calendar-week me-1 text-primary"></i>Whole week</h6>
               <label class="small text-muted-2" for="weekStore">Send {{ e.row.employeeName }} to this store on all {{ e.row.scheduledWorkDays }} work days</label>
               <select id="weekStore" class="form-select mt-1" [(ngModel)]="weekStoreId">
+                <option [ngValue]="null" disabled>Select a store…</option>
                 @for (st of schedule()?.stores ?? []; track st.id) {
                   <option [ngValue]="st.id">{{ st.name }} ({{ st.label }})</option>
                 }

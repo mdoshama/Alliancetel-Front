@@ -1,7 +1,16 @@
 # Serves the Angular app and forwards /api to the Spring Boot backend.
-# ${BACKEND_URL} is filled in from the container environment when nginx starts.
+# Values in ${...} are filled in from the container environment when nginx starts:
+#   PORT                   port to listen on (Railway sets this; 80 by default)
+#   BACKEND_URL            where the API runs, e.g. http://backend.railway.internal:8080
+#   NGINX_LOCAL_RESOLVERS  this container's DNS server(s), detected automatically
+# Use the scheme Railway's edge saw (https) when present, otherwise our own.
+map $http_x_forwarded_proto $forwarded_proto {
+    default $http_x_forwarded_proto;
+    ""      $scheme;
+}
+
 server {
-    listen 80;
+    listen ${PORT};
     server_name _;
     server_tokens off;
 
@@ -13,6 +22,11 @@ server {
     gzip_min_length 1024;
     gzip_types text/css application/javascript application/json image/svg+xml;
 
+    # Look the backend's address up again every 10 seconds. On Railway (and in Docker) a redeployed service gets a
+    # new internal IP; without this nginx would keep using the old one and every API call would fail.
+    resolver ${NGINX_LOCAL_RESOLVERS} valid=10s;
+    resolver_timeout 5s;
+
     location = /healthz {
         access_log off;
         default_type text/plain;
@@ -20,22 +34,27 @@ server {
     }
 
     location /api/ {
-        proxy_pass ${BACKEND_URL};
+        # A variable makes nginx resolve the name per request (through the resolver above) instead of once at startup.
+        set $backend "${BACKEND_URL}";
+        proxy_pass $backend;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
-        # Keeps the real visitor address (used to slow down password guessing) when a load balancer sits in front.
+        # Keeps the real visitor address (used to slow down password guessing) behind Railway's edge proxy.
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Proto $forwarded_proto;
+        proxy_connect_timeout 10s;
         proxy_read_timeout 60s;
+        # The API sets its own security headers; replace them so each appears only once.
+        proxy_hide_header X-Frame-Options;
+        proxy_hide_header X-Content-Type-Options;
         include /etc/nginx/snippets/security-headers.conf;
     }
 
     # Build output has content hashes in file names, so it can be cached for a long time.
     location ~* \.(?:js|css|woff2?|ttf|eot|svg|png|jpe?g|gif|ico)$ {
         try_files $uri =404;
-        expires 1y;
-        add_header Cache-Control "public, immutable";
+        add_header Cache-Control "public, max-age=31536000, immutable";
         include /etc/nginx/snippets/security-headers.conf;
     }
 

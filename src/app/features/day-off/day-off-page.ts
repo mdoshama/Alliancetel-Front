@@ -5,7 +5,8 @@ import { RouterLink } from '@angular/router';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { addDays, formatDay, formatWeekRange, today, weekDates, weekStartOf } from '../../core/date-utils';
-import { Area, DayOffRequest, DayOffStatus, Employee } from '../../core/models';
+import { Area, DayOffImpact, DayOffRequest, DayOffStatus, Employee } from '../../core/models';
+import { IMPACT_BADGE, approvalCard } from '../../core/day-off-impact';
 import { ConfirmService } from '../../core/confirm.service';
 import { ToastService } from '../../core/toast.service';
 import { Modal } from '../../shared/modal';
@@ -35,6 +36,9 @@ export class DayOffPage implements OnInit {
   protected readonly requests = signal<DayOffRequest[]>([]);
   protected readonly loading = signal(true);
   protected readonly busyId = signal<number | null>(null);
+  /** Staffing check for each pending request the user can review, by request id. */
+  protected readonly impacts = signal<Map<number, DayOffImpact>>(new Map());
+  protected readonly impactBadge = IMPACT_BADGE;
 
   protected readonly status = signal<StatusTab>('PENDING');
   protected areaFilter: number | null = null;
@@ -81,17 +85,55 @@ export class DayOffPage implements OnInit {
         next: (list) => {
           this.requests.set(list);
           this.loading.set(false);
+          this.loadImpacts(list);
         },
         error: () => this.loading.set(false),
       });
   }
 
-  protected approve(r: DayOffRequest): void {
+  /** Checks staffing for every pending request the user may approve, so problems show before deciding. */
+  private loadImpacts(list: DayOffRequest[]): void {
+    this.impacts.set(new Map());
+    for (const r of list) {
+      if (r.status === 'PENDING' && this.canReview(r)) {
+        this.api.dayOffImpact(r.id).subscribe({
+          next: (impact) => this.impacts.update((m) => new Map(m).set(r.id, impact)),
+          error: () => undefined,
+        });
+      }
+    }
+  }
+
+  protected async approve(r: DayOffRequest): Promise<void> {
+    const when = formatDay(r.date, { weekday: 'long', month: 'short', day: 'numeric' });
+    this.busyId.set(r.id);
+    let impact = this.impacts().get(r.id);
+    if (!impact) {
+      impact = await new Promise<DayOffImpact | undefined>((resolve) =>
+        this.api.dayOffImpact(r.id).subscribe({ next: resolve, error: () => resolve(undefined) }),
+      );
+    }
+    this.busyId.set(null);
+    const card = impact ? approvalCard(impact) : null;
+    const ok = await this.confirm.ask({
+      title: `Approve ${r.employeeName.split(' ')[0]}'s day off?`,
+      message: impact ? impact.summary : `${r.employeeName} asked for ${when} off.`,
+      icon: impact?.level === 'SHORT' ? 'bi-exclamation-triangle' : 'bi-calendar-check',
+      tone: card?.tone ?? 'primary',
+      notes: card?.notes,
+      confirmText: card?.confirmText ?? 'Approve',
+    });
+    if (!ok) {
+      return;
+    }
     this.busyId.set(r.id);
     this.api.approveDayOff(r.id).subscribe({
-      next: () => {
+      next: (saved) => {
         this.busyId.set(null);
         this.toast.success(`Approved ${r.employeeName} — ${formatDay(r.date, { weekday: 'short', month: 'short', day: 'numeric' })}.`);
+        if (saved.scheduleUpdate) {
+          this.toast.info(saved.scheduleUpdate);
+        }
         this.load();
       },
       error: () => this.busyId.set(null),
