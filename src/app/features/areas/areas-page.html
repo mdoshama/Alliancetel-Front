@@ -1,0 +1,85 @@
+<div class="page-toolbar">
+  <div>
+    <p class="text-muted-2 mb-0">Regions your stores are grouped into. Each employee belongs to one area.</p>
+  </div>
+  <button type="button" class="btn btn-primary ms-auto" (click)="openCreate()">
+    <i class="bi bi-plus-lg me-1"></i> Add area
+  </button>
+</div>
+
+<div class="card">
+  @if (loading()) {
+    <div class="empty-state"><div class="spinner-border text-primary"></div></div>
+  } @else if (areas().length === 0) {
+    <div class="empty-state">
+      <i class="bi bi-geo-alt"></i>
+      No areas yet. Add San Diego, Los Angeles, San Francisco and so on to get started.
+    </div>
+  } @else {
+    <div class="table-responsive">
+      <table class="table table-hover">
+        <thead>
+          <tr>
+            <th>Area</th>
+            <th>Description</th>
+            <th class="text-center">Active staff</th>
+            <th>Status</th>
+            <th class="text-end">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (area of areas(); track area.id) {
+            <tr>
+              <td class="fw-semibold"><i class="bi bi-geo-alt text-primary me-2"></i>{{ area.name }}</td>
+              <td class="text-muted-2">{{ area.description || '—' }}</td>
+              <td class="text-center">
+                <a [routerLink]="['/employees']" [queryParams]="{ area: area.id }">{{ area.employeeCount }}</a>
+              </td>
+              <td>
+                <span class="badge" [class]="area.active ? 'text-bg-success' : 'text-bg-secondary'">
+                  {{ area.active ? 'Active' : 'Inactive' }}
+                </span>
+              </td>
+              <td class="text-end text-nowrap">
+                <a class="btn btn-sm btn-outline-secondary me-1" [routerLink]="['/schedules']" [queryParams]="{ area: area.id }"
+                   title="Open schedule"><i class="bi bi-calendar3-week"></i></a>
+                <button type="button" class="btn btn-sm btn-outline-primary me-1" (click)="openEdit(area)" title="Edit">
+                  <i class="bi bi-pencil"></i>
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-danger" (click)="remove(area)" title="Delete">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</div>
+
+<app-modal [open]="modalOpen()" [title]="editing() ? 'Edit area' : 'Add area'" (closed)="modalOpen.set(false)">
+  <form [formGroup]="form" (ngSubmit)="save()" id="areaForm">
+    <div class="mb-3">
+      <label class="form-label" for="areaName">Name</label>
+      <input id="areaName" class="form-control" formControlName="name" placeholder="e.g. San Diego"
+             [class.is-invalid]="form.controls.name.touched && form.controls.name.invalid" />
+      <div class="invalid-feedback">Name is required.</div>
+    </div>
+    <div class="mb-3">
+      <label class="form-label" for="areaDescription">Description</label>
+      <textarea id="areaDescription" class="form-control" rows="2" formControlName="description"></textarea>
+    </div>
+    <div class="form-check form-switch">
+      <input class="form-check-input" type="checkbox" id="areaActive" formControlName="active" />
+      <label class="form-check-label" for="areaActive">Active</label>
+    </div>
+  </form>
+  <ng-container modal-footer>
+    <button type="button" class="btn btn-light" (click)="modalOpen.set(false)">Cancel</button>
+    <button type="submit" form="areaForm" class="btn btn-primary" [disabled]="saving()">
+      @if (saving()) { <span class="spinner-border spinner-border-sm me-1"></span> }
+      Save
+    </button>
+  </ng-container>
+</app-modal>

@@ -1,0 +1,165 @@
+<div class="page-toolbar">
+  <ul class="nav nav-pills me-2">
+    @for (t of tabs; track t.value) {
+      <li class="nav-item">
+        <button type="button" class="nav-link" [class.active]="status() === t.value" (click)="setTab(t.value)">{{ t.label }}</button>
+      </li>
+    }
+  </ul>
+  @if (auth.isAdmin()) {
+    <div style="min-width: 170px">
+      <label class="form-label small text-muted-2 mb-1" for="dArea">Area</label>
+      <select id="dArea" class="form-select" [(ngModel)]="areaFilter" (ngModelChange)="load()">
+        <option [ngValue]="null">All areas</option>
+        @for (a of areas(); track a.id) {
+          <option [ngValue]="a.id">{{ a.name }}</option>
+        }
+      </select>
+    </div>
+  }
+  <div>
+    <label class="form-label small text-muted-2 mb-1" for="dFrom">From</label>
+    <input id="dFrom" type="date" class="form-control" [(ngModel)]="fromFilter" (ngModelChange)="load()" />
+  </div>
+  <div>
+    <label class="form-label small text-muted-2 mb-1" for="dTo">To</label>
+    <input id="dTo" type="date" class="form-control" [(ngModel)]="toFilter" (ngModelChange)="load()" />
+  </div>
+  <button type="button" class="btn btn-primary ms-auto" (click)="openCreate()">
+    <i class="bi bi-calendar-plus me-1"></i> {{ auth.isEmployee() ? 'Request days off' : 'New request' }}
+  </button>
+</div>
+
+<div class="card">
+  @if (loading()) {
+    <div class="empty-state"><div class="spinner-border text-primary"></div></div>
+  } @else if (requests().length === 0) {
+    <div class="empty-state"><i class="bi bi-calendar-check"></i>No requests to show.</div>
+  } @else {
+    <div class="table-responsive">
+      <table class="table table-hover">
+        <thead>
+          <tr>
+            <th>Employee</th>
+            <th>Area</th>
+            <th>Day off</th>
+            <th>Reason</th>
+            <th>Status</th>
+            <th class="text-end">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (r of requests(); track r.id) {
+            <tr>
+              <td>
+                <div class="fw-semibold">{{ r.employeeName }}</div>
+                <div class="small text-muted-2">{{ r.employeeCode }}</div>
+              </td>
+              <td>{{ r.areaName }}</td>
+              <td>
+                <div class="fw-semibold">{{ format(r.date, { weekday: 'long' }) }}</div>
+                <div class="small text-muted-2">{{ format(r.date, { month: 'short', day: 'numeric', year: 'numeric' }) }}</div>
+              </td>
+              <td class="text-muted-2">
+                {{ r.reason || '—' }}
+                @if (r.reviewNote) {
+                  <div class="small fst-italic">Manager: {{ r.reviewNote }}</div>
+                }
+              </td>
+              <td><span class="badge status-badge status-{{ r.status }}">{{ r.status | titlecase }}</span></td>
+              <td class="text-end text-nowrap">
+                @if (r.status === 'PENDING' && canReview(r)) {
+                  <button type="button" class="btn btn-sm btn-success me-1" [disabled]="busyId() === r.id" (click)="approve(r)">
+                    <i class="bi bi-check-lg"></i> Approve
+                  </button>
+                  <button type="button" class="btn btn-sm btn-outline-danger me-1" [disabled]="busyId() === r.id" (click)="reject(r)">
+                    <i class="bi bi-x-lg"></i> Reject
+                  </button>
+                }
+                @if (r.status === 'PENDING' && !canReview(r)) {
+                  <span class="small text-muted-2 me-2">
+                    {{ auth.isManager() && r.employeeId === auth.user()?.id ? 'Awaiting admin' : 'Awaiting manager' }}
+                  </span>
+                }
+                @if (canWithdraw(r)) {
+                  <button type="button" class="btn btn-sm btn-link text-muted-2" (click)="cancel(r)" title="Withdraw request">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                } @else if (r.areaId && r.status === 'APPROVED') {
+                  <a class="btn btn-sm btn-outline-secondary" [routerLink]="['/schedules']"
+                     [queryParams]="{ area: r.areaId, week: weekOf(r.date) }">
+                    <i class="bi bi-calendar3-week me-1"></i> Schedule
+                  </a>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</div>
+
+<app-modal [open]="modalOpen()" [title]="auth.isEmployee() ? 'Request days off' : 'New day-off request'" (closed)="modalOpen.set(false)">
+  @if (auth.isAdmin()) {
+    <div class="mb-3">
+      <label class="form-label" for="nArea">Area</label>
+      <select id="nArea" class="form-select" [ngModel]="formArea()" (ngModelChange)="onFormAreaChange($event)">
+        <option [ngValue]="null">Select area…</option>
+        @for (a of areas(); track a.id) {
+          <option [ngValue]="a.id">{{ a.name }}</option>
+        }
+      </select>
+    </div>
+  }
+  @if (auth.isEmployee()) {
+    <div class="alert alert-light border small py-2 mb-3">
+      <i class="bi bi-person me-1"></i> Requesting for <strong>{{ auth.user()?.fullName }}</strong>. Your manager will approve or reject it.
+    </div>
+  }
+  <div class="mb-3" [class.d-none]="auth.isEmployee()">
+    <label class="form-label" for="nEmployee">Employee</label>
+    <select id="nEmployee" class="form-select" [ngModel]="formEmployeeId()" (ngModelChange)="formEmployeeId.set($event)"
+            [disabled]="formArea() == null">
+      <option [ngValue]="null">Select employee…</option>
+      @for (e of formEmployees(); track e.id) {
+        <option [ngValue]="e.id">{{ e.fullName }} ({{ e.employeeCode }})</option>
+      }
+    </select>
+  </div>
+  <div class="mb-2 d-flex align-items-center justify-content-between">
+    <span class="form-label mb-0">Week</span>
+    <div class="week-nav">
+      <button type="button" class="btn btn-sm btn-light border" (click)="shiftFormWeek(-1)" aria-label="Previous week">
+        <i class="bi bi-chevron-left"></i>
+      </button>
+      <span class="week-label small">{{ formWeekLabel() }}</span>
+      <button type="button" class="btn btn-sm btn-light border" (click)="shiftFormWeek(1)" aria-label="Next week">
+        <i class="bi bi-chevron-right"></i>
+      </button>
+    </div>
+  </div>
+  <div class="day-toggle-group mb-2">
+    @for (d of formWeekDates(); track d) {
+      <button type="button" class="btn"
+              [class]="formDays().has(d) ? 'btn btn-warning' : 'btn btn-outline-secondary'"
+              [disabled]="d < todayIso || (!formDays().has(d) && formDays().size >= maxDaysPerWeek)"
+              (click)="toggleDay(d)">
+        {{ format(d, { weekday: 'short' }) }}
+        <small>{{ format(d, { month: 'numeric', day: 'numeric' }) }}</small>
+      </button>
+    }
+  </div>
+  <p class="small text-muted-2 mb-3">Pick up to {{ maxDaysPerWeek }} days in one week. Approved days become the employee's days off.</p>
+  <div>
+    <label class="form-label" for="nReason">Reason <span class="text-muted-2 small">(optional)</span></label>
+    <input id="nReason" class="form-control" maxlength="255" [(ngModel)]="formReason" />
+  </div>
+  <ng-container modal-footer>
+    <button type="button" class="btn btn-light" (click)="modalOpen.set(false)">Cancel</button>
+    <button type="button" class="btn btn-primary" [disabled]="saving() || !formEmployeeId() || formDays().size === 0" (click)="submit()">
+      @if (saving()) { <span class="spinner-border spinner-border-sm me-1"></span> }
+      Submit request
+    </button>
+  </ng-container>
+</app-modal>

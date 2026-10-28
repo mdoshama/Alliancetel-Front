@@ -1,0 +1,248 @@
+<div class="page-toolbar">
+  <div style="min-width: 180px" [class.d-none]="!auth.isAdmin()">
+    <label class="form-label small text-muted-2 mb-1" for="fArea">Area</label>
+    <select id="fArea" class="form-select" [(ngModel)]="areaFilter" (ngModelChange)="onAreaFilterChange()">
+      <option [ngValue]="null">All areas</option>
+      @for (a of areas(); track a.id) {
+        <option [ngValue]="a.id">{{ a.name }}</option>
+      }
+    </select>
+  </div>
+  <div style="min-width: 170px">
+    <label class="form-label small text-muted-2 mb-1" for="fStore">Store</label>
+    <select id="fStore" class="form-select" [ngModel]="storeFilter()" (ngModelChange)="storeFilter.set($event)">
+      <option [ngValue]="null">All stores</option>
+      @for (s of filterStores(); track s.id) {
+        <option [ngValue]="s.id">{{ s.name }}@if (auth.isAdmin() && areaFilter == null) { ({{ s.areaName }}) }</option>
+      }
+    </select>
+  </div>
+  <div style="min-width: 150px">
+    <label class="form-label small text-muted-2 mb-1" for="fRole">Role</label>
+    <select id="fRole" class="form-select" [(ngModel)]="roleFilter" (ngModelChange)="load()">
+      <option [ngValue]="null">All roles</option>
+      @for (r of roles; track r) {
+        <option [ngValue]="r">{{ roleLabels[r] }}</option>
+      }
+    </select>
+  </div>
+  <div style="min-width: 140px">
+    <label class="form-label small text-muted-2 mb-1" for="fStatus">Status</label>
+    <select id="fStatus" class="form-select" [(ngModel)]="statusFilter" (ngModelChange)="load()">
+      <option value="active">Active</option>
+      <option value="inactive">Inactive</option>
+      <option value="all">All</option>
+    </select>
+  </div>
+  <div class="flex-grow-1" style="min-width: 200px; max-width: 320px">
+    <label class="form-label small text-muted-2 mb-1" for="fSearch">Search</label>
+    <div class="input-group">
+      <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+      <input id="fSearch" class="form-control" placeholder="Name, email or code" [(ngModel)]="search" (ngModelChange)="onSearch()" />
+    </div>
+  </div>
+  @if (auth.isAdmin()) {
+    <button type="button" class="btn btn-primary ms-auto" (click)="openCreate()">
+      <i class="bi bi-person-plus me-1"></i> Add employee
+    </button>
+  }
+</div>
+
+<div class="card">
+  <div class="card-header d-flex align-items-center">
+    <span class="fw-semibold">{{ counts().total }} people</span>
+    <span class="text-muted-2 ms-2 small">· {{ counts().managers }} managers</span>
+  </div>
+  @if (loading()) {
+    <div class="empty-state"><div class="spinner-border text-primary"></div></div>
+  } @else if (visible().length === 0) {
+    <div class="empty-state"><i class="bi bi-people"></i>No employees match these filters.</div>
+  } @else {
+    <div class="table-responsive">
+      <table class="table table-hover">
+        <thead>
+          <tr>
+            <th>Employee</th>
+            <th>Contact</th>
+            <th>Role</th>
+            <th>Area</th>
+            <th style="min-width: 170px">Home store</th>
+            <th class="text-center">Days / week</th>
+            <th>Status</th>
+            @if (auth.isAdmin()) {
+              <th>Sign-in</th>
+              <th class="text-end">Actions</th>
+            }
+          </tr>
+        </thead>
+        <tbody>
+          @for (e of visible(); track e.id) {
+            <tr [class.opacity-50]="!e.active">
+              <td>
+                <div class="fw-semibold">{{ e.fullName }}</div>
+                <div class="small text-muted-2">{{ e.employeeCode }}</div>
+              </td>
+              <td>
+                <div class="small">{{ e.email }}</div>
+                <div class="small text-muted-2">{{ e.phone || '' }}</div>
+              </td>
+              <td><span class="badge role-badge role-{{ e.role }}">{{ roleLabels[e.role] }}</span></td>
+              <td>{{ e.areaName || '—' }}</td>
+              <td>
+                @if (e.areaId && e.active && auth.canManage()) {
+                  <div class="d-flex align-items-center gap-2">
+                    <select class="form-select form-select-sm" [attr.aria-label]="'Home store for ' + e.fullName"
+                            [ngModel]="e.homeStoreId" (ngModelChange)="moveToStore(e, $event)" [disabled]="movingId() === e.id">
+                      <option [ngValue]="null">No store</option>
+                      @for (s of storesIn(e.areaId); track s.id) {
+                        <option [ngValue]="s.id">{{ s.name }}</option>
+                      }
+                    </select>
+                    @if (movingId() === e.id) { <span class="spinner-border spinner-border-sm text-primary"></span> }
+                  </div>
+                } @else {
+                  {{ e.homeStoreName || '—' }}
+                }
+              </td>
+              <td class="text-center">{{ e.workDaysPerWeek }}</td>
+              <td>
+                <span class="badge" [class]="e.active ? 'text-bg-success' : 'text-bg-secondary'">
+                  {{ e.active ? 'Active' : 'Inactive' }}
+                </span>
+              </td>
+              @if (auth.isAdmin()) {
+                <td class="small">
+                  @if (!e.loginEnabled) {
+                    <span class="text-muted-2">No login</span>
+                  } @else if (e.lastLoginAt) {
+                    <span class="text-muted-2">Last {{ e.lastLoginAt | date: 'MMM d' }}</span>
+                  } @else {
+                    <span class="text-warning-emphasis">Never signed in</span>
+                  }
+                </td>
+                <td class="text-end text-nowrap">
+                  <button type="button" class="btn btn-sm btn-outline-primary me-1" (click)="openEdit(e)" title="Edit">
+                    <i class="bi bi-pencil"></i>
+                  </button>
+                  @if (e.active) {
+                    <button type="button" class="btn btn-sm btn-outline-secondary me-1" (click)="resetPassword(e)" title="Reset password">
+                      <i class="bi bi-key"></i>
+                    </button>
+                    @if (e.id !== auth.user()?.id) {
+                      <button type="button" class="btn btn-sm btn-outline-danger" (click)="deactivate(e)" title="Deactivate">
+                        <i class="bi bi-person-dash"></i>
+                      </button>
+                    }
+                  }
+                </td>
+              }
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</div>
+
+<app-modal [open]="modalOpen()" size="lg" [title]="editing() ? 'Edit employee' : 'Add employee'" (closed)="modalOpen.set(false)">
+  <form [formGroup]="form" (ngSubmit)="save()" id="employeeForm">
+    <div class="row g-3">
+      <div class="col-md-4">
+        <label class="form-label" for="eCode">Employee code</label>
+        <input id="eCode" class="form-control" formControlName="employeeCode" placeholder="AT-1050"
+               [class.is-invalid]="form.controls.employeeCode.touched && form.controls.employeeCode.invalid" />
+        <div class="invalid-feedback">Required.</div>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="eFirst">First name</label>
+        <input id="eFirst" class="form-control" formControlName="firstName"
+               [class.is-invalid]="form.controls.firstName.touched && form.controls.firstName.invalid" />
+        <div class="invalid-feedback">Required.</div>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="eLast">Last name</label>
+        <input id="eLast" class="form-control" formControlName="lastName"
+               [class.is-invalid]="form.controls.lastName.touched && form.controls.lastName.invalid" />
+        <div class="invalid-feedback">Required.</div>
+      </div>
+      <div class="col-md-7">
+        <label class="form-label" for="eEmail">Email</label>
+        <input id="eEmail" type="email" class="form-control" formControlName="email"
+               [class.is-invalid]="form.controls.email.touched && form.controls.email.invalid" />
+        <div class="invalid-feedback">Enter a valid email.</div>
+      </div>
+      <div class="col-md-5">
+        <label class="form-label" for="ePhone">Phone</label>
+        <input id="ePhone" class="form-control" formControlName="phone" />
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="eRole">Role</label>
+        <select id="eRole" class="form-select" formControlName="role">
+          @for (r of roles; track r) {
+            <option [ngValue]="r">{{ roleLabels[r] }}</option>
+          }
+        </select>
+      </div>
+      <div class="col-md-5">
+        <label class="form-label" for="eArea">Area @if (!areaRequired()) { <span class="text-muted-2 small">(optional)</span> }</label>
+        <select id="eArea" class="form-select" formControlName="areaId" (change)="onFormAreaChange()"
+                [class.is-invalid]="form.controls.areaId.touched && areaRequired() && form.controls.areaId.value == null">
+          <option [ngValue]="null">Select area…</option>
+          @for (a of areas(); track a.id) {
+            <option [ngValue]="a.id">{{ a.name }}</option>
+          }
+        </select>
+        <div class="invalid-feedback">Managers and employees need an area.</div>
+      </div>
+      <div class="col-md-5">
+        <label class="form-label" for="eStore">Home store <span class="text-muted-2 small">(optional)</span></label>
+        <select id="eStore" class="form-select" formControlName="homeStoreId">
+          <option [ngValue]="null">No store</option>
+          @for (s of storesIn(form.controls.areaId.value); track s.id) {
+            <option [ngValue]="s.id">{{ s.name }}</option>
+          }
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label" for="eDays">Days / week</label>
+        <input id="eDays" type="number" min="1" max="7" class="form-control" formControlName="workDaysPerWeek" />
+      </div>
+      <div class="col-12">
+        <div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" id="eActive" formControlName="active" />
+          <label class="form-check-label" for="eActive">Active</label>
+        </div>
+      </div>
+    </div>
+  </form>
+  <ng-container modal-footer>
+    <button type="button" class="btn btn-light" (click)="modalOpen.set(false)">Cancel</button>
+    <button type="submit" form="employeeForm" class="btn btn-primary" [disabled]="saving()">
+      @if (saving()) { <span class="spinner-border spinner-border-sm me-1"></span> }
+      Save
+    </button>
+  </ng-container>
+</app-modal>
+
+<app-modal [open]="issued() !== null" title="Sign-in details" (closed)="issued.set(null)">
+  @if (issued(); as c) {
+    <p class="mb-2">
+      Give <strong>{{ c.employee.fullName }}</strong> these details. They'll be asked to choose their own password the first
+      time they sign in.
+    </p>
+    <dl class="row small mb-2">
+      <dt class="col-4 text-muted-2 fw-normal">Email</dt>
+      <dd class="col-8 mb-1">{{ c.employee.email }}</dd>
+    </dl>
+    <div class="temp-password mb-2">{{ c.temporaryPassword }}</div>
+    <p class="small text-muted-2 mb-0">
+      <i class="bi bi-info-circle me-1"></i>This password is shown only once. If it's lost, use Reset password.
+    </p>
+  }
+  <ng-container modal-footer>
+    <button type="button" class="btn btn-outline-primary" (click)="copyPassword()">
+      <i class="bi" [class]="copied() ? 'bi bi-check2' : 'bi bi-clipboard'"></i> {{ copied() ? 'Copied' : 'Copy password' }}
+    </button>
+    <button type="button" class="btn btn-primary" (click)="issued.set(null)">Done</button>
+  </ng-container>
+</app-modal>

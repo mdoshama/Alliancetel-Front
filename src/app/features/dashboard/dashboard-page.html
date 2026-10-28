@@ -1,0 +1,91 @@
+<div class="row g-3 mb-4">
+  <div class="col-sm-6 col-xl-3">
+    <div class="card stat-card h-100">
+      <div class="stat-icon bg-primary-subtle text-primary"><i class="bi bi-geo-alt"></i></div>
+      <div>
+        <div class="stat-value">{{ activeAreas().length }}</div>
+        <div class="stat-label">Active areas</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-xl-3">
+    <div class="card stat-card h-100">
+      <div class="stat-icon bg-success-subtle text-success"><i class="bi bi-people"></i></div>
+      <div>
+        <div class="stat-value">{{ totalStaff() }}</div>
+        <div class="stat-label">Active staff</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-xl-3">
+    <a class="card stat-card h-100 text-decoration-none text-body" routerLink="/day-off-requests">
+      <div class="stat-icon bg-warning-subtle text-warning"><i class="bi bi-hourglass-split"></i></div>
+      <div>
+        <div class="stat-value">{{ pending().length }}</div>
+        <div class="stat-label">Pending day-off requests</div>
+      </div>
+    </a>
+  </div>
+  <div class="col-sm-6 col-xl-3">
+    <a class="card stat-card h-100 text-decoration-none text-body" routerLink="/schedules">
+      <div class="stat-icon bg-info-subtle text-info"><i class="bi bi-calendar3-week"></i></div>
+      <div>
+        <div class="stat-value fs-5">Weekly schedule</div>
+        <div class="stat-label">Generate &amp; publish →</div>
+      </div>
+    </a>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-5">
+    <div class="card h-100">
+      <div class="card-header fw-semibold">Staff by area</div>
+      <div class="card-body">
+        @if (loaded() && activeAreas().length === 0) {
+          <div class="empty-state py-4">
+            <i class="bi bi-geo-alt"></i>No areas yet. <a routerLink="/areas">Add one</a>
+          </div>
+        }
+        @for (a of activeAreas(); track a.id) {
+          <div class="mb-3">
+            <div class="d-flex justify-content-between small mb-1">
+              <a [routerLink]="['/schedules']" [queryParams]="{ area: a.id }" class="fw-semibold text-body text-decoration-none">
+                {{ a.name }}
+              </a>
+              <span class="text-muted-2">{{ a.employeeCount }}</span>
+            </div>
+            <div class="progress" style="height: 8px">
+              <div class="progress-bar" [style.width.%]="(a.employeeCount / largestArea()) * 100"></div>
+            </div>
+          </div>
+        }
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-7">
+    <div class="card h-100">
+      <div class="card-header d-flex align-items-center">
+        <span class="fw-semibold">Waiting for approval</span>
+        <a class="ms-auto small" routerLink="/day-off-requests">View all</a>
+      </div>
+      @if (pending().length === 0) {
+        <div class="empty-state py-4"><i class="bi bi-check2-circle"></i>No pending requests.</div>
+      } @else {
+        <ul class="list-group list-group-flush">
+          @for (r of pending().slice(0, 6); track r.id) {
+            <li class="list-group-item d-flex align-items-center">
+              <div>
+                <div class="fw-semibold">{{ r.employeeName }}</div>
+                <div class="small text-muted-2">{{ r.areaName }} · {{ r.reason || 'No reason given' }}</div>
+              </div>
+              <span class="ms-auto badge status-badge status-PENDING">
+                {{ format(r.date, { weekday: 'short', month: 'short', day: 'numeric' }) }}
+              </span>
+            </li>
+          }
+        </ul>
+      }
+    </div>
+  </div>
+</div>

@@ -1,0 +1,412 @@
+<div class="page-toolbar">
+  @if (auth.isAdmin()) {
+    <div style="min-width: 200px">
+      <label class="form-label small text-muted-2 mb-1" for="sArea">Area</label>
+      <select id="sArea" class="form-select" [ngModel]="areaId()" (ngModelChange)="selectArea($event)">
+        @for (a of areas(); track a.id) {
+          <option [ngValue]="a.id">{{ a.name }} ({{ a.employeeCount }})</option>
+        }
+      </select>
+    </div>
+  } @else if (selectedArea(); as area) {
+    <div>
+      <span class="form-label small text-muted-2 mb-1 d-block">Area</span>
+      <div class="d-flex align-items-center gap-2 fw-semibold" style="height: 38px">
+        <i class="bi bi-geo-alt text-primary"></i>{{ area.name }}
+      </div>
+    </div>
+  }
+  <div>
+    <span class="form-label small text-muted-2 mb-1 d-block">Week</span>
+    <div class="week-nav">
+      <button type="button" class="btn btn-light border" (click)="shiftWeek(-1)" aria-label="Previous week">
+        <i class="bi bi-chevron-left"></i>
+      </button>
+      <span class="week-label">{{ weekLabel() }}</span>
+      <button type="button" class="btn btn-light border" (click)="shiftWeek(1)" aria-label="Next week">
+        <i class="bi bi-chevron-right"></i>
+      </button>
+      <button type="button" class="btn btn-light border ms-1" (click)="goToThisWeek()">This week</button>
+      <input type="date" class="form-control ms-1" style="width: 150px" aria-label="Jump to date"
+             [ngModel]="weekStart()" (ngModelChange)="jumpTo($event)" />
+    </div>
+  </div>
+  <div class="ms-auto d-flex gap-2">
+    @if (auth.canManage() && schedule(); as s) {
+      @if (s.status === 'DRAFT') {
+        @if (s.stores.length > 0) {
+          <button type="button" class="btn btn-outline-primary" [disabled]="working()" (click)="autoFill()"
+                  title="Re-assign stores so each meets its minimum. Days you changed by hand are kept.">
+            <i class="bi bi-magic me-1"></i> Auto-fill stores
+          </button>
+        }
+        <button type="button" class="btn btn-outline-primary" [disabled]="working()" (click)="generate()">
+          <i class="bi bi-arrow-repeat me-1"></i> Regenerate
+        </button>
+        <button type="button" class="btn btn-primary" [disabled]="working()" (click)="publish()">
+          <i class="bi bi-send-check me-1"></i> Publish
+        </button>
+      } @else {
+        <button type="button" class="btn btn-outline-secondary" [disabled]="working()" (click)="revert()">
+          <i class="bi bi-unlock me-1"></i> Revert to draft
+        </button>
+      }
+    }
+  </div>
+</div>
+
+@if (areas().length === 0 && !loading()) {
+  <div class="card">
+    <div class="empty-state">
+      <i class="bi bi-geo-alt"></i>
+      Add an area and some employees first. <a routerLink="/areas">Go to Areas</a>
+    </div>
+  </div>
+} @else if (loading()) {
+  <div class="card"><div class="empty-state"><div class="spinner-border text-primary"></div></div></div>
+} @else if (!schedule() && auth.isEmployee()) {
+  <div class="card">
+    <div class="empty-state">
+      <i class="bi bi-hourglass"></i>
+      <p class="mb-1 fw-semibold text-body">Not published yet</p>
+      <p class="mb-0">Your manager hasn't published the schedule for {{ weekLabel() }}. Check back soon.</p>
+    </div>
+  </div>
+} @else if (!schedule()) {
+  <div class="card">
+    <div class="empty-state">
+      <i class="bi bi-calendar-plus"></i>
+      <p class="mb-3">No schedule yet for {{ selectedArea()?.name }} · {{ weekLabel() }}.</p>
+      <p class="small mb-3">
+        Everyone is scheduled for their normal days. Approved day-off requests are applied first,<br />
+        then remaining weekly days off are spread across the week to keep coverage even.
+      </p>
+      <button type="button" class="btn btn-primary" [disabled]="working()" (click)="generate()">
+        @if (working()) { <span class="spinner-border spinner-border-sm me-1"></span> }
+        <i class="bi bi-magic me-1"></i> Generate schedule
+      </button>
+    </div>
+  </div>
+} @else {
+  @let s = schedule()!;
+
+  @if (auth.isEmployee() && myRow(); as me) {
+    <div class="card mb-3">
+      <div class="card-body d-flex flex-wrap align-items-center gap-3">
+        <div class="me-2">
+          <div class="text-muted-2 small">Your week</div>
+          <div class="fw-bold fs-5">{{ me.scheduledWorkDays }} work days</div>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+          @for (cell of me.days; track cell.entryId) {
+            <div class="text-center">
+              <div class="small text-muted-2 mb-1">{{ format(cell.date, { weekday: 'short' }) }}</div>
+              <span class="day-chip type-{{ cell.type }}" [attr.title]="describe(cell)">
+                {{ dayTypeLabels[cell.type] }}
+                @if (cell.type === 'WORK') { <span class="chip-store">{{ cell.storeLabel ?? 'No store' }}</span> }
+              </span>
+            </div>
+          }
+        </div>
+      </div>
+    </div>
+  }
+
+  <div class="row g-3 mb-3" [class.d-none]="auth.isEmployee()">
+    <div class="col-sm-6 col-xl-3">
+      <div class="card stat-card h-100">
+        <div class="stat-icon" [class]="s.status === 'PUBLISHED' ? 'stat-icon bg-success-subtle text-success' : 'stat-icon bg-secondary-subtle text-secondary'">
+          <i class="bi" [class]="s.status === 'PUBLISHED' ? 'bi bi-send-check' : 'bi bi-pencil-square'"></i>
+        </div>
+        <div>
+          <div class="stat-value fs-5">{{ s.status === 'PUBLISHED' ? 'Published' : 'Draft' }}</div>
+          <div class="stat-label">
+            @if (s.publishedAt) { {{ s.publishedAt | date: 'MMM d, h:mm a' }} } @else { Click a day to change it }
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+      <div class="card stat-card h-100">
+        <div class="stat-icon bg-primary-subtle text-primary"><i class="bi bi-people"></i></div>
+        <div>
+          <div class="stat-value">{{ s.rows.length }}</div>
+          <div class="stat-label">Staff scheduled</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+      <div class="card stat-card h-100">
+        <div class="stat-icon bg-info-subtle text-info"><i class="bi bi-briefcase"></i></div>
+        <div>
+          <div class="stat-value">{{ totalShifts() }}</div>
+          <div class="stat-label">Shifts this week</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+      <a class="card stat-card h-100 text-decoration-none text-body" routerLink="/day-off-requests">
+        <div class="stat-icon bg-warning-subtle text-warning"><i class="bi bi-hourglass-split"></i></div>
+        <div>
+          <div class="stat-value">{{ s.pendingDayOffRequests }}</div>
+          <div class="stat-label">Pending requests</div>
+        </div>
+      </a>
+    </div>
+  </div>
+
+  @if (s.pendingDayOffRequests > 0 && s.status === 'DRAFT' && auth.canManage()) {
+    <div class="alert alert-warning d-flex align-items-center py-2">
+      <i class="bi bi-exclamation-triangle me-2"></i>
+      <span>
+        {{ s.pendingDayOffRequests }} day-off request(s) for this week are still pending.
+        <a routerLink="/day-off-requests">Review them</a>, then regenerate to include approved days.
+      </span>
+    </div>
+  }
+  @if (s.coverageGaps.length > 0 && auth.canManage()) {
+    <div class="alert alert-danger py-2">
+      <div class="mb-1">
+        <i class="bi bi-shop me-1"></i>
+        <strong>{{ s.coverageGaps.length }} store-day{{ s.coverageGaps.length === 1 ? '' : 's' }} below minimum staffing</strong>
+        <div class="small">
+          Not enough people work these days to cover every store. Approve fewer days off, lower a minimum, or click a day
+          to move someone.
+        </div>
+      </div>
+      <div class="d-flex flex-wrap gap-1">
+        @for (d of gapsByDay(); track d.date) {
+          @for (g of d.gaps; track g.storeId) {
+            <span class="gap-pill">
+              {{ format(d.date, { weekday: 'short' }) }} · {{ g.storeName }} <strong>{{ g.scheduled }}/{{ g.required }}</strong>
+            </span>
+          }
+        }
+      </div>
+    </div>
+  } @else if (s.storeCoverage.length > 0 && auth.canManage()) {
+    <div class="alert alert-success py-2 d-flex align-items-center">
+      <i class="bi bi-check2-circle me-2"></i> Every store meets its minimum staffing all week.
+      @if (autoMoves() > 0) {
+        <span class="ms-1">{{ autoMoves() }} day{{ autoMoves() === 1 ? ' was' : 's were' }} moved automatically to cover another store.</span>
+      }
+    </div>
+  }
+  @if (mismatchCount() > 0 && auth.canManage()) {
+    <div class="alert alert-info d-flex align-items-center py-2">
+      <i class="bi bi-info-circle me-2"></i>
+      {{ mismatchCount() }} employee(s) are scheduled for a different number of days than usual (highlighted below).
+    </div>
+  }
+
+  <div class="card">
+    <div class="card-header d-flex flex-wrap align-items-center gap-2">
+      <span class="fw-semibold">{{ s.areaName }}</span>
+      <span class="badge status-badge status-{{ s.status }}">{{ s.status === 'PUBLISHED' ? 'Published' : 'Draft' }}</span>
+      @if (s.stores.length > 0) {
+        <select class="form-select form-select-sm ms-2" style="width: auto" aria-label="Filter by store"
+                [ngModel]="storeFilter()" (ngModelChange)="storeFilter.set($event)">
+          <option [ngValue]="null">All stores</option>
+          @for (st of s.stores; track st.id) {
+            <option [ngValue]="st.id">{{ st.name }} ({{ st.label }})</option>
+          }
+        </select>
+      }
+      <div class="legend ms-auto">
+        @for (t of dayTypes; track t) {
+          <span><span class="day-chip type-{{ t }}">{{ dayTypeLabels[t] }}</span></span>
+        }
+        @if (auth.canManage()) {
+          <span class="d-flex align-items-center gap-1"><span class="day-chip type-WORK auto-moved px-2"><i class="bi bi-arrow-left-right"></i></span> auto-moved</span>
+          <span class="d-flex align-items-center gap-1"><span class="day-chip type-OFF px-2"><span class="edited-dot"></span>&nbsp;</span> edited</span>
+        }
+      </div>
+    </div>
+    <div class="table-responsive">
+      <table class="table schedule-grid">
+        <thead>
+          <tr>
+            <th>Employee</th>
+            @for (d of s.dates; track d) {
+              <th class="day-head" [class.is-today]="d === todayIso">
+                <span class="dow">
+                  {{ format(d, { weekday: 'short' }) }}
+                  @if (auth.canManage() && dayHasGap(d)) { <span class="gap-dot" title="A store is below its minimum this day"></span> }
+                </span>
+                <span class="dom">{{ format(d, { month: 'short', day: 'numeric' }) }}</span>
+              </th>
+            }
+            <th>Days</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of visibleRows(); track row.employeeId) {
+            <tr [class.is-me]="row.employeeId === auth.user()?.id">
+              <td>
+                <div class="fw-semibold">
+                  {{ row.employeeName }}
+                  @if (row.employeeId === auth.user()?.id) { <span class="badge text-bg-primary ms-1">You</span> }
+                </div>
+                <div class="small text-muted-2">
+                  {{ row.employeeCode }}
+                  @if (row.role === 'MANAGER') { · <span class="text-primary">{{ roleLabels[row.role] }}</span> }
+                  @if (row.homeStoreName) { · <i class="bi bi-shop"></i> {{ row.homeStoreName }} }
+                </div>
+              </td>
+              @for (cell of row.days; track cell.entryId; let i = $index) {
+                <td [class.dimmed]="dimmed(cell)">
+                  <button type="button" class="day-chip type-{{ cell.type }}" [class.editable]="canEdit()"
+                          [class.no-store]="cell.type === 'WORK' && !cell.storeId"
+                          [class.auto-moved]="cell.autoAssigned"
+                          [disabled]="!canEdit() || working()" (click)="openCell(row, i)"
+                          [attr.title]="describe(cell) + (canEdit() ? ' · click to change or swap' : '')">
+                    @if (cell.type === 'WORK') {
+                      Work
+                      <span class="chip-store">@if (cell.autoAssigned) {<i class="bi bi-arrow-left-right me-1"></i>}{{ cell.storeLabel ?? 'No store' }}</span>
+                    } @else {
+                      {{ dayTypeLabels[cell.type] }}
+                    }
+                    @if (cell.manuallyEdited && auth.canManage()) { <span class="edited-dot"></span> }
+                  </button>
+                </td>
+              }
+              <td>
+                <span class="fw-semibold" [class.text-danger]="row.scheduledWorkDays !== row.expectedWorkDays">
+                  {{ row.scheduledWorkDays }}
+                </span>
+                <span class="text-muted-2 small">/ {{ row.expectedWorkDays }}</span>
+              </td>
+            </tr>
+          }
+        </tbody>
+        <tfoot>
+          <tr>
+            <td>Working</td>
+            @for (n of s.dailyHeadCount; track $index) {
+              <td>{{ n }}</td>
+            }
+            <td></td>
+          </tr>
+          @if (s.storeCoverage.length > 1 || (s.storeCoverage.length === 1 && s.storeCoverage[0].storeId === null)) {
+            @for (c of s.storeCoverage; track c.storeId) {
+              <tr class="store-row" [class.text-warning-emphasis]="c.storeId === null">
+                <td>
+                  @if (c.storeId) {
+                    <i class="bi bi-shop me-1"></i>{{ c.storeName }}
+                    @if (c.minStaffPerDay > 0) { <span class="text-muted-2 small">· min {{ c.minStaffPerDay }}</span> }
+                  } @else {
+                    <i class="bi bi-exclamation-triangle me-1"></i>{{ c.storeName }}
+                  }
+                </td>
+                @for (n of c.dailyHeadCount; track $index) {
+                  <td [class.below-min]="isShort(c.storeId, c.minStaffPerDay, n)"
+                      [attr.title]="isShort(c.storeId, c.minStaffPerDay, n) ? (c.minStaffPerDay - n) + ' more needed' : null">
+                    {{ n }}@if (c.minStaffPerDay > 0) {<span class="min-of">/{{ c.minStaffPerDay }}</span>}
+                  </td>
+                }
+                <td></td>
+              </tr>
+            }
+          }
+        </tfoot>
+      </table>
+    </div>
+  </div>
+}
+
+<app-modal [open]="editCell() !== null" size="lg" [title]="'Edit day'" (closed)="closeEditor()">
+  @if (editCell(); as e) {
+    <div class="d-flex align-items-center gap-2 mb-3">
+      <span class="avatar">{{ e.row.employeeName.charAt(0) }}</span>
+      <div>
+        <div class="fw-semibold">{{ e.row.employeeName }}</div>
+        <div class="small text-muted-2">
+          {{ format(e.cell.date, { weekday: 'long', month: 'short', day: 'numeric' }) }} · currently {{ describe(e.cell) }}
+          @if (e.row.homeStoreName) { · home store {{ e.row.homeStoreName }} }
+        </div>
+      </div>
+    </div>
+
+    <div class="row g-3">
+      <div class="col-lg-6">
+        <div class="border rounded-3 p-3 h-100">
+          <h6 class="fw-semibold mb-2"><i class="bi bi-pencil-square me-1 text-primary"></i>Change this day</h6>
+          <div class="btn-group w-100 mb-3" role="group" aria-label="Day type">
+            @for (t of dayTypes; track t) {
+              <input type="radio" class="btn-check" name="editType" [id]="'type-' + t" [value]="t" [(ngModel)]="editType" />
+              <label class="btn btn-outline-secondary btn-sm" [for]="'type-' + t">{{ dayTypeLabels[t] }}</label>
+            }
+          </div>
+          @if (editType === 'WORK') {
+            <label class="form-label small" for="editStore">Store</label>
+            <select id="editStore" class="form-select mb-3" [(ngModel)]="editStoreId">
+              <option [ngValue]="null">No store</option>
+              @for (st of schedule()?.stores ?? []; track st.id) {
+                <option [ngValue]="st.id">{{ st.name }} ({{ st.label }}) — {{ storeCount(st.id, e.dayIndex) }} that day</option>
+              }
+            </select>
+          }
+          <button type="button" class="btn btn-primary w-100" [disabled]="working()" (click)="saveDay()">Save day</button>
+        </div>
+      </div>
+
+      <div class="col-lg-6">
+        <div class="border rounded-3 p-3 h-100">
+          <h6 class="fw-semibold mb-1"><i class="bi bi-arrow-left-right me-1 text-primary"></i>Swap with a colleague</h6>
+          <p class="small text-muted-2 mb-2">They trade assignments for {{ format(e.cell.date, { weekday: 'long' }) }}.</p>
+          <div style="max-height: 220px; overflow-y: auto" class="mb-2">
+            @for (c of swapCandidates(); track c.cell.entryId) {
+              <button type="button" class="swap-option" [class.selected]="swapWith() === c.cell.entryId"
+                      (click)="swapWith.set(c.cell.entryId)">
+                <span class="flex-grow-1">
+                  <span class="fw-semibold d-block small">{{ c.row.employeeName }}</span>
+                  <span class="text-muted-2" style="font-size: 0.75rem">{{ describe(c.cell) }}</span>
+                </span>
+                <span class="day-chip type-{{ c.cell.type }}" [class.no-store]="c.cell.type === 'WORK' && !c.cell.storeId">
+                  {{ chipLabel(c.cell) }}
+                </span>
+              </button>
+            } @empty {
+              <p class="small text-muted-2 mb-0">Nobody with a different assignment that day.</p>
+            }
+          </div>
+          @if (swapWith() !== null) {
+            @for (c of swapCandidates(); track c.cell.entryId) {
+              @if (c.cell.entryId === swapWith()) {
+                <div class="alert alert-light border small py-2 mb-2">
+                  <strong>{{ e.row.employeeName }}</strong> → {{ describe(c.cell) }}<br />
+                  <strong>{{ c.row.employeeName }}</strong> → {{ describe(e.cell) }}
+                </div>
+              }
+            }
+          }
+          <button type="button" class="btn btn-outline-primary w-100" [disabled]="swapWith() === null || working()" (click)="swap()">
+            Swap
+          </button>
+        </div>
+      </div>
+
+      @if ((schedule()?.stores ?? []).length > 0 && e.row.scheduledWorkDays > 0) {
+        <div class="col-12">
+          <div class="border rounded-3 p-3 d-flex flex-wrap align-items-end gap-2">
+            <div class="flex-grow-1">
+              <h6 class="fw-semibold mb-1"><i class="bi bi-calendar-week me-1 text-primary"></i>Whole week</h6>
+              <label class="small text-muted-2" for="weekStore">Send {{ e.row.employeeName }} to this store on all {{ e.row.scheduledWorkDays }} work days</label>
+              <select id="weekStore" class="form-select mt-1" [(ngModel)]="weekStoreId">
+                @for (st of schedule()?.stores ?? []; track st.id) {
+                  <option [ngValue]="st.id">{{ st.name }} ({{ st.label }})</option>
+                }
+              </select>
+            </div>
+            <button type="button" class="btn btn-outline-primary" [disabled]="weekStoreId === null || working()" (click)="moveWeek()">
+              Move for the week
+            </button>
+          </div>
+        </div>
+      }
+    </div>
+  }
+  <ng-container modal-footer>
+    <button type="button" class="btn btn-light" (click)="closeEditor()">Close</button>
+  </ng-container>
+</app-modal>
