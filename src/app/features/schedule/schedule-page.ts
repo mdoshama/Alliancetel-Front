@@ -286,6 +286,23 @@ export class SchedulePage implements OnInit {
     return c.minStaffPerDay > 0 ? `${n}/${c.minStaffPerDay}${n < c.minStaffPerDay ? ' · short' : ''}` : `${n}`;
   }
 
+  /** "Maria Garcia" → "MG". */
+  protected initials(name: string): string {
+    const parts = name.trim().split(/\s+/);
+    return ((parts[0]?.[0] ?? '') + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase();
+  }
+
+  /** Hover text for a person: code, role at their store and what that means. */
+  protected personTitle(row: EmployeeRow): string {
+    const where = row.homeStoreName ? ` at ${row.homeStoreName}` : '';
+    return `${row.employeeName} (${row.employeeCode}) · ${this.storeRoleLabels[row.storeRole]}${where}: ${this.storeRoleHelp[row.storeRole]}`;
+  }
+
+  /** A store's color, for the home-store chip. */
+  protected storeColor(storeId: number | null): string | null {
+    return storeId == null ? null : (this.schedule()?.stores.find((x) => x.id === storeId)?.color ?? null);
+  }
+
   /** "10am–8pm", or "Closed". */
   protected hoursLabel(h: DayHours): string {
     return formatHours(h);
@@ -418,6 +435,203 @@ export class SchedulePage implements OnInit {
       `${e.row.employeeName} works at ${store?.name ?? 'the selected store'} all week.`,
       true,
     );
+  }
+
+  // ---------- Drag and drop ----------
+  // Drop a day on a colleague's box in the same column to swap, or on a store's row to move the person there.
+  // Clicking a day still opens the editor (and is the way to edit on touch screens).
+
+  protected readonly drag = signal<{ row: EmployeeRow; dayIndex: number } | null>(null);
+  protected readonly dropKey = signal<string | null>(null);
+
+  protected canDrag(cell: DayCell): boolean {
+    return this.canEdit() && !this.working() && cell.type !== 'REQUESTED_OFF';
+  }
+
+  protected isDragSource(row: EmployeeRow, dayIndex: number): boolean {
+    const d = this.drag();
+    return d !== null && d.row.employeeId === row.employeeId && d.dayIndex === dayIndex;
+  }
+
+  /** Any day box can be dropped on any other one (any person, any day) unless nothing would change. */
+  protected canDropOnPerson(row: EmployeeRow, dayIndex: number): boolean {
+    const d = this.drag();
+    if (!d || (d.row.employeeId === row.employeeId && d.dayIndex === dayIndex)) {
+      return false;
+    }
+    const from = d.row.days[d.dayIndex];
+    const to = row.days[dayIndex];
+    if (to.type === 'REQUESTED_OFF') {
+      return false;
+    }
+    return !(from.type === to.type && from.storeId === to.storeId);
+  }
+
+  /** A work day can be dropped on any open day of any store's row: the shift moves to that day and store. */
+  protected canDropOnStore(storeId: number | null, dayIndex: number): boolean {
+    const d = this.drag();
+    if (!d || storeId === null) {
+      return false;
+    }
+    const from = d.row.days[d.dayIndex];
+    const target = d.row.days[dayIndex];
+    const coverage = this.schedule()?.storeCoverage.find((c) => c.storeId === storeId);
+    if (from.type !== 'WORK' || coverage?.dailyHours[dayIndex]?.closed) {
+      return false;
+    }
+    if (dayIndex === d.dayIndex) {
+      return from.storeId !== storeId;
+    }
+    return target.type !== 'REQUESTED_OFF';
+  }
+
+  protected onDragStart(event: DragEvent, row: EmployeeRow, dayIndex: number): void {
+    if (!this.canDrag(row.days[dayIndex])) {
+      event.preventDefault();
+      return;
+    }
+    event.dataTransfer?.setData('text/plain', `${row.employeeId}:${dayIndex}`);
+    if (event.dataTransfer) {
+      event.dataTransfer.effectAllowed = 'move';
+    }
+    this.drag.set({ row, dayIndex });
+  }
+
+  protected onDragEnd(): void {
+    this.drag.set(null);
+    this.dropKey.set(null);
+  }
+
+  protected onDragOver(event: DragEvent, key: string, allowed: boolean): void {
+    if (!allowed) {
+      return;
+    }
+    event.preventDefault();
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = 'move';
+    }
+    if (this.dropKey() !== key) {
+      this.dropKey.set(key);
+    }
+  }
+
+  protected onDragLeave(key: string): void {
+    if (this.dropKey() === key) {
+      this.dropKey.set(null);
+    }
+  }
+
+  protected async onDropOnPerson(event: DragEvent, row: EmployeeRow, dayIndex: number): Promise<void> {
+    event.preventDefault();
+    const d = this.drag();
+    const ok = this.canDropOnPerson(row, dayIndex);
+    this.onDragEnd();
+    if (d && ok) {
+      await this.exchangeDays(d.row, d.dayIndex, row, dayIndex);
+    }
+  }
+
+  protected async onDropOnStore(event: DragEvent, storeId: number | null, dayIndex: number): Promise<void> {
+    event.preventDefault();
+    const d = this.drag();
+    const ok = this.canDropOnStore(storeId, dayIndex);
+    this.onDragEnd();
+    if (d && ok && storeId !== null) {
+      await this.exchangeDays(d.row, d.dayIndex, d.row, dayIndex, storeId);
+    }
+  }
+
+  /**
+   * The dragged day and the day it was dropped on trade places. With a store (a drop on a store's row), the dragged
+   * work day lands at that store. Asks first if the change takes a primary away from their store, changes how many
+   * days someone works, or leaves two people from one store off on the same day.
+   */
+  private async exchangeDays(
+    fromRow: EmployeeRow,
+    fromIndex: number,
+    toRow: EmployeeRow,
+    toIndex: number,
+    storeId?: number,
+  ): Promise<void> {
+    const s = this.schedule();
+    if (!s) {
+      return;
+    }
+    const from = fromRow.days[fromIndex];
+    const to = toRow.days[toIndex];
+    const sameCell = fromRow.employeeId === toRow.employeeId && fromIndex === toIndex;
+    const day = (i: number) => formatDay(s.dates[i], { weekday: 'long', month: 'short', day: 'numeric' });
+    const first = (r: EmployeeRow) => r.employeeName.split(' ')[0];
+    const storeName = (id: number | null) => s.stores.find((x) => x.id === id)?.name ?? 'no store';
+
+    // What each person ends up doing.
+    const landing = { row: toRow, index: toIndex, type: from.type, storeId: storeId ?? from.storeId };
+    const leaving = sameCell ? null : { row: fromRow, index: fromIndex, type: to.type, storeId: to.storeId };
+
+    // 1. Primaries taken away from their store.
+    for (const r of [landing, leaving]) {
+      if (r && r.type === 'WORK' && !(await this.confirmPrimaryMove(r.row, r.storeId, 'on ' + day(r.index), r.index))) {
+        return;
+      }
+    }
+
+    // 2. Anything else worth a second look.
+    const notes: string[] = [];
+    if (leaving && fromRow.employeeId !== toRow.employeeId && from.type !== to.type) {
+      const delta = (to.type === 'WORK' ? 1 : 0) - (from.type === 'WORK' ? 1 : 0);
+      const fromDays = fromRow.scheduledWorkDays + delta;
+      const toDays = toRow.scheduledWorkDays - delta;
+      notes.push(
+        `${first(fromRow)} would work ${fromDays} day${fromDays === 1 ? '' : 's'} and ${first(toRow)} ${toDays} ` +
+          `(usually ${fromRow.expectedWorkDays} and ${toRow.expectedWorkDays}).`,
+      );
+    }
+    for (const r of [landing, leaving]) {
+      if (!r || r.type === 'WORK' || r.row.homeStoreId == null) {
+        continue;
+      }
+      const date = s.dates[r.index];
+      const others = s.rows.filter(
+        (x) =>
+          x.employeeId !== fromRow.employeeId &&
+          x.employeeId !== toRow.employeeId &&
+          x.homeStoreId === r.row.homeStoreId &&
+          x.days.find((c) => c.date === date)?.type !== 'WORK',
+      );
+      if (others.length) {
+        notes.push(
+          `${others.map(first).join(', ')} ${others.length > 1 ? 'are' : 'is'} already off at ${r.row.homeStoreName} on ` +
+            `${day(r.index)}, so ${first(r.row)} would be off there too.`,
+        );
+      }
+    }
+    if (notes.length) {
+      const ok = await this.confirm.ask({
+        title: 'Make this change?',
+        message: 'This swap changes more than where people work.',
+        icon: 'bi-exclamation-triangle',
+        tone: 'warning',
+        notes,
+        confirmText: 'Swap anyway',
+      });
+      if (!ok) {
+        return;
+      }
+    }
+
+    let message: string;
+    if (sameCell) {
+      message = `${fromRow.employeeName} moved to ${storeName(storeId ?? null)} on ${day(fromIndex)}.`;
+    } else if (storeId !== undefined) {
+      message = `${first(fromRow)}'s shift moved to ${storeName(storeId)} on ${day(toIndex)}.`;
+    } else if (fromRow.employeeId === toRow.employeeId) {
+      message = `${first(fromRow)}'s ${formatDay(s.dates[fromIndex], { weekday: 'long' })} and ${formatDay(s.dates[toIndex], { weekday: 'long' })} swapped.`;
+    } else if (fromIndex === toIndex) {
+      message = `Swapped ${fromRow.employeeName} and ${toRow.employeeName} on ${formatDay(s.dates[fromIndex], { weekday: 'long' })}.`;
+    } else {
+      message = `Swapped ${first(fromRow)}'s ${formatDay(s.dates[fromIndex], { weekday: 'long' })} with ${first(toRow)}'s ${formatDay(s.dates[toIndex], { weekday: 'long' })}.`;
+    }
+    this.run(this.api.exchangeDays(s.id, from.entryId, to.entryId, storeId), message);
   }
 
   /**

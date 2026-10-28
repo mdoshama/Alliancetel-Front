@@ -1156,42 +1156,702 @@ body {
 
 /* ---------- Store roles (primary / secondary / floater) ---------- */
 
-.store-role {
-  display: inline-block;
-  padding: 0.05rem 0.45rem;
+/* One chip that says both the role and the home store, e.g. "★ Primary · Oceanside". */
+.home-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  max-width: 100%;
+  padding: 0.12rem 0.5rem;
   border-radius: 999px;
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  vertical-align: 0.1em;
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+  border: 1px solid transparent;
+
+  i {
+    font-size: 0.72rem;
+  }
+
+  .home-chip-store {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 
   &.role-PRIMARY {
-    background: #1e293b;
-    color: #fff;
+    background: color-mix(in srgb, var(--store-color, #475569) 14%, #fff);
+    color: color-mix(in srgb, var(--store-color, #475569) 80%, #000);
+    border-color: color-mix(in srgb, var(--store-color, #475569) 35%, #fff);
+
+    i {
+      color: #e0a100;
+    }
   }
 
   &.role-SECONDARY {
-    background: #eef0f3;
+    background: #fff;
     color: #4a5266;
+    border-color: var(--at-border);
+
+    i {
+      color: var(--store-color, #8a93a6);
+    }
   }
 
   &.role-FLOATER {
-    background: #efe7fd;
+    background: #f6f1ff;
     color: #5b21b6;
+    border: 1px dashed #c4b5fd;
   }
 }
 
-.store-role-toggle .btn {
-  --bs-btn-padding-y: 0.05rem;
-  --bs-btn-padding-x: 0.5rem;
-  --bs-btn-font-size: 0.72rem;
-  border: 1px solid var(--at-border);
-  color: #4a5266;
-  background: #fff;
+/* Primary / Secondary switch (iOS-style segmented control). */
+.role-switch {
+  display: inline-flex;
+  padding: 2px;
+  border-radius: 999px;
+  background: #eef0f5;
 
-  &.active {
-    background: #1e293b;
-    border-color: #1e293b;
-    color: #fff;
+  button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    border: 0;
+    background: transparent;
+    color: #5a6275;
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 0.18rem 0.6rem;
+    border-radius: 999px;
+    line-height: 1.3;
+    transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+
+    &:hover:not(:disabled):not(.active) {
+      color: #1d2433;
+    }
+
+    &.active {
+      background: #fff;
+      color: #1d2433;
+      box-shadow: 0 1px 2px rgba(16, 24, 40, 0.15);
+    }
+
+    &.active .bi-star-fill {
+      color: #e0a100;
+    }
+
+    &:disabled {
+      opacity: 0.6;
+    }
   }
+}
+
+/* Choice cards in the employee form. */
+.role-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+
+  @media (max-width: 575.98px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.role-option {
+  position: relative;
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid var(--at-border);
+  border-radius: 10px;
+  cursor: pointer;
+  background: #fff;
+  margin: 0;
+  transition: border-color 0.15s, box-shadow 0.15s;
+
+  input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .role-option-icon {
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    background: #f3f5fa;
+    color: #5a6275;
+    flex-shrink: 0;
+  }
+
+  .role-option-title {
+    font-weight: 600;
+    font-size: 0.88rem;
+  }
+
+  .role-option-help {
+    font-size: 0.76rem;
+    color: var(--at-muted);
+    line-height: 1.35;
+  }
+
+  &:hover {
+    border-color: rgba(var(--at-primary-rgb), 0.45);
+  }
+
+  &.selected {
+    border-color: var(--at-primary);
+    box-shadow: 0 0 0 3px rgba(var(--at-primary-rgb), 0.12);
+
+    .role-option-icon {
+      background: rgba(var(--at-primary-rgb), 0.1);
+      color: var(--at-primary);
+    }
+  }
+
+  &.selected.is-primary .role-option-icon {
+    background: #fff4d6;
+    color: #c08a00;
+  }
+
+  &:focus-within {
+    outline: 2px solid rgba(var(--at-primary-rgb), 0.35);
+    outline-offset: 1px;
+  }
+}
+
+/* ---------- Responsive ---------- */
+
+/* Tables that turn into stacked cards on phones: each cell shows its column name from data-label. */
+@mixin stacked-table {
+    thead {
+      display: none;
+    }
+
+    tbody,
+    tr,
+    td {
+      display: block;
+      width: 100%;
+    }
+
+    tbody tr {
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--at-border);
+    }
+
+    tbody tr:last-child {
+      border-bottom: 0;
+    }
+
+    > tbody > tr > td {
+      display: block;
+      padding: 0.3rem 0;
+      border: 0;
+      text-align: right !important;
+      max-width: none !important;
+      min-height: 1.9rem;
+
+      &::after {
+        content: '';
+        display: table;
+        clear: both;
+      }
+
+      &::before {
+        content: attr(data-label);
+        float: left;
+        margin-right: 0.75rem;
+        font-size: 0.72rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--at-muted);
+        padding-top: 0.2rem;
+        text-align: left;
+      }
+    }
+
+    /* The first cell is the row's title: full width, no label. */
+    > tbody > tr > td:first-child {
+      display: block;
+      text-align: left !important;
+      padding-top: 0;
+      padding-bottom: 0.4rem;
+
+      &::before {
+        content: none;
+      }
+    }
+
+    /* Action buttons sit on their own line. */
+    > tbody > tr > td.td-actions {
+      padding-top: 0.6rem;
+
+      &::before {
+        content: none;
+      }
+    }
+
+    > tbody > tr > td:not([data-label])::before {
+      content: none;
+    }
+
+  .text-nowrap {
+    white-space: normal !important;
+  }
+}
+
+@media (max-width: 767.98px) {
+  .table-stack {
+    @include stacked-table;
+  }
+}
+
+/* Wide tables (many columns) switch to cards on tablets too. */
+@media (max-width: 1199.98px) {
+  .table-stack-lg {
+    @include stacked-table;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .page-toolbar {
+    gap: 0.6rem;
+
+    > div,
+    > button,
+    > .btn {
+      width: 100%;
+    }
+
+    > div[style*='min-width'] {
+      min-width: 0 !important;
+    }
+  }
+
+  .toolbar-actions {
+    margin-left: 0 !important;
+
+    .btn {
+      flex: 1 1 0;
+      padding-left: 0.4rem;
+      padding-right: 0.4rem;
+      font-size: 0.85rem;
+      white-space: nowrap;
+    }
+  }
+
+  .week-nav {
+    flex-wrap: wrap;
+    row-gap: 0.5rem;
+
+    .week-label {
+      flex: 1 1 auto;
+      text-align: center;
+    }
+
+    input[type='date'] {
+      flex: 1 1 100%;
+      width: auto !important;
+      margin-left: 0 !important;
+    }
+  }
+
+  .stat-card {
+    gap: 0.65rem;
+    padding: 0.8rem 0.85rem;
+
+    .stat-icon {
+      width: 36px;
+      height: 36px;
+      font-size: 1.05rem;
+      border-radius: 10px;
+    }
+
+    .stat-value {
+      font-size: 1.25rem;
+    }
+
+    .stat-label {
+      font-size: 0.72rem;
+    }
+  }
+
+  .schedule-grid {
+    th:first-child,
+    td:first-child {
+      min-width: 132px;
+      max-width: 150px;
+      white-space: normal;
+    }
+
+    .day-head {
+      min-width: 82px;
+    }
+
+    .day-chip {
+      max-width: 6.5rem;
+    }
+
+    .emp-meta {
+      display: none;
+    }
+
+    .chip-role-word {
+      display: none;
+    }
+  }
+
+  .legend {
+    gap: 0.4rem 0.75rem !important;
+  }
+
+  .card-header {
+    padding: 0.75rem 0.9rem;
+  }
+}
+
+/* Tablets: employee cards two per row. */
+@media (min-width: 768px) and (max-width: 1199.98px) {
+  .table-stack-lg > tbody {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .table-stack-lg > tbody > tr {
+    border-bottom: 1px solid var(--at-border) !important;
+  }
+
+  .table-stack-lg > tbody > tr:nth-child(odd) {
+    border-right: 1px solid var(--at-border);
+  }
+}
+
+@media (max-width: 575.98px) {
+  .page-toolbar .input-group {
+    width: 100% !important;
+  }
+}
+
+.legend-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #4a5266;
+}
+
+
+/* ---------- Schedule: person column ---------- */
+
+.emp-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 0;
+}
+
+/* Initials in the home store's color; primaries get a gold star badge. */
+.emp-avatar {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  background: color-mix(in srgb, var(--store-color, #94a3b8) 16%, #fff);
+  color: color-mix(in srgb, var(--store-color, #64748b) 80%, #000);
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--store-color, #94a3b8) 45%, #fff);
+
+  &.is-floater {
+    background: #f6f1ff;
+    color: #5b21b6;
+    box-shadow: inset 0 0 0 1.5px #c4b5fd;
+  }
+}
+
+.emp-star {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  color: #e0a100;
+  font-size: 0.55rem;
+  box-shadow: 0 0 0 1px #f1d38a, 0 1px 2px rgba(16, 24, 40, 0.15);
+}
+
+.emp-text {
+  min-width: 0;
+}
+
+.emp-name {
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.emp-sub {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.15rem 0.4rem;
+  margin-top: 0.15rem;
+  font-size: 0.75rem;
+  color: var(--at-muted);
+  line-height: 1.3;
+
+  .store-dot {
+    width: 0.5rem;
+    height: 0.5rem;
+  }
+}
+
+.primary-tag {
+  padding: 0.02rem 0.35rem;
+  border-radius: 4px;
+  background: #fff4d6;
+  color: #8a5a00;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.emp-floater {
+  color: #6d28d9;
+  font-weight: 600;
+}
+
+.emp-home {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  white-space: nowrap;
+}
+
+.you-tag {
+  margin-left: 0.3rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  background: var(--at-primary);
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 700;
+  vertical-align: 0.1em;
+}
+
+.emp-manager {
+  margin-left: 0.3rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--at-primary);
+  vertical-align: 0.05em;
+}
+
+@media (max-width: 575.98px) {
+  .emp-avatar {
+    width: 28px;
+    height: 28px;
+    font-size: 0.62rem;
+  }
+
+  .emp-cell {
+    gap: 0.45rem;
+  }
+
+  .emp-manager,
+  .emp-sub {
+    display: none;
+  }
+}
+
+@media (min-width: 1200px) {
+  .schedule-grid th:first-child,
+  .schedule-grid td:first-child {
+    min-width: 255px;
+  }
+}
+
+.emp-name {
+  white-space: nowrap;
+}
+
+@media (max-width: 575.98px) {
+  .emp-name {
+    white-space: normal;
+  }
+}
+
+/* ---------- Emergency day off ---------- */
+
+.emergency-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-left: 0.35rem;
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  background: #fde7e7;
+  color: #a12626;
+  font-size: 0.68rem;
+  font-weight: 700;
+  vertical-align: 0.1em;
+}
+
+.emergency-toggle {
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--at-border);
+  border-radius: 10px;
+
+  &.on {
+    border-color: #f3b4b4;
+    background: #fff6f6;
+  }
+
+  .form-check-input:checked {
+    background-color: #dc3545;
+    border-color: #dc3545;
+  }
+}
+
+.day-toggle-group .btn {
+  .taken-by {
+    display: block;
+    font-size: 0.62rem;
+    font-weight: 600;
+    color: #a12626;
+    white-space: nowrap;
+  }
+
+  &.is-taken:not(:disabled) {
+    border-style: dashed;
+  }
+}
+
+/* ---------- Store directory (managers and employees) ---------- */
+
+.store-card {
+  border-top: 4px solid var(--store-color, var(--at-primary));
+
+  .store-card-icon {
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    flex-shrink: 0;
+    background: color-mix(in srgb, var(--store-color, #2563eb) 14%, #fff);
+    color: color-mix(in srgb, var(--store-color, #2563eb) 85%, #000);
+  }
+
+  .min-w-0 {
+    min-width: 0;
+  }
+}
+
+.your-store {
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  background: var(--at-primary);
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.store-address {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  font-size: 0.88rem;
+
+  > i {
+    color: var(--at-muted);
+    margin-top: 0.1rem;
+  }
+}
+
+.store-hours {
+  border: 1px solid var(--at-border);
+  border-radius: 10px;
+  padding: 0.3rem 0.7rem;
+  font-size: 0.84rem;
+}
+
+.store-hours-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.18rem 0;
+
+  &.is-today {
+    font-weight: 700;
+    color: color-mix(in srgb, var(--store-color, #2563eb) 85%, #000);
+  }
+
+  &.is-closed span:last-child {
+    color: #a12626;
+  }
+
+  .today-dot {
+    margin-left: 0.4rem;
+    font-size: 0.62rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    opacity: 0.8;
+  }
+}
+
+/* ---------- Schedule drag and drop ---------- */
+
+.schedule-grid .day-chip[draggable='true'] {
+  cursor: grab;
+
+  &:active {
+    cursor: grabbing;
+  }
+}
+
+.schedule-grid td {
+  transition: background-color 0.12s, opacity 0.12s;
+}
+
+.schedule-grid td.drag-source .day-chip {
+  opacity: 0.4;
+}
+
+.schedule-grid td.drag-other-day {
+  opacity: 0.35;
+}
+
+.schedule-grid td.drop-ok {
+  background-color: rgba(var(--at-primary-rgb), 0.05) !important;
+  box-shadow: inset 0 0 0 2px rgba(var(--at-primary-rgb), 0.35);
+}
+
+.schedule-grid td.drop-hover {
+  background-color: rgba(var(--at-primary-rgb), 0.14) !important;
+  box-shadow: inset 0 0 0 2px var(--at-primary);
+}
+
+.drag-hint {
+  font-size: 0.75rem;
+  color: var(--at-muted);
 }

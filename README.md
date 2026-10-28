@@ -1,59 +1,92 @@
-# SchedulingSoftwareFrontend
+# AllianceTel Scheduling: Web App
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 22.1.8.
+The web app for AllianceTel's weekly store scheduling. It's built with Angular 22 and Bootstrap 5,
+and uses a sliding sidebar that collapses on small screens. It talks to the Spring Boot API in
+[`scheduling-software`](../scheduling-software). The main project README, configuration, API and
+deployment guide live there.
 
-## Development server
+## Screens
 
-To start a local development server, run:
+| Page | Who | What it's for |
+|---|---|---|
+| **Sign in / Change password** | Everyone | Sign in; new and reset accounts must choose their own password first. |
+| **Dashboard** | Admin, Manager | Staff per area, pending day-off requests, shortcuts. |
+| **Weekly Schedule** | Everyone | Managers generate, edit, auto-fill and publish the week; employees see their published week ("My Schedule"). |
+| **Day-off Requests** | Everyone | Ask for days off (max 2 per week, one person per store per day; days a colleague has are marked *Taken*) or an **emergency** day off; managers approve or reject with a staffing check. |
+| **Employees / My Team** | Admin, Manager | Staff list, home store, Primary / Secondary / Floater, sign-in resets. |
+| **Areas** | Admin | San Diego, Los Angeles, San Francisco, … |
+| **Stores** | Everyone | Admins edit code, color, hours and minimum staff. Managers and employees see a directory: address with directions, weekly hours, "Your store". |
+| **Page not found** | Everyone | Friendly page for mistyped or old links. |
 
-```bash
-ng serve
-```
+### On the schedule
 
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
+- Each work day shows the **store name in the store's color** and the shift hours (the store's
+  hours that day).
+- Under each name is a chip: **★ Primary · Oceanside**, **Oceanside** (secondary) or **Floater**.
+- Red cells and a banner flag store-days below their minimum. Dashed boxes with ⇄ are people
+  moved automatically, and a dot marks days changed by hand.
+- **Drag and drop** while building the week (draft): drop any day box on **any other** box (any person,
+  any day) and the two trade places, e.g. Ana's Tuesday at Oceanside ↔ Ben's Thursday off. Drop a work day
+  on any day of a store's row to send that shift there. Valid places light up while dragging; a card asks
+  first if the swap changes someone's number of work days, leaves two people from one store off, or moves a
+  primary. Approved days off never move.
+- Clicking a day opens the editor: change it, swap with a colleague, or move the person for the
+  whole week. A work day needs a store. Moving a **primary** asks for confirmation first.
+- **Employees** see only the schedule itself: no totals rows and no Primary / Secondary / Floater.
+- Confirmations (publish, regenerate, delete, approve…) use in-app cards, never browser pop-ups.
 
-## Code scaffolding
+### Works on any screen
 
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
+Phones, tablets and desktops are supported. On phones, tables become stacked cards, the summary
+cards sit two per row, and the weekly grid scrolls sideways with the names column fixed in place.
+On tablets, the Employees list shows two cards per row.
 
-```bash
-ng generate component component-name
-```
+## Develop
 
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
-
-```bash
-ng generate --help
-```
-
-## Building
-
-To build the project run:
-
-```bash
-ng build
-```
-
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
-
-## Running unit tests
-
-To execute unit tests with the [Vitest](https://vitest.dev/) test runner, use the following command:
-
-```bash
-ng test
-```
-
-## Running end-to-end tests
-
-For end-to-end (e2e) testing, run:
+Requires Node 22.
 
 ```bash
-ng e2e
+npm install
+npm start            # http://localhost:4200
 ```
 
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
+`npm start` forwards `/api` to the backend on `http://localhost:8080` (see `proxy.conf.json`), so
+start the backend first. Demo sign-ins (password `Welcome123`): `admin@alliancetel.example`,
+`manager.sandiego@alliancetel.example`, `aisha.khan@alliancetel.example`.
 
-## Additional Resources
+| Command | Does |
+|---|---|
+| `npm start` | Dev server with live reload. |
+| `npm test` | Unit tests in watch mode (Vitest). |
+| `npx ng test --watch=false` | Unit tests once (what CI runs). |
+| `npx ng build --configuration production` | Production build into `dist/scheduling-software-frontend/browser`. |
 
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+## Project layout
+
+```
+src/app/
+├── core/         API client, auth (token, guards, interceptors), models, confirm cards, toasts,
+│                 date helpers, store hours/colors, day-off staffing card
+├── layout/       shell: sidebar, top bar, user menu, toasts
+├── shared/       modal and confirmation dialog
+└── features/     dashboard, schedule, day-off, employees, areas, stores, auth, not-found
+src/styles.scss   theme, schedule grid, store colors, role chips, responsive rules
+nginx/            production web server config (serves the app, forwards /api)
+```
+
+## Production
+
+The `Dockerfile` builds the app and serves it with nginx, which also forwards `/api/` to the
+backend. Settings:
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `BACKEND_URL` | `http://backend:8080` | Where the API runs. On Railway: `http://${{backend.RAILWAY_PRIVATE_DOMAIN}}:8080`. |
+| `PORT` | `80` | Port nginx listens on (Railway sets it). |
+
+nginx adds security headers, caches the hashed JS/CSS files for a year, never caches
+`index.html`, and answers `GET /healthz` for health checks. Railway settings are in
+`railway.json`; GitHub Actions (`.github/workflows/ci.yml`) runs the tests, the production build
+and a Docker build on every push.
+
+For deployment steps, see `DEPLOYMENT.md` in the backend repository.

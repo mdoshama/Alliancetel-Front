@@ -17,7 +17,7 @@
     </div>
   } @else {
     <div class="table-responsive">
-      <table class="table table-hover">
+      <table class="table table-hover table-stack">
         <thead>
           <tr>
             <th>Area</th>
@@ -31,16 +31,16 @@
           @for (area of areas(); track area.id) {
             <tr>
               <td class="fw-semibold"><i class="bi bi-geo-alt text-primary me-2"></i>{{ area.name }}</td>
-              <td class="text-muted-2">{{ area.description || '—' }}</td>
-              <td class="text-center">
+              <td data-label="Description" class="text-muted-2">{{ area.description || '—' }}</td>
+              <td data-label="Active staff" class="text-center">
                 <a [routerLink]="['/employees']" [queryParams]="{ area: area.id }">{{ area.employeeCount }}</a>
               </td>
-              <td>
+              <td data-label="Status">
                 <span class="badge" [class]="area.active ? 'text-bg-success' : 'text-bg-secondary'">
                   {{ area.active ? 'Active' : 'Inactive' }}
                 </span>
               </td>
-              <td class="text-end text-nowrap">
+              <td class="td-actions text-end text-nowrap">
                 <a class="btn btn-sm btn-outline-secondary me-1" [routerLink]="['/schedules']" [queryParams]="{ area: area.id }"
                    title="Open schedule"><i class="bi bi-calendar3-week"></i></a>
                 <button type="button" class="btn btn-sm btn-outline-primary me-1" (click)="openEdit(area)" title="Edit">

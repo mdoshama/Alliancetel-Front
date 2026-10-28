@@ -1,3 +1,52 @@
+@if (!auth.isAdmin()) {
+  <p class="text-muted-2 small mb-3">
+    <i class="bi bi-geo-alt me-1"></i>Stores in {{ auth.user()?.areaName }}. Your schedule shows which one you work at each day.
+  </p>
+  @if (loading()) {
+    <div class="card"><div class="empty-state"><div class="spinner-border text-primary"></div></div></div>
+  } @else if (directory().length === 0) {
+    <div class="card"><div class="empty-state"><i class="bi bi-shop"></i>No stores in your area yet.</div></div>
+  } @else {
+    <div class="row g-3">
+      @for (s of directory(); track s.id) {
+        <div class="col-md-6 col-xl-4">
+          <div class="card store-card h-100" [style.--store-color]="s.color">
+            <div class="card-body">
+              <div class="d-flex align-items-start gap-2 mb-2">
+                <span class="store-card-icon"><i class="bi bi-shop"></i></span>
+                <div class="flex-grow-1 min-w-0">
+                  <div class="fw-semibold">{{ s.name }}</div>
+                  @if (s.code) { <span class="store-tag" [style.--store-color]="s.color">{{ s.code }}</span> }
+                </div>
+                @if (isMyStore(s)) { <span class="your-store">Your store</span> }
+              </div>
+              <div class="store-address mb-3">
+                <i class="bi bi-geo-alt"></i>
+                @if (s.address) {
+                  <span>{{ s.address }}</span>
+                  <a class="ms-auto small text-nowrap" [href]="mapsLink(s.address)" target="_blank" rel="noopener">
+                    Directions <i class="bi bi-box-arrow-up-right"></i>
+                  </a>
+                } @else {
+                  <span class="text-muted-2">Address not added yet</span>
+                }
+              </div>
+              <div class="store-hours">
+                @for (d of weekDays; track d) {
+                  <div class="store-hours-row" [class.is-today]="d === todayDay"
+                       [class.is-closed]="hoursOn(s, d) === 'Closed'">
+                    <span>{{ dayShort[d] }}@if (d === todayDay) { <span class="today-dot">Today</span> }</span>
+                    <span>{{ hoursOn(s, d) }}</span>
+                  </div>
+                }
+              </div>
+            </div>
+          </div>
+        </div>
+      }
+    </div>
+  }
+} @else {
 <div class="page-toolbar">
   <div style="min-width: 200px">
     <label class="form-label small text-muted-2 mb-1" for="stArea">Area</label>
@@ -34,7 +83,7 @@
         </button>
       </div>
       <div class="table-responsive">
-        <table class="table table-hover">
+        <table class="table table-hover table-stack">
           <thead>
             <tr>
               <th>Store</th>
@@ -50,27 +99,27 @@
             @for (s of g.stores; track s.id) {
               <tr [class.opacity-50]="!s.active">
                 <td class="fw-semibold"><span class="store-dot me-2" [style.--store-color]="s.color"></span>{{ s.name }}</td>
-                <td>@if (s.code) { <span class="store-tag" [style.--store-color]="s.color">{{ s.code }}</span> } @else { — }</td>
-                <td class="small">
+                <td data-label="Code">@if (s.code) { <span class="store-tag" [style.--store-color]="s.color">{{ s.code }}</span> } @else { — }</td>
+                <td data-label="Hours" class="small">
                   <div class="text-nowrap-md"><i class="bi bi-clock text-muted-2 me-1"></i>{{ summarizeWeek(s.hours) }}</div>
                   @if (s.address) { <div class="text-muted-2">{{ s.address }}</div> }
                 </td>
-                <td class="text-center">
+                <td data-label="Min staff / day" class="text-center">
                   @if (s.minStaffPerDay > 0) {
                     <span class="fw-semibold">{{ s.minStaffPerDay }}</span>
                   } @else {
                     <span class="text-muted-2">None</span>
                   }
                 </td>
-                <td class="text-center">
+                <td data-label="Home staff" class="text-center">
                   <a [routerLink]="['/employees']" [queryParams]="{ area: s.areaId, store: s.id }">{{ s.employeeCount }}</a>
                 </td>
-                <td>
+                <td data-label="Status">
                   <span class="badge" [class]="s.active ? 'text-bg-success' : 'text-bg-secondary'">
                     {{ s.active ? 'Active' : 'Inactive' }}
                   </span>
                 </td>
-                <td class="text-end text-nowrap">
+                <td class="td-actions text-end text-nowrap">
                   <button type="button" class="btn btn-sm btn-outline-primary me-1" (click)="openEdit(s)" title="Edit">
                     <i class="bi bi-pencil"></i>
                   </button>
@@ -85,6 +134,7 @@
       </div>
     </div>
   }
+}
 }
 
 <app-modal [open]="modalOpen()" [title]="editing() ? 'Edit store' : 'Add store'" (closed)="modalOpen.set(false)">

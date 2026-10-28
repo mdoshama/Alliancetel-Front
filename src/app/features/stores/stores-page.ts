@@ -2,11 +2,14 @@ import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { ApiService } from '../../core/api.service';
+import { AuthService } from '../../core/auth.service';
+import { today } from '../../core/date-utils';
 import { Area, DayHours, Store } from '../../core/models';
 import { STORE_PALETTE } from '../../core/store-colors';
 import {
   DAY_SHORT,
   DEFAULT_CLOSES,
+  formatHours,
   DEFAULT_OPENS,
   WEEK_DAYS,
   hhmm,
@@ -34,6 +37,33 @@ export class StoresPage implements OnInit {
   private readonly toast = inject(ToastService);
   private readonly fb = inject(FormBuilder);
   private readonly confirm = inject(ConfirmService);
+  protected readonly auth = inject(AuthService);
+  protected readonly formatHours = formatHours;
+  protected readonly weekDays = WEEK_DAYS;
+
+  /** Today's weekday, to highlight today's hours in the store directory. */
+  protected readonly todayDay = WEEK_DAYS[(new Date(today() + 'T00:00:00').getDay() + 6) % 7];
+
+  /** Read-only directory for managers and employees: active stores, their own store first. */
+  protected readonly directory = computed(() => {
+    const mine = this.auth.user()?.homeStoreId ?? null;
+    return this.stores()
+      .filter((s) => s.active)
+      .sort((a, b) => Number(b.id === mine) - Number(a.id === mine) || a.name.localeCompare(b.name));
+  });
+
+  protected isMyStore(store: Store): boolean {
+    return store.id === (this.auth.user()?.homeStoreId ?? null);
+  }
+
+  protected mapsLink(address: string): string {
+    return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(address);
+  }
+
+  protected hoursOn(store: Store, day: string): string {
+    const h = store.hours?.find((x) => x.day === day);
+    return h ? formatHours(h) : '';
+  }
 
   protected readonly areas = signal<Area[]>([]);
   protected readonly stores = signal<Store[]>([]);
@@ -88,7 +118,9 @@ export class StoresPage implements OnInit {
   });
 
   ngOnInit(): void {
-    this.api.areas().subscribe((list) => this.areas.set(list));
+    if (this.auth.isAdmin()) {
+      this.api.areas().subscribe((list) => this.areas.set(list));
+    }
     this.load();
   }
 

@@ -218,6 +218,11 @@ export class EmployeesPage implements OnInit {
     }
   }
 
+  /** The store's color, for the role chip. */
+  protected storeColor(storeId: number | null): string | null {
+    return storeId == null ? null : (this.stores().find((x) => x.id === storeId)?.color ?? null);
+  }
+
   /** Switches someone between primary and secondary at their home store, from the list. */
   protected setPrimary(e: Employee, primary: boolean): void {
     if (primary === (e.storeRole === 'PRIMARY')) {

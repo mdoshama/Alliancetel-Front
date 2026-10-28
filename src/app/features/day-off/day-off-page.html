@@ -37,7 +37,7 @@
     <div class="empty-state"><i class="bi bi-calendar-check"></i>No requests to show.</div>
   } @else {
     <div class="table-responsive">
-      <table class="table table-hover">
+      <table class="table table-hover table-stack">
         <thead>
           <tr>
             <th>Employee</th>
@@ -56,20 +56,23 @@
                 <div class="fw-semibold">{{ r.employeeName }}</div>
                 <div class="small text-muted-2">{{ r.employeeCode }}</div>
               </td>
-              <td>{{ r.areaName }}</td>
-              <td>
-                <div class="fw-semibold">{{ format(r.date, { weekday: 'long' }) }}</div>
+              <td data-label="Area">{{ r.areaName }}</td>
+              <td data-label="Day off">
+                <div class="fw-semibold">
+                  {{ format(r.date, { weekday: 'long' }) }}
+                  @if (r.emergency) { <span class="emergency-badge"><i class="bi bi-exclamation-octagon-fill"></i> Emergency</span> }
+                </div>
                 <div class="small text-muted-2">{{ format(r.date, { month: 'short', day: 'numeric', year: 'numeric' }) }}</div>
               </td>
-              <td class="text-muted-2">
+              <td data-label="Reason" class="text-muted-2">
                 {{ r.reason || '—' }}
                 @if (r.reviewNote) {
                   <div class="small fst-italic">Manager: {{ r.reviewNote }}</div>
                 }
               </td>
-              <td><span class="badge status-badge status-{{ r.status }}">{{ r.status | titlecase }}</span></td>
+              <td data-label="Status"><span class="badge status-badge status-{{ r.status }}">{{ r.status | titlecase }}</span></td>
               @if (auth.canManage() && status() === 'PENDING') {
-                <td style="max-width: 280px">
+                <td data-label="Staffing" style="max-width: 280px">
                   @if (impacts().get(r.id); as im) {
                     <span class="impact-badge {{ impactBadge[im.level].css }}">
                       <i class="bi {{ impactBadge[im.level].icon }} me-1"></i>{{ impactBadge[im.level].label }}
@@ -90,7 +93,7 @@
                   }
                 </td>
               }
-              <td class="text-end text-nowrap">
+              <td class="td-actions text-end text-nowrap">
                 @if (r.status === 'PENDING' && canReview(r)) {
                   <button type="button" class="btn btn-sm btn-success me-1" [disabled]="busyId() === r.id" (click)="approve(r)">
                     <i class="bi bi-check-lg"></i> Approve
@@ -142,7 +145,7 @@
   }
   <div class="mb-3" [class.d-none]="auth.isEmployee()">
     <label class="form-label" for="nEmployee">Employee</label>
-    <select id="nEmployee" class="form-select" [ngModel]="formEmployeeId()" (ngModelChange)="formEmployeeId.set($event)"
+    <select id="nEmployee" class="form-select" [ngModel]="formEmployeeId()" (ngModelChange)="onFormEmployeeChange($event)"
             [disabled]="formArea() == null">
       <option [ngValue]="null">Select employee…</option>
       @for (e of formEmployees(); track e.id) {
@@ -165,15 +168,36 @@
   <div class="day-toggle-group mb-2">
     @for (d of formWeekDates(); track d) {
       <button type="button" class="btn"
-              [class]="formDays().has(d) ? 'btn btn-warning' : 'btn btn-outline-secondary'"
-              [disabled]="d < todayIso || (!formDays().has(d) && formDays().size >= maxDaysPerWeek)"
+              [class]="formDays().has(d) ? (formEmergency() ? 'btn btn-danger' : 'btn btn-warning') : 'btn btn-outline-secondary'"
+              [class.is-taken]="takenBy(d) && !formDays().has(d)"
+              [disabled]="dayDisabled(d)"
+              [attr.title]="takenBy(d) ? takenBy(d) + ' at your store already has this day' : null"
               (click)="toggleDay(d)">
         {{ format(d, { weekday: 'short' }) }}
         <small>{{ format(d, { month: 'numeric', day: 'numeric' }) }}</small>
+        @if (takenBy(d); as who) { <small class="taken-by">Taken · {{ who }}</small> }
       </button>
     }
   </div>
-  <p class="small text-muted-2 mb-3">Pick up to {{ maxDaysPerWeek }} days in one week. Approved days become the employee's days off.</p>
+  @if (formEmergency()) {
+    <p class="small text-danger mb-3">
+      <i class="bi bi-exclamation-octagon me-1"></i>Emergency: any day can be picked, even ones a colleague has. Your manager
+      still has to approve it.
+    </p>
+  } @else {
+    <p class="small text-muted-2 mb-3">
+      Pick up to {{ maxDaysPerWeek }} days in one week. Only one person per store can be off on a day, so days a colleague
+      already has are marked <strong>Taken</strong>.
+    </p>
+  }
+  <div class="emergency-toggle mb-3" [class.on]="formEmergency()">
+    <div class="form-check form-switch mb-0">
+      <input class="form-check-input" type="checkbox" role="switch" id="nEmergency"
+             [ngModel]="formEmergency()" (ngModelChange)="setEmergency($event)" />
+      <label class="form-check-label fw-semibold" for="nEmergency">Emergency day off</label>
+    </div>
+    <div class="small text-muted-2">For something urgent (illness, family emergency). Skips the usual limits.</div>
+  </div>
   <div>
     <label class="form-label" for="nReason">Reason <span class="text-muted-2 small">(optional)</span></label>
     <input id="nReason" class="form-control" maxlength="255" [(ngModel)]="formReason" />

@@ -30,6 +30,7 @@ const SECTIONS: NavSection[] = [
     items: [
       { label: 'Weekly Schedule', employeeLabel: 'My Schedule', icon: 'bi-calendar3-week', path: '/schedules', roles: ALL },
       { label: 'Day-off Requests', employeeLabel: 'My Days Off', icon: 'bi-calendar-x', path: '/day-off-requests', roles: ALL },
+      { label: 'Stores', icon: 'bi-shop', path: '/stores', roles: ['MANAGER', 'EMPLOYEE'] },
     ],
   },
   {

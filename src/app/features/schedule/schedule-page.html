@@ -31,7 +31,7 @@
              [ngModel]="weekStart()" (ngModelChange)="jumpTo($event)" />
     </div>
   </div>
-  <div class="ms-auto d-flex gap-2">
+  <div class="ms-auto d-flex gap-2 toolbar-actions">
     @if (auth.canManage() && schedule(); as s) {
       @if (s.status === 'DRAFT') {
         @if (s.stores.length > 0) {
@@ -120,7 +120,7 @@
   }
 
   <div class="row g-3 mb-3" [class.d-none]="auth.isEmployee()">
-    <div class="col-sm-6 col-xl-3">
+    <div class="col-6 col-xl-3">
       <div class="card stat-card h-100">
         <div class="stat-icon" [class]="s.status === 'PUBLISHED' ? 'stat-icon bg-success-subtle text-success' : 'stat-icon bg-secondary-subtle text-secondary'">
           <i class="bi" [class]="s.status === 'PUBLISHED' ? 'bi bi-send-check' : 'bi bi-pencil-square'"></i>
@@ -133,7 +133,7 @@
         </div>
       </div>
     </div>
-    <div class="col-sm-6 col-xl-3">
+    <div class="col-6 col-xl-3">
       <div class="card stat-card h-100">
         <div class="stat-icon bg-primary-subtle text-primary"><i class="bi bi-people"></i></div>
         <div>
@@ -142,7 +142,7 @@
         </div>
       </div>
     </div>
-    <div class="col-sm-6 col-xl-3">
+    <div class="col-6 col-xl-3">
       <div class="card stat-card h-100">
         <div class="stat-icon bg-info-subtle text-info"><i class="bi bi-briefcase"></i></div>
         <div>
@@ -151,7 +151,7 @@
         </div>
       </div>
     </div>
-    <div class="col-sm-6 col-xl-3">
+    <div class="col-6 col-xl-3">
       <a class="card stat-card h-100 text-decoration-none text-body" routerLink="/day-off-requests">
         <div class="stat-icon bg-warning-subtle text-warning"><i class="bi bi-hourglass-split"></i></div>
         <div>
@@ -223,11 +223,17 @@
         @for (st of s.stores; track st.id) {
           <span class="legend-store" [style.--store-color]="st.color"><span class="store-dot"></span>{{ st.name }}</span>
         }
+        @if (!auth.isEmployee()) {
+          <span class="legend-key"><i class="bi bi-star-fill" style="color: #e0a100"></i>Primary</span>
+        }
         <span><span class="day-chip type-OFF">{{ dayTypeLabels['OFF'] }}</span></span>
         <span><span class="day-chip type-REQUESTED_OFF">{{ dayTypeLabels['REQUESTED_OFF'] }}</span></span>
         @if (auth.canManage()) {
           <span class="d-flex align-items-center gap-1"><span class="day-chip type-WORK has-store auto-moved px-2" style="--store-color: #475569"><i class="bi bi-arrow-left-right"></i></span> auto-moved</span>
           <span class="d-flex align-items-center gap-1"><span class="day-chip type-OFF px-2"><span class="edited-dot"></span>&nbsp;</span> edited</span>
+          @if (canEdit()) {
+            <span class="drag-hint d-none d-lg-inline"><i class="bi bi-arrows-move me-1"></i>Drag any day onto any other day to swap them, or onto a store's row to send the shift there</span>
+          }
         }
       </div>
     </div>
@@ -252,20 +258,49 @@
           @for (row of visibleRows(); track row.employeeId) {
             <tr [class.is-me]="row.employeeId === auth.user()?.id">
               <td>
-                <div class="fw-semibold">
-                  {{ row.employeeName }}
-                  @if (row.employeeId === auth.user()?.id) { <span class="badge text-bg-primary ms-1">You</span> }
-                </div>
-                <div class="small text-muted-2">
-                  {{ row.employeeCode }}
-                  @if (row.role === 'MANAGER') { · <span class="text-primary">{{ roleLabels[row.role] }}</span> }
-                  · <span class="store-role role-{{ row.storeRole }}" [attr.title]="storeRoleHelp[row.storeRole]">{{ storeRoleLabels[row.storeRole] }}</span>
-                  @if (row.homeStoreName) { <i class="bi bi-shop"></i> {{ row.homeStoreName }} }
+                <div class="emp-cell" [attr.title]="auth.isEmployee() ? row.employeeName : personTitle(row)">
+                  <span class="emp-avatar" [class.is-floater]="row.storeRole === 'FLOATER' && !auth.isEmployee()"
+                        [style.--store-color]="storeColor(row.homeStoreId)">
+                    {{ initials(row.employeeName) }}
+                    @if (row.storeRole === 'PRIMARY' && !auth.isEmployee()) {
+                      <span class="emp-star" aria-hidden="true"><i class="bi bi-star-fill"></i></span>
+                    }
+                  </span>
+                  <div class="emp-text">
+                    <div class="emp-name">
+                      {{ row.employeeName }}
+                      @if (row.role === 'MANAGER') { <span class="emp-manager">Manager</span> }
+                      @if (row.employeeId === auth.user()?.id) { <span class="you-tag">You</span> }
+                    </div>
+                    <div class="emp-sub" [class.d-none]="auth.isEmployee()">
+                      @switch (row.storeRole) {
+                        @case ('FLOATER') {
+                          <span class="emp-floater"><i class="bi bi-shuffle"></i> Floater</span>
+                        }
+                        @default {
+                          <span class="emp-home">
+                            <span class="store-dot" [style.--store-color]="storeColor(row.homeStoreId)"></span>
+                            {{ row.homeStoreName }}
+                          </span>
+                          @if (row.storeRole === 'PRIMARY') { <span class="primary-tag">Primary</span> }
+                        }
+                      }
+                    </div>
+                  </div>
                 </div>
               </td>
               @for (cell of row.days; track cell.entryId; let i = $index) {
-                <td [class.dimmed]="dimmed(cell)">
+                <td [class.dimmed]="dimmed(cell)"
+                    [class.drag-source]="isDragSource(row, i)"
+                    [class.drag-other-day]="drag() !== null && !isDragSource(row, i) && !canDropOnPerson(row, i)"
+                    [class.drop-ok]="canDropOnPerson(row, i)"
+                    [class.drop-hover]="dropKey() === 'p' + row.employeeId + '-' + i"
+                    (dragover)="onDragOver($event, 'p' + row.employeeId + '-' + i, canDropOnPerson(row, i))"
+                    (dragleave)="onDragLeave('p' + row.employeeId + '-' + i)"
+                    (drop)="onDropOnPerson($event, row, i)">
                   <button type="button" class="day-chip type-{{ cell.type }}" [class.editable]="canEdit()"
+                          [attr.draggable]="canDrag(cell) ? 'true' : null"
+                          (dragstart)="onDragStart($event, row, i)" (dragend)="onDragEnd()"
                           [class.no-store]="cell.type === 'WORK' && !cell.storeId"
                           [class.has-store]="cell.type === 'WORK' && !!cell.storeId"
                           [style.--store-color]="cell.type === 'WORK' ? cell.storeColor : null"
@@ -296,6 +331,7 @@
             </tr>
           }
         </tbody>
+        @if (!auth.isEmployee()) {
         <tfoot>
           <tr>
             <td>Working</td>
@@ -323,7 +359,13 @@
                     </td>
                   } @else {
                     <td [class.below-min]="isShort(c.storeId, c.minStaffPerDay, n)"
-                        [attr.title]="isShort(c.storeId, c.minStaffPerDay, n) ? (c.minStaffPerDay - n) + ' more needed' : null">
+                        [attr.title]="isShort(c.storeId, c.minStaffPerDay, n) ? (c.minStaffPerDay - n) + ' more needed' : null"
+                        [class.drag-other-day]="drag() !== null && !canDropOnStore(c.storeId, i)"
+                        [class.drop-ok]="canDropOnStore(c.storeId, i)"
+                        [class.drop-hover]="dropKey() === 's' + c.storeId + '-' + i"
+                        (dragover)="onDragOver($event, 's' + c.storeId + '-' + i, canDropOnStore(c.storeId, i))"
+                        (dragleave)="onDragLeave('s' + c.storeId + '-' + i)"
+                        (drop)="onDropOnStore($event, c.storeId, i)">
                       {{ n }}@if (c.minStaffPerDay > 0) {<span class="min-of">/{{ c.minStaffPerDay }}</span>}
                       @if (c.storeId && c.dailyHours[i]) { <span class="day-hours">{{ hoursLabel(c.dailyHours[i]) }}</span> }
                     </td>
@@ -334,6 +376,7 @@
             }
           }
         </tfoot>
+        }
       </table>
     </div>
   </div>

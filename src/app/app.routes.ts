@@ -57,10 +57,16 @@ export const routes: Routes = [
       {
         path: 'stores',
         title: 'Stores · AllianceTel',
-        data: { heading: 'Stores', roles: ['ADMIN'] },
+        data: { heading: 'Stores' },
         loadComponent: () => import('./features/stores/stores-page').then((m) => m.StoresPage),
+      },
+      {
+        // Any other address: signed-in users see a "not found" page; signed-out users go to sign-in first.
+        path: '**',
+        title: 'Page not found · AllianceTel',
+        data: { heading: 'Page not found' },
+        loadComponent: () => import('./features/not-found/not-found-page').then((m) => m.NotFoundPage),
       },
     ],
   },
-  { path: '**', redirectTo: '' },
 ];

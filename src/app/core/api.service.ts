@@ -8,6 +8,7 @@ import {
   Credentials,
   DayOffFilter,
   DayOffImpact,
+  TakenDay,
   DayOffRequest,
   DayType,
   Employee,
@@ -91,6 +92,11 @@ export class ApiService {
   createDayOff(body: CreateDayOffRequest): Observable<DayOffRequest[]> {
     return this.http.post<DayOffRequest[]>(`${this.base}/day-off-requests`, body);
   }
+  takenDays(employeeId: number, from: string, to: string): Observable<TakenDay[]> {
+    return this.http.get<TakenDay[]>(`${this.base}/day-off-requests/taken-days`, {
+      params: { employeeId, from, to },
+    });
+  }
   dayOffImpact(id: number): Observable<DayOffImpact> {
     return this.http.get<DayOffImpact>(`${this.base}/day-off-requests/${id}/impact`);
   }
@@ -120,7 +126,19 @@ export class ApiService {
   /** Two people trade their assignment (store and work/off) on the same day. */
   swapEntries(scheduleId: number, entryIdA: number, entryIdB: number): Observable<Schedule> {
     return this.http.post<Schedule>(`${this.base}/schedules/${scheduleId}/swap`, { entryIdA, entryIdB });
+  }  /** Drag and drop: two days trade places (any person, any day); storeId puts the dragged work day at a store. */
+  exchangeDays(scheduleId: number, fromEntryId: number, toEntryId: number, storeId?: number): Observable<Schedule> {
+    return this.http.post<Schedule>(`${this.base}/schedules/${scheduleId}/exchange`, {
+      fromEntryId,
+      toEntryId,
+      storeId: storeId ?? null,
+    });
   }
+  /** One person's work day and day off trade places (moves their day off within the week). */
+  swapDays(scheduleId: number, entryIdA: number, entryIdB: number): Observable<Schedule> {
+    return this.http.post<Schedule>(`${this.base}/schedules/${scheduleId}/swap-days`, { entryIdA, entryIdB });
+  }
+
   /** Re-run automatic store assignment on a draft; days set by hand are kept. */
   autoAssignStores(scheduleId: number): Observable<Schedule> {
     return this.http.post<Schedule>(`${this.base}/schedules/${scheduleId}/auto-assign-stores`, {});

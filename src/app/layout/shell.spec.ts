@@ -30,12 +30,12 @@ describe('Shell', () => {
 
   it('shows managers their team but not areas', async () => {
     const { labels } = await renderAs('MANAGER');
-    expect(labels).toEqual(['Dashboard', 'Weekly Schedule', 'Day-off Requests', 'My Team']);
+    expect(labels).toEqual(['Dashboard', 'Weekly Schedule', 'Day-off Requests', 'Stores', 'My Team']);
   });
 
   it('shows employees only their own pages', async () => {
     const { labels } = await renderAs('EMPLOYEE');
-    expect(labels).toEqual(['My Schedule', 'My Days Off']);
+    expect(labels).toEqual(['My Schedule', 'My Days Off', 'Stores']);
   });
 
   it('shows the signed-in user and their area in the top bar', async () => {

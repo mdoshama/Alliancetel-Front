@@ -54,6 +54,11 @@ export class DayOffPage implements OnInit {
   protected readonly formWeek = signal(addDays(weekStartOf(today()), 7));
   protected readonly formDays = signal<Set<string>>(new Set());
   protected formReason = '';
+  /** Urgent request: lifts the one-per-store and weekly limits (still needs approval). */
+  protected readonly formEmergency = signal(false);
+  /** Days in the chosen week a colleague at the same store already has off, by date → first name. */
+  protected readonly formTaken = signal<Map<string, string>>(new Map());
+  protected readonly formMaxDays = computed(() => (this.formEmergency() ? 7 : this.maxDaysPerWeek));
 
   protected readonly formWeekDates = computed(() => weekDates(this.formWeek()));
   protected readonly formWeekLabel = computed(() => formatWeekRange(this.formWeek()));
@@ -116,7 +121,7 @@ export class DayOffPage implements OnInit {
     this.busyId.set(null);
     const card = impact ? approvalCard(impact) : null;
     const ok = await this.confirm.ask({
-      title: `Approve ${r.employeeName.split(' ')[0]}'s day off?`,
+      title: `Approve ${r.employeeName.split(' ')[0]}'s ${r.emergency ? 'emergency ' : ''}day off?`,
       message: impact ? impact.summary : `${r.employeeName} asked for ${when} off.`,
       icon: impact?.level === 'SHORT' ? 'bi-exclamation-triangle' : 'bi-calendar-check',
       tone: card?.tone ?? 'primary',
@@ -203,8 +208,53 @@ export class DayOffPage implements OnInit {
     this.formWeek.set(addDays(weekStartOf(today()), 7));
     this.formDays.set(new Set());
     this.formReason = '';
+    this.formEmergency.set(false);
     this.loadFormEmployees();
+    this.loadTaken();
     this.modalOpen.set(true);
+  }
+
+  protected onFormEmployeeChange(id: number | null): void {
+    this.formEmployeeId.set(id);
+    this.loadTaken();
+  }
+
+  protected setEmergency(on: boolean): void {
+    this.formEmergency.set(on);
+    if (!on) {
+      // Back to a normal request: drop taken days and anything over the weekly limit.
+      const taken = this.formTaken();
+      const kept = [...this.formDays()].filter((d) => !taken.has(d)).sort().slice(0, this.maxDaysPerWeek);
+      this.formDays.set(new Set(kept));
+    }
+  }
+
+  /** A day a normal request can't use because a colleague at the same store has it. */
+  protected takenBy(date: string): string | null {
+    return this.formTaken().get(date) ?? null;
+  }
+
+  protected dayDisabled(date: string): boolean {
+    if (this.formDays().has(date)) {
+      return false;
+    }
+    if (date < this.todayIso || this.formDays().size >= this.formMaxDays()) {
+      return true;
+    }
+    return !this.formEmergency() && this.takenBy(date) !== null;
+  }
+
+  private loadTaken(): void {
+    const employeeId = this.formEmployeeId();
+    this.formTaken.set(new Map());
+    if (!employeeId) {
+      return;
+    }
+    const from = this.formWeek();
+    this.api.takenDays(employeeId, from, addDays(from, 6)).subscribe({
+      next: (days) => this.formTaken.set(new Map(days.map((d) => [d.date, d.takenBy]))),
+      error: () => undefined,
+    });
   }
 
   protected onFormAreaChange(areaId: number | null): void {
@@ -216,6 +266,7 @@ export class DayOffPage implements OnInit {
   protected shiftFormWeek(weeks: number): void {
     this.formWeek.update((w) => addDays(w, weeks * 7));
     this.formDays.set(new Set());
+    this.loadTaken();
   }
 
   protected toggleDay(date: string): void {
@@ -223,7 +274,7 @@ export class DayOffPage implements OnInit {
       const next = new Set(set);
       if (next.has(date)) {
         next.delete(date);
-      } else if (next.size < this.maxDaysPerWeek) {
+      } else if (next.size < this.formMaxDays()) {
         next.add(date);
       }
       return next;
@@ -237,11 +288,15 @@ export class DayOffPage implements OnInit {
       return;
     }
     this.saving.set(true);
-    this.api.createDayOff({ employeeId, dates, reason: this.formReason.trim() || null }).subscribe({
+    const emergency = this.formEmergency();
+    this.api.createDayOff({ employeeId, dates, reason: this.formReason.trim() || null, emergency }).subscribe({
       next: (created) => {
         this.saving.set(false);
         this.modalOpen.set(false);
-        this.toast.success(`${created.length} day${created.length > 1 ? 's' : ''} requested for ${created[0].employeeName}.`);
+        this.toast.success(
+          `${emergency ? 'Emergency request sent' : created.length + ' day' + (created.length > 1 ? 's' : '') + ' requested'}` +
+            ` for ${created[0].employeeName}.`,
+        );
         this.status.set('PENDING');
         this.load();
       },

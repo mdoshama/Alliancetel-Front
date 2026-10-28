@@ -107,6 +107,9 @@ export interface Me {
   role: Role;
   areaId: number | null;
   areaName: string | null;
+  /** Where they normally work (null for floaters and most admins). */
+  homeStoreId?: number | null;
+  homeStoreName?: string | null;
   mustChangePassword: boolean;
 }
 
@@ -148,6 +151,8 @@ export interface DayOffRequest {
   date: string;
   dayOfWeek: string;
   reason: string | null;
+  /** Urgent request: allowed even when a colleague at the same store is off, outside the weekly limit. */
+  emergency: boolean;
   status: DayOffStatus;
   reviewNote: string | null;
   reviewedAt: string | null;
@@ -180,6 +185,9 @@ export interface DayOffImpact {
   scheduleStatus: ScheduleStatus | null;
   alreadyOff: string[];
   alsoRequested: string[];
+  /** Colleagues at the same home store who are off (or asked to be) that day. */
+  sameStoreOff: string[];
+  emergency: boolean;
   newShortages: Shortage[];
   existingShortages: number;
 }
@@ -188,6 +196,14 @@ export interface CreateDayOffRequest {
   employeeId: number;
   dates: string[];
   reason: string | null;
+  emergency?: boolean;
+}
+
+/** A day a colleague at the same store already has off, so a normal request can't take it. */
+export interface TakenDay {
+  date: string;
+  takenBy: string;
+  status: DayOffStatus;
 }
 
 export interface DayOffFilter {

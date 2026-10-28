@@ -15,6 +15,8 @@ function impact(overrides: Partial<DayOffImpact> = {}): DayOffImpact {
     scheduleStatus: null,
     alreadyOff: [],
     alsoRequested: [],
+    sameStoreOff: [],
+    emergency: false,
     newShortages: [],
     existingShortages: 0,
     ...overrides,
@@ -46,6 +48,12 @@ describe('approvalCard', () => {
     expect(card.confirmText).toBe('Approve anyway');
     expect(card.notes[0]).toContain('Oceanside would have 1 of 2');
     expect(card.notes.join(' ')).toContain('already published');
+  });
+
+  it('flags emergencies and colleagues off at the same store first', () => {
+    const card = approvalCard(impact({ emergency: true, sameStoreOff: ['Ben Ito (waiting)'] }));
+    expect(card.notes[0]).toContain('Emergency request');
+    expect(card.notes[1]).toContain('Also off at the same store that day: Ben Ito (waiting)');
   });
 
   it('mentions who else is off and the day that becomes a work day', () => {

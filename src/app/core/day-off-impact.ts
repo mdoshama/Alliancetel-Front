@@ -18,6 +18,12 @@ export function approvalCard(impact: DayOffImpact): {
 } {
   const first = impact.employeeName.split(' ')[0];
   const notes: string[] = [];
+  if (impact.emergency) {
+    notes.push('Emergency request: sent outside the usual one-per-store and weekly limits.');
+  }
+  if (impact.sameStoreOff.length) {
+    notes.push(`Also off at the same store that day: ${impact.sameStoreOff.join(', ')}.`);
+  }
   for (const g of impact.newShortages.slice(0, 3)) {
     notes.push(`${g.storeName} would have ${g.scheduled} of ${g.required} needed on ${dayLabel(g.date)}.`);
   }
