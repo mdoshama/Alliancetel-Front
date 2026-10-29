@@ -222,10 +222,14 @@ export interface CreateDayOffRequest {
 }
 
 /** A day a colleague at the same store already has off, so a normal request can't take it. */
+/** A day a normal request can't use: a colleague at the same store has it, or the area is full that day. */
 export interface TakenDay {
   date: string;
-  takenBy: string;
-  status: DayOffStatus;
+  /** First name of the colleague; null when the day is full. */
+  takenBy: string | null;
+  status: DayOffStatus | null;
+  /** Enough people in the area are already off that the stores can't spare anyone else. */
+  full: boolean;
 }
 
 export interface DayOffFilter {
@@ -257,6 +261,26 @@ export interface DayCell {
   closesAt: string | null;
   /** The assigned store is closed that day. */
   storeClosed: boolean;
+  /** A pending day-off request for this day (managers only). */
+  request: WeekRequest | null;
+}
+
+/** A day-off request waiting for a decision, shown on the week's schedule. */
+export interface WeekRequest {
+  id: number;
+  employeeId: number;
+  employeeName: string;
+  date: string;
+  emergency: boolean;
+  reason: string | null;
+  /** The signed-in user may approve it (managers can't decide their own). */
+  canReview: boolean;
+}
+
+/** Result of approving several requests at once. */
+export interface ApproveManyResult {
+  approved: DayOffRequest[];
+  skipped: { id: number; employeeName: string; date: string; reason: string }[];
 }
 
 export interface StoreRef {
@@ -322,6 +346,8 @@ export interface Schedule {
   storeCoverage: StoreCoverage[];
   coverageGaps: CoverageGap[];
   rows: EmployeeRow[];
+  /** Pending day-off requests this week, by day (managers only). */
+  requests: WeekRequest[];
 }
 
 export const ROLE_LABELS: Record<Role, string> = {
@@ -333,5 +359,6 @@ export const ROLE_LABELS: Record<Role, string> = {
 export const DAY_TYPE_LABELS: Record<DayType, string> = {
   WORK: 'Work',
   OFF: 'Off',
-  REQUESTED_OFF: 'Requested off',
+  /** An approved day-off request: shown as Off with a check mark, and locked. */
+  REQUESTED_OFF: 'Off (approved)',
 };

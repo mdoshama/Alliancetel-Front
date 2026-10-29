@@ -2,6 +2,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable, map } from 'rxjs';
 import {
+  ApproveManyResult,
   Area,
   AreaRequest,
   CreateDayOffRequest,
@@ -112,6 +113,10 @@ export class ApiService {
   }
   approveDayOff(id: number, note?: string): Observable<DayOffRequest> {
     return this.http.post<DayOffRequest>(`${this.base}/day-off-requests/${id}/approve`, { note: note ?? null });
+  }
+  /** Approves many requests; with onlyIfCovered, ones that would leave a store short stay pending. */
+  approveManyDaysOff(ids: number[], onlyIfCovered = true): Observable<ApproveManyResult> {
+    return this.http.post<ApproveManyResult>(`${this.base}/day-off-requests/approve-many`, { ids, onlyIfCovered });
   }
   rejectDayOff(id: number, note?: string): Observable<DayOffRequest> {
     return this.http.post<DayOffRequest>(`${this.base}/day-off-requests/${id}/reject`, { note: note ?? null });

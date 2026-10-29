@@ -503,9 +503,11 @@ body {
     color: #5a6275;
   }
 
+  /* An approved request is a day off like any other, marked with a green check. */
   &.type-REQUESTED_OFF {
-    background: #fff4d6;
-    color: #8a5a00;
+    background: #eef0f3;
+    color: #5a6275;
+    box-shadow: inset 0 0 0 1px #b7e1c5;
   }
 
   &.editable {
@@ -2055,10 +2057,6 @@ body {
   }
 
   &.is-requested {
-    background: #fff8e6;
-    color: #8a5a00;
-    border-color: #f6e2a8;
-    border-left-color: #e0a100;
     cursor: default;
   }
 
@@ -2251,4 +2249,128 @@ body {
 
 .sb-person.is-dim {
   opacity: 0.25;
+}
+
+/* ---------------------------------------------------------------------------------------------
+   Day-off requests on the schedule
+   --------------------------------------------------------------------------------------------- */
+.req-flag {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: 0.02em;
+  color: #7a4b00;
+  background: #ffe8b3;
+  border: 1px solid #f5c35b;
+  white-space: nowrap;
+
+  &.is-emergency {
+    color: #fff;
+    background: #dc3545;
+    border-color: #dc3545;
+  }
+}
+
+/* The flag sits in the chip's top-right corner, like the "edited" dot. */
+.day-chip.has-request {
+  position: relative;
+  box-shadow: 0 0 0 2px #f5c35b;
+
+  .req-flag {
+    position: absolute;
+    top: -8px;
+    right: -6px;
+  }
+}
+
+.sb-person .req-flag {
+  margin-left: 0.15rem;
+}
+
+.requests-panel {
+  border-color: #f5c35b;
+
+  .card-header {
+    background: #fff8e6;
+  }
+}
+
+.request-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0.5rem 1rem;
+
+  &.is-emergency {
+    border-left: 3px solid #dc3545;
+  }
+
+  .request-actions {
+    display: flex;
+    gap: 0.35rem;
+    justify-content: flex-end;
+  }
+}
+
+@media (max-width: 767.98px) {
+  .request-item {
+    grid-template-columns: minmax(0, 1fr) auto;
+
+    .request-actions {
+      grid-column: 1 / -1;
+      justify-content: flex-start;
+    }
+  }
+}
+
+.editor-request {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.6rem 0.75rem;
+  margin-bottom: 1rem;
+  border-radius: 0.5rem;
+  background: #fff8e6;
+  border: 1px solid #f5c35b;
+
+  > .bi {
+    color: #b7791f;
+    margin-top: 0.15rem;
+  }
+
+  &.is-emergency {
+    background: #fdecee;
+    border-color: #f1aeb5;
+
+    > .bi {
+      color: #dc3545;
+    }
+  }
+}
+
+@media (max-width: 575.98px) {
+  .editor-request {
+    flex-wrap: wrap;
+  }
+}
+
+.days-over {
+  color: #b7791f;
+}
+
+.no-off-tag {
+  display: block;
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: #b7791f;
+  white-space: nowrap;
+}
+
+.approved-check {
+  color: #198754;
+  font-size: 0.75em;
 }

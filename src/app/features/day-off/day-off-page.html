@@ -201,23 +201,24 @@
               [class]="formDays().has(d) ? (formEmergency() ? 'btn btn-danger' : 'btn btn-warning') : 'btn btn-outline-secondary'"
               [class.is-taken]="takenBy(d) && !formDays().has(d)"
               [disabled]="dayDisabled(d)"
-              [attr.title]="takenBy(d) ? takenBy(d) + ' at your store already has this day' : null"
+              [attr.title]="takenTitle(d)"
               (click)="toggleDay(d)">
         {{ format(d, { weekday: 'short' }) }}
         <small>{{ format(d, { month: 'numeric', day: 'numeric' }) }}</small>
-        @if (takenBy(d); as who) { <small class="taken-by">Taken · {{ who }}</small> }
+        @if (takenBy(d); as label) { <small class="taken-by">{{ label }}</small> }
       </button>
     }
   </div>
   @if (formEmergency()) {
     <p class="small text-danger mb-3">
-      <i class="bi bi-exclamation-octagon me-1"></i>Emergency: any day can be picked, even ones a colleague has. Your manager
+      <i class="bi bi-exclamation-octagon me-1"></i>Emergency: any day can be picked, even Taken or Full ones. Your manager
       still has to approve it.
     </p>
   } @else {
     <p class="small text-muted-2 mb-3">
       Pick up to {{ maxDaysPerWeek }} days in one week. Only one person per store can be off on a day, so days a colleague
-      already has are marked <strong>Taken</strong>.
+      already has are marked <strong>Taken</strong>. Days marked <strong>Full</strong> already have as many people off as
+      the stores can spare.
     </p>
   }
   <div class="emergency-toggle mb-3" [class.on]="formEmergency()">

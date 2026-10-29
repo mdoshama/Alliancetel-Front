@@ -1,4 +1,4 @@
-import { Component, OnInit, computed, inject, input, signal } from '@angular/core';
+import { Component, OnInit, computed, effect, inject, input, signal } from '@angular/core';
 import { DatePipe, NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
@@ -18,7 +18,10 @@ import {
   STORE_ROLE_HELP,
   STORE_ROLE_LABELS,
   StoreRef,
+  DayOffImpact,
+  WeekRequest,
 } from '../../core/models';
+import { IMPACT_BADGE, approvalCard } from '../../core/day-off-impact';
 import { formatHours, formatTime } from '../../core/store-hours';
 import { ConfirmService } from '../../core/confirm.service';
 import { ToastService } from '../../core/toast.service';
@@ -65,7 +68,8 @@ export class SchedulePage implements OnInit {
   readonly area = input<string>();
   readonly week = input<string>();
 
-  protected readonly dayTypes: DayType[] = ['WORK', 'OFF', 'REQUESTED_OFF'];
+  /** Days a manager can set by hand. Approved days off only come from approving a request. */
+  protected readonly dayTypes: DayType[] = ['WORK', 'OFF'];
   protected readonly dayTypeLabels = DAY_TYPE_LABELS;
   protected readonly roleLabels = ROLE_LABELS;
   protected readonly todayIso = today();
@@ -336,9 +340,159 @@ export class SchedulePage implements OnInit {
     () => this.schedule()?.rows.find((r) => r.employeeId === this.auth.user()?.id) ?? null,
   );
   protected readonly selectedArea = computed(() => this.areas().find((a) => a.id === this.areaId()) ?? null);
+  /** People scheduled for fewer days than usual (e.g. two approved days off). */
   protected readonly mismatchCount = computed(
-    () => this.schedule()?.rows.filter((r) => r.scheduledWorkDays !== r.expectedWorkDays).length ?? 0,
+    () => this.schedule()?.rows.filter((r) => r.scheduledWorkDays < r.expectedWorkDays).length ?? 0,
   );
+  /** People working more days than usual: nobody has given them a day off yet this week. */
+  protected readonly noDayOff = computed(
+    () => this.schedule()?.rows.filter((r) => r.scheduledWorkDays > r.expectedWorkDays) ?? [],
+  );
+
+  protected noDayOffNames(): string {
+    const names = this.noDayOff().map((r) => r.employeeName.split(' ')[0]);
+    return names.length > 6 ? `${names.slice(0, 6).join(', ')} and ${names.length - 6} more` : names.join(', ');
+  }
+
+  // ---- Day-off requests on the schedule -------------------------------------------------------------
+  protected readonly impactBadge = IMPACT_BADGE;
+  /** Staffing check per pending request, by request id. */
+  protected readonly requestImpacts = signal<Map<number, DayOffImpact>>(new Map());
+  /** Request being approved or rejected (or -1 for "approve all"). */
+  protected readonly deciding = signal<number | null>(null);
+  private impactSeq = 0;
+  protected readonly reviewable = computed(() => this.schedule()?.requests.filter((r) => r.canReview) ?? []);
+  /** Reviewable requests whose check says they keep every store covered. */
+  protected readonly fitCount = computed(
+    () => this.reviewable().filter((r) => this.requestImpacts().get(r.id)?.level !== 'SHORT').length,
+  );
+
+  /** Re-checks staffing for every pending request whenever the week changes. */
+  private readonly impactLoader = effect(() => {
+    const requests = this.reviewable();
+    const seq = ++this.impactSeq;
+    this.requestImpacts.set(new Map());
+    for (const r of requests) {
+      this.api.dayOffImpact(r.id).subscribe({
+        next: (impact) => {
+          if (seq === this.impactSeq) this.requestImpacts.update((m) => new Map(m).set(r.id, impact));
+        },
+        error: () => undefined,
+      });
+    }
+  });
+
+  protected requestDay(r: WeekRequest): string {
+    return formatDay(r.date, { weekday: 'short', month: 'short', day: 'numeric' });
+  }
+
+  /** The store the person works at on the requested day, for the requests list. */
+  protected requestStore(r: WeekRequest): string | null {
+    const row = this.schedule()?.rows.find((x) => x.employeeId === r.employeeId);
+    const cell = row?.days.find((c) => c.date === r.date);
+    return cell?.type === 'WORK' ? cell.storeName : null;
+  }
+
+  protected async approveRequest(r: WeekRequest): Promise<void> {
+    const when = formatDay(r.date, { weekday: 'long', month: 'short', day: 'numeric' });
+    this.deciding.set(r.id);
+    let impact = this.requestImpacts().get(r.id);
+    if (!impact) {
+      impact = await new Promise<DayOffImpact | undefined>((resolve) =>
+        this.api.dayOffImpact(r.id).subscribe({ next: resolve, error: () => resolve(undefined) }),
+      );
+    }
+    const card = impact ? approvalCard(impact) : { tone: 'success' as const, confirmText: 'Approve', notes: [] };
+    const ok = await this.confirm.ask({
+      title: `Approve ${r.employeeName.split(' ')[0]}'s day off?`,
+      message: `${r.employeeName} asked for ${when} off${r.reason ? ` (“${r.reason}”)` : ''}.`,
+      icon: 'bi-calendar-check',
+      tone: card.tone,
+      notes: card.notes,
+      confirmText: card.confirmText,
+    });
+    if (!ok) {
+      this.deciding.set(null);
+      return;
+    }
+    this.api.approveDayOff(r.id).subscribe({
+      next: (res) => {
+        this.deciding.set(null);
+        this.toast.success(res.scheduleUpdate ?? `Approved ${r.employeeName}'s day off.`);
+        this.load();
+      },
+      error: () => this.deciding.set(null),
+    });
+  }
+
+  protected async rejectRequest(r: WeekRequest): Promise<void> {
+    const note = await this.confirm.askWithInput({
+      title: 'Reject day off?',
+      message: `${r.employeeName} asked for ${formatDay(r.date, { weekday: 'long', month: 'short', day: 'numeric' })} off.`,
+      icon: 'bi-x-circle',
+      tone: 'danger',
+      input: { label: 'Reason (optional, shown to the employee)', placeholder: 'e.g. Short-staffed that day' },
+      confirmText: 'Reject request',
+    });
+    if (note === null) {
+      return;
+    }
+    this.deciding.set(r.id);
+    this.api.rejectDayOff(r.id, note || undefined).subscribe({
+      next: () => {
+        this.deciding.set(null);
+        this.toast.info(`Rejected ${r.employeeName}'s request. They keep working that day.`);
+        this.load();
+      },
+      error: () => this.deciding.set(null),
+    });
+  }
+
+  /** Approves every request that keeps the stores covered, checked one after another; the rest stay pending. */
+  protected async approveAllThatFit(): Promise<void> {
+    const list = this.reviewable();
+    if (list.length === 0) {
+      return;
+    }
+    const impacts = this.requestImpacts();
+    const short = list.filter((r) => impacts.get(r.id)?.level === 'SHORT');
+    const notes = list.slice(0, 8).map((r) => {
+      const level = impacts.get(r.id)?.level;
+      const tag = level === 'SHORT' ? ' (would leave a store short, stays pending)' : level === 'TIGHT' ? ' (no spare staff)' : '';
+      return `${r.employeeName} · ${this.requestDay(r)}${r.emergency ? ' · emergency' : ''}${tag}`;
+    });
+    if (list.length > 8) notes.push(`…and ${list.length - 8} more.`);
+    notes.push('Checked one at a time, earliest day first, so two people are never approved off when the stores can spare only one.');
+    const ok = await this.confirm.ask({
+      title: 'Approve all that fit?',
+      message:
+        short.length === 0
+          ? `All ${list.length} request(s) this week keep every store at its minimum.`
+          : `${list.length - short.length} of ${list.length} request(s) keep every store covered. The others stay pending for you to decide.`,
+      icon: 'bi-check2-all',
+      tone: 'success',
+      notes,
+      confirmText: 'Approve all that fit',
+    });
+    if (!ok) {
+      return;
+    }
+    this.deciding.set(-1);
+    this.api.approveManyDaysOff(list.map((r) => r.id), true).subscribe({
+      next: (res) => {
+        this.deciding.set(null);
+        const n = res.approved.length;
+        if (res.skipped.length === 0) {
+          this.toast.success(`Approved ${n} day${n === 1 ? '' : 's'} off. The schedule is updated.`);
+        } else {
+          const names = res.skipped.map((x) => `${x.employeeName.split(' ')[0]} (${formatDay(x.date, { weekday: 'short' })})`);
+          this.toast.info(`Approved ${n}. Left pending because a store would be short: ${names.join(', ')}.`);
+        }
+        this.load();
+      },
+      error: () => this.deciding.set(null),
+    });
+  }
   /** Number of work days the scheduler moved to another store to cover a minimum. */
   protected readonly autoMoves = computed(
     () => this.schedule()?.rows.reduce((n, r) => n + r.days.filter((c) => c.autoAssigned).length, 0) ?? 0,
@@ -418,7 +572,10 @@ export class SchedulePage implements OnInit {
         message: `The ${existing.areaName} draft for ${this.weekLabel()} will be built again from scratch.`,
         icon: 'bi-arrow-repeat',
         tone: 'warning',
-        notes: ['Days you changed by hand and swaps on this draft will be lost.'],
+        notes: [
+          'Days you changed by hand and swaps on this draft will be lost.',
+          'Everyone starts working every day the stores are open; only approved requests are days off.',
+        ],
         confirmText: 'Rebuild',
       }))
     ) {
@@ -459,7 +616,10 @@ export class SchedulePage implements OnInit {
     }
     const notes: string[] = [];
     if (s.pendingDayOffRequests > 0) {
-      notes.push(`${s.pendingDayOffRequests} day-off request(s) for this week are still pending and are not included.`);
+      notes.push(`${s.pendingDayOffRequests} day-off request(s) are still pending; those people are scheduled to work.`);
+    }
+    if (this.noDayOff().length > 0) {
+      notes.push(`${this.noDayOff().length} people have no day off this week: ${this.noDayOffNames()}.`);
     }
     if (s.coverageGaps.length > 0) {
       notes.push(`${s.coverageGaps.length} store-day(s) are below their minimum staffing.`);
@@ -580,6 +740,11 @@ export class SchedulePage implements OnInit {
       return;
     }
     const cell = row.days[dayIndex];
+    if (cell.type === 'REQUESTED_OFF') {
+      const day = formatDay(cell.date, { weekday: 'long', month: 'short', day: 'numeric' });
+      this.toast.info(`${row.employeeName.split(' ')[0]} has an approved day off on ${day}. It stays off.`);
+      return;
+    }
     this.editType = cell.type;
     this.editStoreId = cell.storeId ?? this.openHomeStore(row, dayIndex);
     this.weekStoreId = cell.storeId ?? row.homeStoreId;

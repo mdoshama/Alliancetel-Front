@@ -162,13 +162,60 @@
     </div>
   </div>
 
-  @if (s.pendingDayOffRequests > 0 && s.status === 'DRAFT' && auth.canManage()) {
-    <div class="alert alert-warning d-flex align-items-center py-2">
-      <i class="bi bi-exclamation-triangle me-2"></i>
-      <span>
-        {{ s.pendingDayOffRequests }} day-off request(s) for this week are still pending.
-        <a routerLink="/day-off-requests">Review them</a>, then regenerate to include approved days.
-      </span>
+  @if (auth.canManage() && s.requests.length > 0) {
+    <div class="card requests-panel mb-3">
+      <div class="card-header list-header">
+        <i class="bi bi-calendar-x text-warning"></i>
+        <span class="fw-semibold">Day-off requests this week</span>
+        <span class="badge rounded-pill text-bg-warning">{{ s.requests.length }} waiting</span>
+        <span class="small text-muted-2 d-none d-md-inline">Marked <span class="req-flag">Off?</span> on the schedule below. Approving takes them off that day.</span>
+        @if (reviewable().length > 1) {
+          <button type="button" class="btn btn-success btn-sm ms-auto" [disabled]="deciding() !== null" (click)="approveAllThatFit()">
+            @if (deciding() === -1) { <span class="spinner-border spinner-border-sm me-1"></span> } @else { <i class="bi bi-check2-all me-1"></i> }
+            Approve all that fit
+            @if (requestImpacts().size === reviewable().length) { ({{ fitCount() }}) }
+          </button>
+        }
+      </div>
+      <ul class="list-group list-group-flush">
+        @for (r of s.requests; track r.id) {
+          <li class="list-group-item request-item" [class.is-emergency]="r.emergency">
+            <div class="request-who">
+              <div class="fw-semibold">
+                {{ r.employeeName }}
+                @if (r.emergency) { <span class="emergency-badge"><i class="bi bi-exclamation-octagon-fill"></i> Emergency</span> }
+              </div>
+              <div class="small text-muted-2">
+                <i class="bi bi-calendar3 me-1"></i>{{ requestDay(r) }}
+                @if (requestStore(r); as st) { · works at {{ st }} }
+                @if (r.reason) { · “{{ r.reason }}” }
+              </div>
+            </div>
+            <div class="request-check">
+              @if (requestImpacts().get(r.id); as im) {
+                <span class="impact-badge {{ impactBadge[im.level].css }}" [attr.title]="im.summary">
+                  <i class="bi {{ impactBadge[im.level].icon }} me-1"></i>{{ impactBadge[im.level].label }}
+                </span>
+              } @else if (r.canReview) {
+                <span class="small text-muted-2"><span class="spinner-border spinner-border-sm me-1"></span>Checking…</span>
+              }
+            </div>
+            <div class="request-actions">
+              @if (r.canReview) {
+                <button type="button" class="btn btn-sm btn-success" [disabled]="deciding() !== null" (click)="approveRequest(r)">
+                  @if (deciding() === r.id) { <span class="spinner-border spinner-border-sm"></span> } @else { <i class="bi bi-check-lg"></i> }
+                  Approve
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-danger" [disabled]="deciding() !== null" (click)="rejectRequest(r)">
+                  <i class="bi bi-x-lg"></i> Reject
+                </button>
+              } @else {
+                <span class="small text-muted-2">Awaiting admin</span>
+              }
+            </div>
+          </li>
+        }
+      </ul>
     </div>
   }
   @if (s.coverageGaps.length > 0 && auth.canManage()) {
@@ -199,10 +246,22 @@
       }
     </div>
   }
+  @if (noDayOff().length > 0 && auth.canManage()) {
+    <div class="alert alert-warning d-flex align-items-start py-2 no-day-off">
+      <i class="bi bi-calendar2-x me-2 mt-1"></i>
+      <div>
+        <strong>{{ noDayOff().length }} {{ noDayOff().length === 1 ? 'person has' : 'people have' }} no day off yet this week</strong>
+        <span class="small d-block">
+          {{ noDayOffNames() }}. Approve their request above, or
+          @if (canEdit()) { click one of their days and choose Off (or drag it onto Off in By store). } @else { move the week back to draft to give one. }
+        </span>
+      </div>
+    </div>
+  }
   @if (mismatchCount() > 0 && auth.canManage()) {
     <div class="alert alert-info d-flex align-items-center py-2">
       <i class="bi bi-info-circle me-2"></i>
-      {{ mismatchCount() }} employee(s) are scheduled for a different number of days than usual (highlighted below).
+      {{ mismatchCount() }} employee(s) work fewer days than usual this week (highlighted below).
     </div>
   }
 
@@ -242,8 +301,9 @@
           <span class="legend-key"><i class="bi bi-star-fill" style="color: #e0a100"></i>Primary</span>
         }
         <span><span class="day-chip type-OFF">{{ dayTypeLabels['OFF'] }}</span></span>
-        <span><span class="day-chip type-REQUESTED_OFF">{{ dayTypeLabels['REQUESTED_OFF'] }}</span></span>
+        <span class="d-flex align-items-center gap-1"><span class="day-chip type-REQUESTED_OFF px-2">Off <i class="bi bi-check-circle-fill approved-check ms-1"></i></span> approved request</span>
         @if (auth.canManage()) {
+          @if (s.requests.length) { <span class="d-flex align-items-center gap-1"><span class="req-flag">Off?</span> asked off</span> }
           <span class="d-flex align-items-center gap-1"><span class="day-chip type-WORK has-store auto-moved px-2" style="--store-color: #475569"><i class="bi bi-arrow-left-right"></i></span> auto-moved</span>
           <span class="d-flex align-items-center gap-1"><span class="day-chip type-OFF px-2"><span class="edited-dot"></span>&nbsp;</span> edited</span>
           @if (canEdit()) {
@@ -328,7 +388,7 @@
       </div>
 
       <ng-template #personChip let-p>
-        <button type="button" class="sb-person" [class.is-off]="p.cell.type === 'OFF'" [class.is-dim]="isSearchMiss(p.row)"
+        <button type="button" class="sb-person" [class.is-off]="p.cell.type !== 'WORK'" [class.is-dim]="isSearchMiss(p.row)"
                 [class.is-requested]="p.cell.type === 'REQUESTED_OFF'" [class.is-auto]="p.cell.autoAssigned"
                 [class.drag-source]="isDragSource(p.row, p.dayIndex)"
                 [class.drop-hover]="dropKey() === 'sp' + p.row.employeeId + '-' + p.dayIndex"
@@ -345,7 +405,8 @@
             @if (p.row.storeRole === 'PRIMARY') { <span class="emp-star"><i class="bi bi-star-fill"></i></span> }
           </span>
           <span class="sb-name">{{ shortName(p.row.employeeName) }}</span>
-          @if (p.cell.type === 'REQUESTED_OFF') { <span class="sb-tag">Req.</span> }
+          @if (p.cell.type === 'REQUESTED_OFF') { <i class="bi bi-check-circle-fill approved-check" title="Approved day off"></i> }
+          @if (p.cell.request) { <span class="req-flag" [class.is-emergency]="p.cell.request.emergency" title="Asked for this day off">Off?</span> }
           @if (p.cell.autoAssigned) { <i class="bi bi-arrow-left-right sb-moved" title="Moved automatically"></i> }
           @if (p.cell.manuallyEdited) { <span class="edited-dot"></span> }
         </button>
@@ -420,6 +481,7 @@
                             [style.--store-color]="cell.type === 'WORK' ? cell.storeColor : null"
                             [class.auto-moved]="cell.autoAssigned"
                             [class.store-closed]="cell.type === 'WORK' && cell.storeClosed"
+                            [class.has-request]="!!cell.request"
                             [disabled]="!canEdit() || working()" (click)="openCell(row, i)"
                             [attr.title]="describe(cell) + (canEdit() ? ' · click to change or swap' : '')">
                       @if (cell.type === 'WORK') {
@@ -429,18 +491,30 @@
                         } @else if (cell.opensAt) {
                           <span class="chip-hours">{{ shiftHours(cell) }}</span>
                         }
+                      } @else if (cell.type === 'REQUESTED_OFF') {
+                        <span class="chip-name">Off <i class="bi bi-check-circle-fill approved-check"></i></span>
+                        <span class="chip-hours">approved</span>
                       } @else {
                         {{ dayTypeLabels[cell.type] }}
                       }
                       @if (cell.manuallyEdited && auth.canManage()) { <span class="edited-dot"></span> }
+                      @if (cell.request) {
+                        <span class="req-flag" [class.is-emergency]="cell.request.emergency"
+                              [attr.title]="'Asked for this day off' + (cell.request.reason ? ': ' + cell.request.reason : '')">Off?</span>
+                      }
                     </button>
                   </td>
                 }
                 <td>
-                  <span class="fw-semibold" [class.text-danger]="row.scheduledWorkDays !== row.expectedWorkDays">
+                  <span class="fw-semibold" [class.text-danger]="row.scheduledWorkDays < row.expectedWorkDays"
+                        [class.days-over]="row.scheduledWorkDays > row.expectedWorkDays"
+                        [attr.title]="row.scheduledWorkDays > row.expectedWorkDays ? 'No day off yet this week' : null">
                     {{ row.scheduledWorkDays }}
                   </span>
                   <span class="text-muted-2 small">/ {{ row.expectedWorkDays }}</span>
+                  @if (row.scheduledWorkDays > row.expectedWorkDays && auth.canManage()) {
+                    <span class="no-off-tag">no day off</span>
+                  }
                 </td>
               </tr>
             } @empty {
@@ -513,6 +587,23 @@
         </div>
       </div>
     </div>
+    @if (e.cell.request; as rq) {
+      <div class="editor-request" [class.is-emergency]="rq.emergency">
+        <i class="bi bi-calendar-x"></i>
+        <div class="flex-grow-1">
+          <strong>{{ e.row.employeeName.split(' ')[0] }} asked for this day off</strong>
+          @if (rq.emergency) { <span class="emergency-badge ms-1">Emergency</span> }
+          @if (rq.reason) { <div class="small">“{{ rq.reason }}”</div> }
+          @if (requestImpacts().get(rq.id); as im) { <div class="small text-muted-2">{{ im.summary }}</div> }
+        </div>
+        @if (rq.canReview) {
+          <div class="d-flex gap-1 flex-shrink-0">
+            <button type="button" class="btn btn-sm btn-success" [disabled]="deciding() !== null" (click)="closeEditor(); approveRequest(rq)">Approve</button>
+            <button type="button" class="btn btn-sm btn-outline-danger" [disabled]="deciding() !== null" (click)="closeEditor(); rejectRequest(rq)">Reject</button>
+          </div>
+        }
+      </div>
+    }
 
     <div class="row g-3">
       <div class="col-lg-6">

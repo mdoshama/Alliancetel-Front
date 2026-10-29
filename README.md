@@ -12,7 +12,7 @@ deployment guide live there.
 | **Sign in / Change password** | Everyone | Sign in; new and reset accounts must choose their own password first. |
 | **Dashboard** | Admin, Manager | Staff per area, pending day-off requests, shortcuts. |
 | **Weekly Schedule** | Everyone | Managers generate, edit, auto-fill and publish the week; employees see their published week ("My Schedule"). |
-| **Day-off Requests** | Everyone | Ask for days off (max 2 per week, one person per store per day; days a colleague has are marked *Taken*) or an **emergency** day off; managers approve or reject with a staffing check. |
+| **Day-off Requests** | Everyone | Ask for days off (max 2 per week, one person per store per day; days a colleague has are marked *Taken*, and days the area can't spare anyone else are marked *Full*) or an **emergency** day off; managers approve or reject with a staffing check. |
 | **Employees / My Team** | Admin, Manager | Staff list, home store, Primary / Secondary / Floater, sign-in resets. Search, filters, sort and pages. |
 | **Areas** | Admin | San Diego, Los Angeles, San Francisco, … (search and pages) |
 | **Stores** | Everyone | Admins edit code, color, hours and minimum staff. Managers and employees see a directory: address with directions, weekly hours, "Your store". Search by name, code or address. |
@@ -20,6 +20,12 @@ deployment guide live there.
 
 ### On the schedule
 
+- **Generate** makes everyone work every open day; only approved requests are days off.
+- An approved request shows as **Off ✓** ("approved") on the person's day and can't be changed there.
+- **Day-off requests** for the week show as **Off?** on the person's day (red for emergencies) and in a panel
+  above the grid with a staffing check. Approve or reject each one there or by clicking the day, or use
+  **Approve all that fit** to approve every request that keeps the stores covered; the rest stay pending.
+- People with **no day off yet** are flagged in amber ("7 / 6 · no day off") with a banner naming them.
 - **Two views** (managers and admins): **By employee** (one row per person) or **By store** (one row per
   store: who works there each day, the count against the store's minimum in red when short, hours or
   Closed, and an **Off** row). Drag a person to another store or day, onto someone to swap, onto **Off**

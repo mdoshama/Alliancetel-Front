@@ -5,7 +5,7 @@ import { RouterLink } from '@angular/router';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { addDays, formatDay, formatWeekRange, today, weekDates, weekStartOf } from '../../core/date-utils';
-import { Area, DayOffImpact, DayOffRequest, DayOffStatus, Employee } from '../../core/models';
+import { Area, DayOffImpact, DayOffRequest, DayOffStatus, Employee, TakenDay } from '../../core/models';
 import { IMPACT_BADGE, approvalCard } from '../../core/day-off-impact';
 import { ConfirmService } from '../../core/confirm.service';
 import { ToastService } from '../../core/toast.service';
@@ -73,7 +73,7 @@ export class DayOffPage implements OnInit {
   /** Urgent request: lifts the one-per-store and weekly limits (still needs approval). */
   protected readonly formEmergency = signal(false);
   /** Days in the chosen week a colleague at the same store already has off, by date → first name. */
-  protected readonly formTaken = signal<Map<string, string>>(new Map());
+  protected readonly formTaken = signal<Map<string, TakenDay>>(new Map());
   protected readonly formMaxDays = computed(() => (this.formEmergency() ? 7 : this.maxDaysPerWeek));
 
   protected readonly formWeekDates = computed(() => weekDates(this.formWeek()));
@@ -285,9 +285,19 @@ export class DayOffPage implements OnInit {
     }
   }
 
-  /** A day a normal request can't use because a colleague at the same store has it. */
+  /** Label for a day a normal request can't use: "Taken · Ana" (same store) or "Full" (area). */
   protected takenBy(date: string): string | null {
-    return this.formTaken().get(date) ?? null;
+    const t = this.formTaken().get(date);
+    if (!t) return null;
+    return t.full ? 'Full' : `Taken · ${t.takenBy}`;
+  }
+
+  protected takenTitle(date: string): string | null {
+    const t = this.formTaken().get(date);
+    if (!t) return null;
+    return t.full
+      ? 'Enough people are already off this day; the stores need everyone else'
+      : `${t.takenBy} at your store already has this day`;
   }
 
   protected dayDisabled(date: string): boolean {
@@ -308,7 +318,7 @@ export class DayOffPage implements OnInit {
     }
     const from = this.formWeek();
     this.api.takenDays(employeeId, from, addDays(from, 6)).subscribe({
-      next: (days) => this.formTaken.set(new Map(days.map((d) => [d.date, d.takenBy]))),
+      next: (days) => this.formTaken.set(new Map(days.map((d) => [d.date, d]))),
       error: () => undefined,
     });
   }
