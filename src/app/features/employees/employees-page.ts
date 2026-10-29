@@ -4,14 +4,16 @@ import { DatePipe } from '@angular/common';
 import { Observable } from 'rxjs';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
-import { Area, Credentials, Employee, ROLE_LABELS, Role, Store, STORE_ROLE_HELP, STORE_ROLE_LABELS } from '../../core/models';
+import { Area, Credentials, Employee, EmployeePageFilter, ROLE_LABELS, Role, Store, STORE_ROLE_HELP, STORE_ROLE_LABELS, StoreRole } from '../../core/models';
+import { savePageSize, savedPageSize } from '../../core/paging';
 import { ConfirmService } from '../../core/confirm.service';
 import { ToastService } from '../../core/toast.service';
 import { Modal } from '../../shared/modal';
+import { Pagination } from '../../shared/pagination';
 
 @Component({
   selector: 'app-employees-page',
-  imports: [ReactiveFormsModule, FormsModule, Modal, DatePipe],
+  imports: [ReactiveFormsModule, FormsModule, Modal, DatePipe, Pagination],
   templateUrl: './employees-page.html',
 })
 export class EmployeesPage implements OnInit {
@@ -31,12 +33,22 @@ export class EmployeesPage implements OnInit {
 
   protected readonly areas = signal<Area[]>([]);
   protected readonly stores = signal<Store[]>([]);
-  /** Client-side filter on home store (null = all). */
+  /** Filter on home store (null = all). */
   protected readonly storeFilter = signal<number | null>(null);
+  protected readonly storeRoles: StoreRole[] = ['PRIMARY', 'SECONDARY', 'FLOATER'];
+  protected storeRoleFilter: StoreRole | null = null;
+  protected sort: NonNullable<EmployeePageFilter['sort']> = 'name';
   /** Employee id whose home store is being saved, for a spinner on that row. */
   protected readonly movingId = signal<number | null>(null);
+  /** The current page of people. */
   protected readonly employees = signal<Employee[]>([]);
   protected readonly loading = signal(true);
+  /** Paging: page starts at 0; total counts everyone matching the filters. */
+  protected readonly page = signal(0);
+  protected readonly pageSize = signal(savedPageSize());
+  protected readonly total = signal(0);
+  /** Ignores answers to older requests when filters change quickly. */
+  private loadSeq = 0;
   protected readonly saving = signal(false);
   protected readonly modalOpen = signal(false);
   protected readonly editing = signal<Employee | null>(null);
@@ -56,21 +68,20 @@ export class EmployeesPage implements OnInit {
     return this.stores().filter((s) => area == null || s.areaId === area);
   });
 
-  protected readonly visible = computed(() => {
-    const store = this.storeFilter();
-    return store == null ? this.employees() : this.employees().filter((e) => e.homeStoreId === store);
-  });
-
   /** Mirrors areaFilter so computed values can react to it. */
   private readonly areaFilterSignal = signal<number | null>(null);
 
-  protected readonly counts = computed(() => {
-    const list = this.visible();
-    return {
-      total: list.length,
-      managers: list.filter((e) => e.role === 'MANAGER').length,
-    };
-  });
+  /** True when any filter other than the default "Active" is set, to offer "Clear filters". */
+  protected filtered(): boolean {
+    return (
+      (this.auth.isAdmin() && this.areaFilter != null) ||
+      this.storeFilter() != null ||
+      this.roleFilter != null ||
+      this.storeRoleFilter != null ||
+      this.statusFilter !== 'active' ||
+      this.search.trim() !== ''
+    );
+  }
 
   protected readonly storeRoleLabels = STORE_ROLE_LABELS;
   protected readonly storeRoleHelp = STORE_ROLE_HELP;
@@ -102,27 +113,81 @@ export class EmployeesPage implements OnInit {
     this.load();
   }
 
+  /** Reloads the current page (after saving, resetting a password, …). */
   protected load(): void {
+    const seq = ++this.loadSeq;
     this.loading.set(true);
     this.api
-      .employees({
+      .employeesPage({
         areaId: this.areaFilter,
+        storeId: this.storeFilter(),
         role: this.roleFilter,
+        storeRole: this.storeRoleFilter,
         active: this.statusFilter === 'all' ? null : this.statusFilter === 'active',
         q: this.search.trim() || null,
+        sort: this.sort,
+        page: this.page(),
+        size: this.pageSize(),
       })
       .subscribe({
-        next: (list) => {
-          this.employees.set(list);
+        next: (result) => {
+          if (seq !== this.loadSeq) return;
+          // The last person on the last page was removed: step back a page.
+          if (result.content.length === 0 && result.page > 0 && result.totalElements > 0) {
+            this.page.set(Math.max(0, result.totalPages - 1));
+            this.load();
+            return;
+          }
+          this.employees.set(result.content);
+          this.total.set(result.totalElements);
           this.loading.set(false);
         },
-        error: () => this.loading.set(false),
+        error: () => {
+          if (seq === this.loadSeq) this.loading.set(false);
+        },
       });
+  }
+
+  /** A filter changed: start again from the first page. */
+  protected applyFilters(): void {
+    clearTimeout(this.searchTimer);
+    this.page.set(0);
+    this.load();
   }
 
   protected onSearch(): void {
     clearTimeout(this.searchTimer);
-    this.searchTimer = setTimeout(() => this.load(), 300);
+    this.searchTimer = setTimeout(() => this.applyFilters(), 300);
+  }
+
+  protected onStoreFilterChange(storeId: number | null): void {
+    this.storeFilter.set(storeId);
+    this.applyFilters();
+  }
+
+  protected clearFilters(): void {
+    if (this.auth.isAdmin()) {
+      this.areaFilter = null;
+      this.areaFilterSignal.set(null);
+    }
+    this.storeFilter.set(null);
+    this.roleFilter = null;
+    this.storeRoleFilter = null;
+    this.statusFilter = 'active';
+    this.search = '';
+    this.applyFilters();
+  }
+
+  protected goToPage(page: number): void {
+    this.page.set(page);
+    this.load();
+    document.querySelector('.employees-card')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }
+
+  protected changePageSize(size: number): void {
+    savePageSize(size);
+    this.pageSize.set(size);
+    this.applyFilters();
   }
 
   protected openCreate(): void {
@@ -191,6 +256,8 @@ export class EmployeesPage implements OnInit {
         if ('temporaryPassword' in result) {
           this.showCredentials(result);
         } else {
+          // Show the change right away; the reload below then re-applies filters and order.
+          this.employees.update((list) => list.map((x) => (x.id === result.id ? result : x)));
           this.toast.success(`${result.fullName} updated.`);
         }
         this.load();
@@ -207,7 +274,7 @@ export class EmployeesPage implements OnInit {
   protected onAreaFilterChange(): void {
     this.areaFilterSignal.set(this.areaFilter);
     this.storeFilter.set(null);
-    this.load();
+    this.applyFilters();
   }
 
   /** The form's store list follows the chosen area; a store from another area is cleared. */

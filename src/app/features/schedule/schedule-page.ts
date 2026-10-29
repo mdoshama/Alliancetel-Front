@@ -1,8 +1,9 @@
 import { Component, OnInit, computed, inject, input, signal } from '@angular/core';
-import { DatePipe } from '@angular/common';
+import { DatePipe, NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { ApiService } from '../../core/api.service';
+import { matchesSearch } from '../../core/paging';
 import { AuthService } from '../../core/auth.service';
 import { addDays, formatDay, formatWeekRange, today, weekStartOf } from '../../core/date-utils';
 import {
@@ -23,9 +24,34 @@ import { ConfirmService } from '../../core/confirm.service';
 import { ToastService } from '../../core/toast.service';
 import { Modal } from '../../shared/modal';
 
+const SCHEDULE_VIEW_KEY = 'alliancetel.scheduleView';
+
+function readScheduleView(): 'people' | 'stores' {
+  try {
+    return localStorage.getItem(SCHEDULE_VIEW_KEY) === 'stores' ? 'stores' : 'people';
+  } catch {
+    return 'people';
+  }
+}
+
+/** One person on one day, as shown in the "By store" view. */
+interface StorePerson {
+  row: EmployeeRow;
+  dayIndex: number;
+  cell: DayCell;
+}
+
+interface StoreBoardRow {
+  storeId: number | null;
+  name: string;
+  color: string | null;
+  min: number;
+  cells: { people: StorePerson[]; hours: DayHours | null; closed: boolean; short: boolean }[];
+}
+
 @Component({
   selector: 'app-schedule-page',
-  imports: [FormsModule, RouterLink, DatePipe, Modal],
+  imports: [FormsModule, RouterLink, DatePipe, NgTemplateOutlet, Modal],
   templateUrl: './schedule-page.html',
 })
 export class SchedulePage implements OnInit {
@@ -95,11 +121,211 @@ export class SchedulePage implements OnInit {
     return [...days.entries()].map(([date, list]) => ({ date, gaps: list }));
   });
 
+  // ---------- "By store" view ----------
+  // The same week, one row per store: who works where each day, coverage against the minimum, and who is off.
+
+  protected readonly view = signal<'people' | 'stores'>(readScheduleView());
+
+  protected setView(view: 'people' | 'stores'): void {
+    this.view.set(view);
+    try {
+      localStorage.setItem(SCHEDULE_VIEW_KEY, view);
+    } catch {
+      // Storage can be unavailable (private mode); the choice just isn't remembered.
+    }
+  }
+
+  protected readonly storeView = computed(() => {
+    const s = this.schedule();
+    if (!s) {
+      return { stores: [] as StoreBoardRow[], off: [] as StorePerson[][] };
+    }
+    const filter = this.storeFilter();
+    const byName = (a: StorePerson, b: StorePerson) =>
+      Number(b.row.storeRole === 'PRIMARY') - Number(a.row.storeRole === 'PRIMARY') ||
+      a.row.employeeName.localeCompare(b.row.employeeName);
+    const stores: StoreBoardRow[] = s.storeCoverage
+      .filter((c) => filter == null || c.storeId === filter)
+      .map((c) => ({
+        storeId: c.storeId,
+        name: c.storeName,
+        color: c.color,
+        min: c.minStaffPerDay,
+        cells: s.dates.map((_, i) => {
+          const people = s.rows
+            .filter((r) => r.days[i].type === 'WORK' && r.days[i].storeId === c.storeId)
+            .map((r) => ({ row: r, dayIndex: i, cell: r.days[i] }))
+            .sort(byName);
+          const hours = c.dailyHours[i] ?? null;
+          const closed = c.storeId !== null && !!hours?.closed;
+          return {
+            people,
+            hours,
+            closed,
+            short: c.storeId !== null && !closed && people.length < c.minStaffPerDay,
+          };
+        }),
+      }));
+    const off = s.dates.map((_, i) =>
+      s.rows
+        .filter((r) => r.days[i].type !== 'WORK')
+        .map((r) => ({ row: r, dayIndex: i, cell: r.days[i] }))
+        .sort(byName),
+    );
+    return { stores, off };
+  });
+
+  /** "Maria Garcia" → "Maria G." for the compact store view. */
+  protected shortName(name: string): string {
+    const parts = name.trim().split(/\s+/);
+    return parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1][0]}.` : parts[0];
+  }
+
+  /** A store cell accepts a work day (moved there, any day) or a day off on the same day (they work there). */
+  protected canDropOnStoreCell(storeId: number | null, dayIndex: number): boolean {
+    const d = this.drag();
+    if (!d || storeId === null) {
+      return false;
+    }
+    const from = d.row.days[d.dayIndex];
+    if (from.type === 'OFF') {
+      const coverage = this.schedule()?.storeCoverage.find((c) => c.storeId === storeId);
+      return dayIndex === d.dayIndex && !coverage?.dailyHours[dayIndex]?.closed;
+    }
+    return this.canDropOnStore(storeId, dayIndex);
+  }
+
+  /** The "Off" row accepts a work day on the same day: that person gets the day off. */
+  protected canDropOnOff(dayIndex: number): boolean {
+    const d = this.drag();
+    return !!d && d.dayIndex === dayIndex && d.row.days[dayIndex].type === 'WORK';
+  }
+
+  /** Over a person in the store view: swap with them if allowed, otherwise let the cell underneath decide. */
+  protected onPersonDragOver(event: DragEvent, row: EmployeeRow, dayIndex: number): void {
+    if (this.canDropOnPerson(row, dayIndex)) {
+      event.stopPropagation();
+      this.onDragOver(event, 'sp' + row.employeeId + '-' + dayIndex, true);
+    }
+  }
+
+  protected async onPersonDrop(event: DragEvent, row: EmployeeRow, dayIndex: number): Promise<void> {
+    if (this.canDropOnPerson(row, dayIndex)) {
+      event.stopPropagation();
+      await this.onDropOnPerson(event, row, dayIndex);
+    }
+  }
+
+  protected async onDropOnStoreCell(event: DragEvent, storeId: number | null, dayIndex: number): Promise<void> {
+    event.preventDefault();
+    const d = this.drag();
+    const ok = this.canDropOnStoreCell(storeId, dayIndex);
+    this.onDragEnd();
+    if (!d || !ok || storeId === null) {
+      return;
+    }
+    if (d.row.days[d.dayIndex].type === 'OFF') {
+      await this.setWorkDay(d.row, dayIndex, storeId);
+    } else {
+      await this.exchangeDays(d.row, d.dayIndex, d.row, dayIndex, storeId);
+    }
+  }
+
+  protected async onDropOnOff(event: DragEvent, dayIndex: number): Promise<void> {
+    event.preventDefault();
+    const d = this.drag();
+    const ok = this.canDropOnOff(dayIndex);
+    this.onDragEnd();
+    if (d && ok) {
+      await this.setDayOff(d.row, dayIndex);
+    }
+  }
+
+  /** Puts someone who was off to work at a store that day (one more work day for them). */
+  private async setWorkDay(row: EmployeeRow, dayIndex: number, storeId: number): Promise<void> {
+    const s = this.schedule();
+    if (!s) {
+      return;
+    }
+    const first = row.employeeName.split(' ')[0];
+    const day = formatDay(s.dates[dayIndex], { weekday: 'long', month: 'short', day: 'numeric' });
+    const store = s.stores.find((x) => x.id === storeId)?.name ?? 'the store';
+    if (!(await this.confirmPrimaryMove(row, storeId, 'on ' + day, dayIndex))) {
+      return;
+    }
+    const days = row.scheduledWorkDays + 1;
+    if (days > row.expectedWorkDays) {
+      const ok = await this.confirm.ask({
+        title: `Give ${first} an extra work day?`,
+        message: `${first} is off on ${day}. Working at ${store} makes it ${days} days this week (usually ${row.expectedWorkDays}).`,
+        icon: 'bi-exclamation-triangle',
+        tone: 'warning',
+        confirmText: 'Add the day',
+      });
+      if (!ok) {
+        return;
+      }
+    }
+    this.run(
+      this.api.updateScheduleEntry(s.id, row.days[dayIndex].entryId, 'WORK', storeId),
+      `${first} now works at ${store} on ${day}.`,
+    );
+  }
+
+  /** Gives someone the day off (one less work day for them). */
+  private async setDayOff(row: EmployeeRow, dayIndex: number): Promise<void> {
+    const s = this.schedule();
+    if (!s) {
+      return;
+    }
+    const first = row.employeeName.split(' ')[0];
+    const day = formatDay(s.dates[dayIndex], { weekday: 'long', month: 'short', day: 'numeric' });
+    const notes = [`${first} would work ${row.scheduledWorkDays - 1} days this week (usually ${row.expectedWorkDays}).`];
+    const date = s.dates[dayIndex];
+    const sameStoreOff = s.rows.filter(
+      (x) =>
+        x.employeeId !== row.employeeId &&
+        row.homeStoreId != null &&
+        x.homeStoreId === row.homeStoreId &&
+        x.days.find((c) => c.date === date)?.type !== 'WORK',
+    );
+    if (sameStoreOff.length) {
+      notes.push(
+        `${sameStoreOff.map((x) => x.employeeName.split(' ')[0]).join(', ')} from ${row.homeStoreName} ${sameStoreOff.length > 1 ? 'are' : 'is'} already off that day.`,
+      );
+    }
+    const ok = await this.confirm.ask({
+      title: `Give ${first} ${day} off?`,
+      message: 'They come off the schedule for that day.',
+      icon: 'bi-calendar-x',
+      tone: 'warning',
+      notes,
+      confirmText: 'Give the day off',
+    });
+    if (!ok) {
+      return;
+    }
+    this.run(this.api.updateScheduleEntry(s.id, row.days[dayIndex].entryId, 'OFF', null), `${first} is off on ${day}.`);
+  }
+
   protected readonly visibleRows = computed(() => {
     const rows = this.schedule()?.rows ?? [];
     const store = this.storeFilter();
-    return store == null ? rows : rows.filter((r) => r.days.some((c) => c.type === 'WORK' && c.storeId === store));
+    const q = this.personSearch();
+    return rows.filter(
+      (r) =>
+        (store == null || r.days.some((c) => c.type === 'WORK' && c.storeId === store)) &&
+        matchesSearch(q, r.employeeName, r.employeeCode),
+    );
   });
+
+  /** Finds people on the grid by name or code; in the By store view, others are dimmed. */
+  protected readonly personSearch = signal('');
+
+  protected isSearchMiss(row: EmployeeRow): boolean {
+    const q = this.personSearch();
+    return q.trim() !== '' && !matchesSearch(q, row.employeeName, row.employeeCode);
+  }
 
   protected readonly weekLabel = computed(() => formatWeekRange(this.weekStart()));
   protected readonly isDraft = computed(() => this.schedule()?.status === 'DRAFT');
@@ -168,6 +394,7 @@ export class SchedulePage implements OnInit {
     this.syncUrl();
     this.editing.set(null);
     this.storeFilter.set(null);
+    this.personSearch.set('');
     this.loading.set(true);
     this.api.schedule(areaId, this.weekStart()).subscribe({
       next: (s) => {

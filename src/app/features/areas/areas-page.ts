@@ -1,15 +1,17 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { ApiService } from '../../core/api.service';
 import { Area } from '../../core/models';
 import { ConfirmService } from '../../core/confirm.service';
 import { ToastService } from '../../core/toast.service';
 import { Modal } from '../../shared/modal';
+import { Pagination } from '../../shared/pagination';
+import { matchesSearch, savePageSize, savedPageSize, slicePage } from '../../core/paging';
 
 @Component({
   selector: 'app-areas-page',
-  imports: [ReactiveFormsModule, RouterLink, Modal],
+  imports: [ReactiveFormsModule, FormsModule, RouterLink, Modal, Pagination],
   templateUrl: './areas-page.html',
 })
 export class AreasPage implements OnInit {
@@ -20,6 +22,25 @@ export class AreasPage implements OnInit {
 
   protected readonly areas = signal<Area[]>([]);
   protected readonly loading = signal(true);
+  protected readonly search = signal('');
+  protected readonly page = signal(0);
+  protected readonly pageSize = signal(savedPageSize());
+  /** Areas matching the search, one page at a time (the list is small, so this runs in the browser). */
+  protected readonly matching = computed(() =>
+    this.areas().filter((a) => matchesSearch(this.search(), a.name, a.description)),
+  );
+  protected readonly view = computed(() => slicePage(this.matching(), this.page(), this.pageSize()));
+
+  protected onSearch(text: string): void {
+    this.search.set(text);
+    this.page.set(0);
+  }
+
+  protected changePageSize(size: number): void {
+    savePageSize(size);
+    this.pageSize.set(size);
+    this.page.set(0);
+  }
   protected readonly saving = signal(false);
   protected readonly editing = signal<Area | null>(null);
   protected readonly modalOpen = signal(false);

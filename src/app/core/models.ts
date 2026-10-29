@@ -141,6 +141,28 @@ export interface EmployeeFilter {
   q?: string | null;
 }
 
+/** Filters for the paged staff list. */
+export interface EmployeePageFilter extends EmployeeFilter, PageParams {
+  storeId?: number | null;
+  storeRole?: StoreRole | null;
+  sort?: 'name' | 'code' | 'role' | null;
+}
+
+/** Which page to fetch: page starts at 0. */
+export interface PageParams {
+  page?: number;
+  size?: number;
+}
+
+/** One page of a list from the server. */
+export interface Page<T> {
+  content: T[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+}
+
 export interface DayOffRequest {
   id: number;
   employeeId: number;
@@ -212,6 +234,11 @@ export interface DayOffFilter {
   status?: DayOffStatus | null;
   from?: string | null;
   to?: string | null;
+}
+
+export interface DayOffPageFilter extends DayOffFilter, PageParams {
+  /** Employee name or code. */
+  q?: string | null;
 }
 
 export interface DayCell {

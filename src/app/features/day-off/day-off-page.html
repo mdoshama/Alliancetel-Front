@@ -9,7 +9,7 @@
   @if (auth.isAdmin()) {
     <div style="min-width: 170px">
       <label class="form-label small text-muted-2 mb-1" for="dArea">Area</label>
-      <select id="dArea" class="form-select" [(ngModel)]="areaFilter" (ngModelChange)="load()">
+      <select id="dArea" class="form-select" [(ngModel)]="areaFilter" (ngModelChange)="applyFilters()">
         <option [ngValue]="null">All areas</option>
         @for (a of areas(); track a.id) {
           <option [ngValue]="a.id">{{ a.name }}</option>
@@ -19,24 +19,42 @@
   }
   <div>
     <label class="form-label small text-muted-2 mb-1" for="dFrom">From</label>
-    <input id="dFrom" type="date" class="form-control" [(ngModel)]="fromFilter" (ngModelChange)="load()" />
+    <input id="dFrom" type="date" class="form-control" [(ngModel)]="fromFilter" (ngModelChange)="applyFilters()" />
   </div>
   <div>
     <label class="form-label small text-muted-2 mb-1" for="dTo">To</label>
-    <input id="dTo" type="date" class="form-control" [(ngModel)]="toFilter" (ngModelChange)="load()" />
+    <input id="dTo" type="date" class="form-control" [(ngModel)]="toFilter" (ngModelChange)="applyFilters()" />
   </div>
+  @if (!auth.isEmployee()) {
+    <div class="flex-grow-1" style="min-width: 190px; max-width: 280px">
+      <label class="form-label small text-muted-2 mb-1" for="dSearch">Employee</label>
+      <div class="input-group">
+        <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+        <input id="dSearch" type="search" class="form-control" placeholder="Name or code" [(ngModel)]="search"
+               (ngModelChange)="onSearch()" (keydown.enter)="applyFilters()" autocomplete="off" />
+        @if (search) {
+          <button type="button" class="btn btn-outline-secondary" (click)="search = ''; applyFilters()" aria-label="Clear search">
+            <i class="bi bi-x-lg"></i>
+          </button>
+        }
+      </div>
+    </div>
+  }
   <button type="button" class="btn btn-primary ms-auto" (click)="openCreate()">
     <i class="bi bi-calendar-plus me-1"></i> {{ auth.isEmployee() ? 'Request days off' : 'New request' }}
   </button>
 </div>
 
-<div class="card">
-  @if (loading()) {
+<div class="card requests-card">
+  @if (loading() && requests().length === 0) {
     <div class="empty-state"><div class="spinner-border text-primary"></div></div>
   } @else if (requests().length === 0) {
-    <div class="empty-state"><i class="bi bi-calendar-check"></i>No requests to show.</div>
+    <div class="empty-state">
+      <i class="bi bi-calendar-check"></i>
+      @if (search.trim()) { No requests for “{{ search.trim() }}”. } @else { No requests to show. }
+    </div>
   } @else {
-    <div class="table-responsive">
+    <div class="table-responsive" [class.is-refreshing]="loading()">
       <table class="table table-hover table-stack">
         <thead>
           <tr>
@@ -124,6 +142,8 @@
       </table>
     </div>
   }
+  <app-pagination [page]="page()" [size]="pageSize()" [total]="total()" label="requests"
+                  (pageChange)="goToPage($event)" (sizeChange)="changePageSize($event)" />
 </div>
 
 <app-modal [open]="modalOpen()" [title]="auth.isEmployee() ? 'Request days off' : 'New day-off request'" (closed)="modalOpen.set(false)">
@@ -145,13 +165,23 @@
   }
   <div class="mb-3" [class.d-none]="auth.isEmployee()">
     <label class="form-label" for="nEmployee">Employee</label>
+    @if (formEmployees().length > 8) {
+      <div class="input-group input-group-sm mb-1">
+        <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+        <input id="nEmployeeSearch" type="search" class="form-control" placeholder="Find by name or code"
+               [ngModel]="formSearch()" (ngModelChange)="formSearch.set($event)" autocomplete="off" aria-label="Find employee" />
+      </div>
+    }
     <select id="nEmployee" class="form-select" [ngModel]="formEmployeeId()" (ngModelChange)="onFormEmployeeChange($event)"
             [disabled]="formArea() == null">
       <option [ngValue]="null">Select employee…</option>
-      @for (e of formEmployees(); track e.id) {
+      @for (e of formEmployeeChoices(); track e.id) {
         <option [ngValue]="e.id">{{ e.fullName }} ({{ e.employeeCode }})</option>
       }
     </select>
+    @if (formSearch().trim() && formEmployeeChoices().length === 0) {
+      <div class="form-text">No one in this area matches “{{ formSearch().trim() }}”.</div>
+    }
   </div>
   <div class="mb-2 d-flex align-items-center justify-content-between">
     <span class="form-label mb-0">Week</span>

@@ -10,7 +10,7 @@
   </div>
   <div style="min-width: 170px">
     <label class="form-label small text-muted-2 mb-1" for="fStore">Store</label>
-    <select id="fStore" class="form-select" [ngModel]="storeFilter()" (ngModelChange)="storeFilter.set($event)">
+    <select id="fStore" class="form-select" [ngModel]="storeFilter()" (ngModelChange)="onStoreFilterChange($event)">
       <option [ngValue]="null">All stores</option>
       @for (s of filterStores(); track s.id) {
         <option [ngValue]="s.id">{{ s.name }}@if (auth.isAdmin() && areaFilter == null) { ({{ s.areaName }}) }</option>
@@ -19,16 +19,25 @@
   </div>
   <div style="min-width: 150px">
     <label class="form-label small text-muted-2 mb-1" for="fRole">Role</label>
-    <select id="fRole" class="form-select" [(ngModel)]="roleFilter" (ngModelChange)="load()">
+    <select id="fRole" class="form-select" [(ngModel)]="roleFilter" (ngModelChange)="applyFilters()">
       <option [ngValue]="null">All roles</option>
       @for (r of roles; track r) {
         <option [ngValue]="r">{{ roleLabels[r] }}</option>
       }
     </select>
   </div>
+  <div style="min-width: 150px">
+    <label class="form-label small text-muted-2 mb-1" for="fStoreRole">At store</label>
+    <select id="fStoreRole" class="form-select" [(ngModel)]="storeRoleFilter" (ngModelChange)="applyFilters()">
+      <option [ngValue]="null">Anyone</option>
+      @for (r of storeRoles; track r) {
+        <option [ngValue]="r">{{ storeRoleLabels[r] }}</option>
+      }
+    </select>
+  </div>
   <div style="min-width: 140px">
     <label class="form-label small text-muted-2 mb-1" for="fStatus">Status</label>
-    <select id="fStatus" class="form-select" [(ngModel)]="statusFilter" (ngModelChange)="load()">
+    <select id="fStatus" class="form-select" [(ngModel)]="statusFilter" (ngModelChange)="applyFilters()">
       <option value="active">Active</option>
       <option value="inactive">Inactive</option>
       <option value="all">All</option>
@@ -38,7 +47,13 @@
     <label class="form-label small text-muted-2 mb-1" for="fSearch">Search</label>
     <div class="input-group">
       <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
-      <input id="fSearch" class="form-control" placeholder="Name, email or code" [(ngModel)]="search" (ngModelChange)="onSearch()" />
+      <input id="fSearch" type="search" class="form-control" placeholder="Name, email or code" [(ngModel)]="search"
+             (ngModelChange)="onSearch()" (keydown.enter)="applyFilters()" autocomplete="off" />
+      @if (search) {
+        <button type="button" class="btn btn-outline-secondary" (click)="search = ''; applyFilters()" aria-label="Clear search">
+          <i class="bi bi-x-lg"></i>
+        </button>
+      }
     </div>
   </div>
   @if (auth.isAdmin()) {
@@ -48,17 +63,38 @@
   }
 </div>
 
-<div class="card">
-  <div class="card-header d-flex align-items-center">
-    <span class="fw-semibold">{{ counts().total }} people</span>
-    <span class="text-muted-2 ms-2 small">· {{ counts().managers }} managers</span>
+<div class="card employees-card">
+  <div class="card-header list-header">
+    <span class="fw-semibold">{{ total() }} {{ total() === 1 ? 'person' : 'people' }}</span>
+    @if (filtered()) {
+      <button type="button" class="btn btn-link btn-sm p-0 ms-2" (click)="clearFilters()">
+        <i class="bi bi-x-circle me-1"></i>Clear filters
+      </button>
+    }
+    @if (loading() && employees().length) {
+      <span class="spinner-border spinner-border-sm text-primary ms-2" aria-label="Loading"></span>
+    }
+    <label class="list-sort ms-auto">
+      <span>Sort by</span>
+      <select class="form-select form-select-sm" [(ngModel)]="sort" (ngModelChange)="applyFilters()" aria-label="Sort by">
+        <option value="name">Name</option>
+        <option value="code">Employee code</option>
+        <option value="role">Role</option>
+      </select>
+    </label>
   </div>
-  @if (loading()) {
+  @if (loading() && employees().length === 0) {
     <div class="empty-state"><div class="spinner-border text-primary"></div></div>
-  } @else if (visible().length === 0) {
-    <div class="empty-state"><i class="bi bi-people"></i>No employees match these filters.</div>
+  } @else if (employees().length === 0) {
+    <div class="empty-state">
+      <i class="bi bi-people"></i>
+      @if (search.trim()) { No one matches “{{ search.trim() }}”. } @else { No employees match these filters. }
+      @if (filtered()) {
+        <div><button type="button" class="btn btn-sm btn-outline-primary mt-2" (click)="clearFilters()">Clear filters</button></div>
+      }
+    </div>
   } @else {
-    <div class="table-responsive">
+    <div class="table-responsive" [class.is-refreshing]="loading()">
       <table class="table table-hover table-stack table-stack-lg">
         <thead>
           <tr>
@@ -75,7 +111,7 @@
           </tr>
         </thead>
         <tbody>
-          @for (e of visible(); track e.id) {
+          @for (e of employees(); track e.id) {
             <tr [class.opacity-50]="!e.active">
               <td style="min-width: 190px">
                 <div class="fw-semibold">{{ e.fullName }}</div>
@@ -166,6 +202,8 @@
       </table>
     </div>
   }
+  <app-pagination [page]="page()" [size]="pageSize()" [total]="total()" label="people"
+                  (pageChange)="goToPage($event)" (sizeChange)="changePageSize($event)" />
 </div>
 
 <app-modal [open]="modalOpen()" size="lg" [title]="editing() ? 'Edit employee' : 'Add employee'" (closed)="modalOpen.set(false)">

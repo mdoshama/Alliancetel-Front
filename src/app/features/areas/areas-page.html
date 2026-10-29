@@ -1,7 +1,18 @@
 <div class="page-toolbar">
-  <div>
-    <p class="text-muted-2 mb-0">Regions your stores are grouped into. Each employee belongs to one area.</p>
+  <div class="flex-grow-1" style="min-width: 200px; max-width: 320px">
+    <label class="form-label small text-muted-2 mb-1" for="arSearch">Search</label>
+    <div class="input-group">
+      <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+      <input id="arSearch" type="search" class="form-control" placeholder="Area name" autocomplete="off"
+             [ngModel]="search()" (ngModelChange)="onSearch($event)" />
+      @if (search()) {
+        <button type="button" class="btn btn-outline-secondary" (click)="onSearch('')" aria-label="Clear search">
+          <i class="bi bi-x-lg"></i>
+        </button>
+      }
+    </div>
   </div>
+  <p class="text-muted-2 mb-1 small d-none d-lg-block">Regions your stores are grouped into. Each employee belongs to one area.</p>
   <button type="button" class="btn btn-primary ms-auto" (click)="openCreate()">
     <i class="bi bi-plus-lg me-1"></i> Add area
   </button>
@@ -15,6 +26,8 @@
       <i class="bi bi-geo-alt"></i>
       No areas yet. Add San Diego, Los Angeles, San Francisco and so on to get started.
     </div>
+  } @else if (matching().length === 0) {
+    <div class="empty-state"><i class="bi bi-search"></i>No area matches “{{ search().trim() }}”.</div>
   } @else {
     <div class="table-responsive">
       <table class="table table-hover table-stack">
@@ -28,7 +41,7 @@
           </tr>
         </thead>
         <tbody>
-          @for (area of areas(); track area.id) {
+          @for (area of view().content; track area.id) {
             <tr>
               <td class="fw-semibold"><i class="bi bi-geo-alt text-primary me-2"></i>{{ area.name }}</td>
               <td data-label="Description" class="text-muted-2">{{ area.description || '—' }}</td>
@@ -56,6 +69,8 @@
       </table>
     </div>
   }
+  <app-pagination [page]="view().page" [size]="pageSize()" [total]="view().totalElements" label="areas"
+                  (pageChange)="page.set($event)" (sizeChange)="changePageSize($event)" />
 </div>
 
 <app-modal [open]="modalOpen()" [title]="editing() ? 'Edit area' : 'Add area'" (closed)="modalOpen.set(false)">

@@ -19,6 +19,7 @@ import {
 import { ConfirmService } from '../../core/confirm.service';
 import { ToastService } from '../../core/toast.service';
 import { Modal } from '../../shared/modal';
+import { matchesSearch } from '../../core/paging';
 
 interface AreaGroup {
   areaId: number;
@@ -44,11 +45,18 @@ export class StoresPage implements OnInit {
   /** Today's weekday, to highlight today's hours in the store directory. */
   protected readonly todayDay = WEEK_DAYS[(new Date(today() + 'T00:00:00').getDay() + 6) % 7];
 
+  /** Search over store name, code and address. */
+  protected readonly storeSearch = signal('');
+
+  private matches(s: Store): boolean {
+    return matchesSearch(this.storeSearch(), s.name, s.code, s.address, s.areaName);
+  }
+
   /** Read-only directory for managers and employees: active stores, their own store first. */
   protected readonly directory = computed(() => {
     const mine = this.auth.user()?.homeStoreId ?? null;
     return this.stores()
-      .filter((s) => s.active)
+      .filter((s) => s.active && this.matches(s))
       .sort((a, b) => Number(b.id === mine) - Number(a.id === mine) || a.name.localeCompare(b.name));
   });
 
@@ -100,6 +108,7 @@ export class StoresPage implements OnInit {
   protected readonly groups = computed<AreaGroup[]>(() => {
     const byArea = new Map<number, AreaGroup>();
     for (const s of this.stores()) {
+      if (!this.matches(s)) continue;
       const g = byArea.get(s.areaId) ?? { areaId: s.areaId, areaName: s.areaName, stores: [], staff: 0 };
       g.stores.push(s);
       g.staff += s.employeeCount;

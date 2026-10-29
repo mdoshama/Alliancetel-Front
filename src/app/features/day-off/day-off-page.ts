@@ -10,12 +10,14 @@ import { IMPACT_BADGE, approvalCard } from '../../core/day-off-impact';
 import { ConfirmService } from '../../core/confirm.service';
 import { ToastService } from '../../core/toast.service';
 import { Modal } from '../../shared/modal';
+import { Pagination } from '../../shared/pagination';
+import { matchesSearch, savePageSize, savedPageSize } from '../../core/paging';
 
 type StatusTab = DayOffStatus | 'ALL';
 
 @Component({
   selector: 'app-day-off-page',
-  imports: [FormsModule, RouterLink, Modal, TitleCasePipe],
+  imports: [FormsModule, RouterLink, Modal, TitleCasePipe, Pagination],
   templateUrl: './day-off-page.html',
 })
 export class DayOffPage implements OnInit {
@@ -44,6 +46,13 @@ export class DayOffPage implements OnInit {
   protected areaFilter: number | null = null;
   protected fromFilter = weekStartOf(today());
   protected toFilter = '';
+  /** Employee name or code. */
+  protected search = '';
+  protected readonly page = signal(0);
+  protected readonly pageSize = signal(savedPageSize());
+  protected readonly total = signal(0);
+  private loadSeq = 0;
+  private searchTimer?: ReturnType<typeof setTimeout>;
 
   // New request modal
   protected readonly modalOpen = signal(false);
@@ -51,6 +60,13 @@ export class DayOffPage implements OnInit {
   protected readonly formArea = signal<number | null>(null);
   protected readonly formEmployees = signal<Employee[]>([]);
   protected readonly formEmployeeId = signal<number | null>(null);
+  /** Narrows the employee picker; the chosen person always stays in the list. */
+  protected readonly formSearch = signal('');
+  protected readonly formEmployeeChoices = computed(() => {
+    const q = this.formSearch();
+    const chosen = this.formEmployeeId();
+    return this.formEmployees().filter((e) => e.id === chosen || matchesSearch(q, e.fullName, e.employeeCode));
+  });
   protected readonly formWeek = signal(addDays(weekStartOf(today()), 7));
   protected readonly formDays = signal<Set<string>>(new Set());
   protected formReason = '';
@@ -73,26 +89,65 @@ export class DayOffPage implements OnInit {
 
   protected setTab(tab: StatusTab): void {
     this.status.set(tab);
+    this.applyFilters();
+  }
+
+  /** A filter changed: start again from the first page. */
+  protected applyFilters(): void {
+    clearTimeout(this.searchTimer);
+    this.page.set(0);
     this.load();
   }
 
+  protected onSearch(): void {
+    clearTimeout(this.searchTimer);
+    this.searchTimer = setTimeout(() => this.applyFilters(), 300);
+  }
+
+  protected goToPage(page: number): void {
+    this.page.set(page);
+    this.load();
+    document.querySelector('.requests-card')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }
+
+  protected changePageSize(size: number): void {
+    savePageSize(size);
+    this.pageSize.set(size);
+    this.applyFilters();
+  }
+
+  /** Reloads the current page. */
   protected load(): void {
+    const seq = ++this.loadSeq;
     this.loading.set(true);
     const status = this.status();
     this.api
-      .dayOffRequests({
+      .dayOffRequestsPage({
         areaId: this.areaFilter,
         status: status === 'ALL' ? null : status,
         from: this.fromFilter || null,
         to: this.toFilter || null,
+        q: this.search.trim() || null,
+        page: this.page(),
+        size: this.pageSize(),
       })
       .subscribe({
-        next: (list) => {
-          this.requests.set(list);
+        next: (result) => {
+          if (seq !== this.loadSeq) return;
+          // Approving the last pending request on the last page: step back a page.
+          if (result.content.length === 0 && result.page > 0 && result.totalElements > 0) {
+            this.page.set(Math.max(0, result.totalPages - 1));
+            this.load();
+            return;
+          }
+          this.requests.set(result.content);
+          this.total.set(result.totalElements);
           this.loading.set(false);
-          this.loadImpacts(list);
+          this.loadImpacts(result.content);
         },
-        error: () => this.loading.set(false),
+        error: () => {
+          if (seq === this.loadSeq) this.loading.set(false);
+        },
       });
   }
 
@@ -209,6 +264,7 @@ export class DayOffPage implements OnInit {
     this.formDays.set(new Set());
     this.formReason = '';
     this.formEmergency.set(false);
+    this.formSearch.set('');
     this.loadFormEmployees();
     this.loadTaken();
     this.modalOpen.set(true);

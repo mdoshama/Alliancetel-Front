@@ -2,10 +2,26 @@
   <p class="text-muted-2 small mb-3">
     <i class="bi bi-geo-alt me-1"></i>Stores in {{ auth.user()?.areaName }}. Your schedule shows which one you work at each day.
   </p>
+  @if (stores().length > 6) {
+    <div class="mb-3" style="max-width: 360px">
+    <div class="input-group">
+      <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+      <input id="stSearch" type="search" class="form-control" placeholder="Store name, code or address" autocomplete="off"
+             [ngModel]="storeSearch()" (ngModelChange)="storeSearch.set($event)" aria-label="Search stores" />
+      @if (storeSearch()) {
+        <button type="button" class="btn btn-outline-secondary" (click)="storeSearch.set('')" aria-label="Clear search">
+          <i class="bi bi-x-lg"></i>
+        </button>
+      }
+    </div>
+  </div>
+  }
   @if (loading()) {
     <div class="card"><div class="empty-state"><div class="spinner-border text-primary"></div></div></div>
   } @else if (directory().length === 0) {
-    <div class="card"><div class="empty-state"><i class="bi bi-shop"></i>No stores in your area yet.</div></div>
+    <div class="card"><div class="empty-state"><i class="bi bi-shop"></i>
+      @if (storeSearch().trim()) { No store matches “{{ storeSearch().trim() }}”. } @else { No stores in your area yet. }
+    </div></div>
   } @else {
     <div class="row g-3">
       @for (s of directory(); track s.id) {
@@ -57,9 +73,19 @@
       }
     </select>
   </div>
-  <p class="text-muted-2 mb-1 small flex-grow-1">
-    Every employee has a home store. Managers rotate staff between stores from the schedule or the team list.
-  </p>
+  <div class="flex-grow-1" style="min-width: 200px; max-width: 340px">
+    <label class="form-label small text-muted-2 mb-1" for="stSearch">Search</label>
+    <div class="input-group">
+      <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+      <input id="stSearch" type="search" class="form-control" placeholder="Store name, code or address" autocomplete="off"
+             [ngModel]="storeSearch()" (ngModelChange)="storeSearch.set($event)" aria-label="Search stores" />
+      @if (storeSearch()) {
+        <button type="button" class="btn btn-outline-secondary" (click)="storeSearch.set('')" aria-label="Clear search">
+          <i class="bi bi-x-lg"></i>
+        </button>
+      }
+    </div>
+  </div>
   <button type="button" class="btn btn-primary ms-auto" (click)="openCreate()">
     <i class="bi bi-plus-lg me-1"></i> Add store
   </button>
@@ -71,7 +97,16 @@
   <div class="card">
     <div class="empty-state"><i class="bi bi-shop"></i>No stores yet. Add the store locations for each area.</div>
   </div>
+} @else if (groups().length === 0) {
+  <div class="card">
+    <div class="empty-state"><i class="bi bi-search"></i>No store matches “{{ storeSearch().trim() }}”.
+      <div><button type="button" class="btn btn-sm btn-outline-primary mt-2" (click)="storeSearch.set('')">Clear search</button></div>
+    </div>
+  </div>
 } @else {
+  <p class="text-muted-2 small mb-2">
+    Every employee has a home store. Managers rotate staff between stores from the schedule or the team list.
+  </p>
   @for (g of groups(); track g.areaId) {
     <div class="card mb-3">
       <div class="card-header d-flex align-items-center gap-2">

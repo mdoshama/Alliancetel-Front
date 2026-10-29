@@ -1855,3 +1855,400 @@ body {
   font-size: 0.75rem;
   color: var(--at-muted);
 }
+
+/* ---------- Schedule: view switch + "By store" board ---------- */
+
+.view-switch {
+  display: inline-flex;
+  padding: 2px;
+  border-radius: 999px;
+  background: #eef0f5;
+
+  button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    border: 0;
+    background: transparent;
+    color: #5a6275;
+    font-size: 0.78rem;
+    font-weight: 600;
+    padding: 0.22rem 0.7rem;
+    border-radius: 999px;
+
+    &.active {
+      background: #fff;
+      color: var(--at-primary);
+      box-shadow: 0 1px 2px rgba(16, 24, 40, 0.15);
+    }
+  }
+}
+
+.store-board {
+  table-layout: fixed;
+  min-width: 1080px;
+
+  th,
+  td {
+    vertical-align: top;
+  }
+
+  thead th {
+    text-align: center;
+  }
+
+  th:first-child,
+  td:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    width: 190px;
+    background: #fff;
+    text-align: left;
+  }
+
+  thead th:first-child {
+    background: #f8f9fc;
+  }
+
+  .day-head {
+    .dow {
+      display: block;
+      font-size: 0.72rem;
+    }
+
+    .dom {
+      display: block;
+      font-size: 0.95rem;
+      color: #1d2433;
+      text-transform: none;
+      letter-spacing: 0;
+    }
+
+    &.is-today .dom {
+      color: var(--at-primary);
+    }
+  }
+
+  .sb-store {
+    padding-top: 0.75rem;
+  }
+
+  .sb-cell {
+    padding: 0.45rem 0.4rem;
+    border-left: 1px solid var(--at-border);
+    transition: background-color 0.12s, opacity 0.12s;
+
+    &.is-short {
+      background: #fff5f5;
+      box-shadow: inset 0 2px 0 #f3b4b4;
+    }
+
+    &.is-closed {
+      background: repeating-linear-gradient(-45deg, #f6f7fb, #f6f7fb 6px, #eef0f5 6px, #eef0f5 12px);
+    }
+
+    &.drop-ok {
+      background-color: rgba(var(--at-primary-rgb), 0.05);
+      box-shadow: inset 0 0 0 2px rgba(var(--at-primary-rgb), 0.35);
+    }
+
+    &.drop-hover {
+      background-color: rgba(var(--at-primary-rgb), 0.14);
+      box-shadow: inset 0 0 0 2px var(--at-primary);
+    }
+
+    &.drag-other-day {
+      opacity: 0.35;
+    }
+  }
+
+  .sb-cell-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 0.3rem;
+    font-size: 0.7rem;
+    color: var(--at-muted);
+  }
+
+  .sb-count {
+    font-weight: 700;
+    font-size: 0.8rem;
+    color: #1d2433;
+
+    &.short {
+      color: #a12626;
+    }
+  }
+
+  .sb-hours {
+    white-space: nowrap;
+  }
+
+  .sb-empty {
+    font-size: 0.72rem;
+    color: #a12626;
+    font-style: italic;
+  }
+
+  .is-closed .sb-empty {
+    display: none;
+  }
+
+  tr.sb-off-row td {
+    background: #f8f9fc;
+  }
+
+  tr.sb-off-row td:first-child {
+    background: #f3f5fa;
+  }
+
+  tr.sb-unassigned td {
+    background: #fffaf0;
+  }
+}
+
+/* A person in the store board, tinted with their home store's color. */
+.sb-person {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  width: 100%;
+  margin-bottom: 0.25rem;
+  padding: 0.2rem 0.35rem;
+  border: 1px solid color-mix(in srgb, var(--store-color, #94a3b8) 30%, #fff);
+  border-left: 3px solid var(--store-color, #94a3b8);
+  border-radius: 6px;
+  background: #fff;
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: #1d2433;
+  text-align: left;
+  line-height: 1.2;
+
+  &:disabled {
+    opacity: 1;
+    cursor: default;
+  }
+
+  &:not(:disabled) {
+    cursor: grab;
+
+    &:hover {
+      border-color: var(--store-color, var(--at-primary));
+      box-shadow: 0 1px 3px rgba(16, 24, 40, 0.12);
+    }
+  }
+
+  &.is-auto {
+    border-style: dashed;
+    border-left-style: solid;
+  }
+
+  &.is-off {
+    background: #f3f4f7;
+    color: #5a6275;
+    border-color: #e3e6ec;
+    border-left-color: #c3c8d2;
+  }
+
+  &.is-requested {
+    background: #fff8e6;
+    color: #8a5a00;
+    border-color: #f6e2a8;
+    border-left-color: #e0a100;
+    cursor: default;
+  }
+
+  &.drag-source {
+    opacity: 0.4;
+  }
+
+  &.drop-ok {
+    box-shadow: 0 0 0 2px rgba(var(--at-primary-rgb), 0.35);
+  }
+
+  &.drop-hover {
+    box-shadow: 0 0 0 2px var(--at-primary);
+    background: rgba(var(--at-primary-rgb), 0.08);
+  }
+
+  .sb-avatar {
+    position: relative;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    font-size: 0.56rem;
+    font-weight: 700;
+    background: color-mix(in srgb, var(--store-color, #94a3b8) 16%, #fff);
+    color: color-mix(in srgb, var(--store-color, #64748b) 80%, #000);
+
+    &.is-floater {
+      background: #f6f1ff;
+      color: #5b21b6;
+    }
+
+    .emp-star {
+      width: 12px;
+      height: 12px;
+      right: -4px;
+      bottom: -4px;
+      font-size: 0.42rem;
+    }
+  }
+
+  .sb-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .sb-tag {
+    font-size: 0.6rem;
+    font-weight: 700;
+  }
+
+  .sb-moved {
+    font-size: 0.7rem;
+    color: var(--store-color, #64748b);
+  }
+
+  .edited-dot {
+    top: 2px;
+    right: 3px;
+  }
+}
+
+/* ---------------------------------------------------------------------------------------------
+   Lists: header row, sort, search and the page bar
+   --------------------------------------------------------------------------------------------- */
+.list-header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.5rem;
+}
+
+.list-sort,
+.pager-size {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--at-muted);
+  white-space: nowrap;
+
+  .form-select {
+    width: auto;
+    min-width: 0;
+  }
+}
+
+/* Old rows stay visible, faded, while the next page loads. */
+.is-refreshing {
+  opacity: 0.55;
+  pointer-events: none;
+  transition: opacity 0.15s;
+}
+
+.pager {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid var(--at-border);
+  font-size: 0.85rem;
+
+  .pager-info {
+    color: var(--at-muted);
+
+    strong {
+      color: var(--bs-body-color);
+      font-weight: 600;
+    }
+  }
+
+  .pagination {
+    margin-left: auto;
+    flex-wrap: wrap;
+    --bs-pagination-color: var(--at-primary);
+    --bs-pagination-active-bg: var(--at-primary);
+    --bs-pagination-active-border-color: var(--at-primary);
+    --bs-pagination-border-color: var(--at-border);
+    --bs-pagination-focus-box-shadow: 0 0 0 0.2rem rgba(var(--at-primary-rgb), 0.2);
+  }
+
+  .page-link {
+    min-width: 2rem;
+    text-align: center;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+  }
+
+  /* "3 / 12" replaces the page numbers on phones. */
+  .pager-of {
+    display: none;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .pager {
+    justify-content: space-between;
+
+    .pagination {
+      margin-left: 0;
+      width: 100%;
+      justify-content: space-between;
+      flex-wrap: nowrap;
+    }
+
+    .pager-num,
+    .pager-gap {
+      display: none;
+    }
+
+    .pager-of {
+      display: block;
+
+      .page-link {
+        border: 0;
+        color: var(--at-muted);
+        background: transparent;
+      }
+    }
+  }
+}
+
+@media (max-width: 380px) {
+  .pager .pager-word {
+    display: none;
+  }
+}
+
+/* Find person on the weekly grid */
+.grid-search {
+  width: 190px;
+  margin-left: 0.5rem;
+}
+
+@media (max-width: 575.98px) {
+  .grid-search {
+    width: 100%;
+    margin-left: 0;
+  }
+}
+
+.sb-person.is-dim {
+  opacity: 0.25;
+}

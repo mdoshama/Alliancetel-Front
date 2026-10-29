@@ -13,12 +13,17 @@ deployment guide live there.
 | **Dashboard** | Admin, Manager | Staff per area, pending day-off requests, shortcuts. |
 | **Weekly Schedule** | Everyone | Managers generate, edit, auto-fill and publish the week; employees see their published week ("My Schedule"). |
 | **Day-off Requests** | Everyone | Ask for days off (max 2 per week, one person per store per day; days a colleague has are marked *Taken*) or an **emergency** day off; managers approve or reject with a staffing check. |
-| **Employees / My Team** | Admin, Manager | Staff list, home store, Primary / Secondary / Floater, sign-in resets. |
-| **Areas** | Admin | San Diego, Los Angeles, San Francisco, … |
-| **Stores** | Everyone | Admins edit code, color, hours and minimum staff. Managers and employees see a directory: address with directions, weekly hours, "Your store". |
+| **Employees / My Team** | Admin, Manager | Staff list, home store, Primary / Secondary / Floater, sign-in resets. Search, filters, sort and pages. |
+| **Areas** | Admin | San Diego, Los Angeles, San Francisco, … (search and pages) |
+| **Stores** | Everyone | Admins edit code, color, hours and minimum staff. Managers and employees see a directory: address with directions, weekly hours, "Your store". Search by name, code or address. |
 | **Page not found** | Everyone | Friendly page for mistyped or old links. |
 
 ### On the schedule
+
+- **Two views** (managers and admins): **By employee** (one row per person) or **By store** (one row per
+  store: who works there each day, the count against the store's minimum in red when short, hours or
+  Closed, and an **Off** row). Drag a person to another store or day, onto someone to swap, onto **Off**
+  to give the day off, or from Off onto a store to put them to work. The choice is remembered.
 
 - Each work day shows the **store name in the store's color** and the shift hours (the store's
   hours that day).
@@ -34,6 +39,19 @@ deployment guide live there.
   whole week. A work day needs a store. Moving a **primary** asks for confirmation first.
 - **Employees** see only the schedule itself: no totals rows and no Primary / Secondary / Floater.
 - Confirmations (publish, regenerate, delete, approve…) use in-app cards, never browser pop-ups.
+
+### Search and pages
+
+- **Employees**: search by name, full name, email or code (as you type), filter by area, store, role,
+  Primary / Secondary / Floater and status, sort by name, code or role, and **Clear filters**. The list
+  comes from the server one page at a time, so it stays fast with thousands of staff.
+- **Day-off Requests**: search by employee name or code next to the status tabs and dates; paged on the server.
+- **Areas** and **Stores**: instant search in the browser; Areas also has pages.
+- **Weekly Schedule**: **Find person** narrows the By employee grid to matching people and dims everyone
+  else in the By store view.
+- Under each list: "Showing 26–50 of 132 people", page links with Previous / Next and **Rows** (10, 25,
+  50 or 100, remembered in this browser). On phones the links shrink to Previous · 2 / 6 · Next.
+- The new-request form's employee picker gets a search box when an area has more than 8 people.
 
 ### Works on any screen
 
@@ -66,9 +84,9 @@ start the backend first. Demo sign-ins (password `Welcome123`): `admin@alliancet
 ```
 src/app/
 ├── core/         API client, auth (token, guards, interceptors), models, confirm cards, toasts,
-│                 date helpers, store hours/colors, day-off staffing card
+│                 date helpers, store hours/colors, day-off staffing card, paging/search helpers
 ├── layout/       shell: sidebar, top bar, user menu, toasts
-├── shared/       modal and confirmation dialog
+├── shared/       modal, confirmation dialog, pagination bar
 └── features/     dashboard, schedule, day-off, employees, areas, stores, auth, not-found
 src/styles.scss   theme, schedule grid, store colors, role chips, responsive rules
 nginx/            production web server config (serves the app, forwards /api)

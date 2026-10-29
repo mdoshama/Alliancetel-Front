@@ -7,12 +7,15 @@ import {
   CreateDayOffRequest,
   Credentials,
   DayOffFilter,
+  DayOffPageFilter,
   DayOffImpact,
   TakenDay,
   DayOffRequest,
   DayType,
   Employee,
   EmployeeFilter,
+  EmployeePageFilter,
+  Page,
   EmployeeRequest,
   Schedule,
   Store,
@@ -66,6 +69,10 @@ export class ApiService {
   employees(filter: EmployeeFilter = {}): Observable<Employee[]> {
     return this.http.get<Employee[]>(`${this.base}/employees`, { params: toParams(filter) });
   }
+  /** One page of the staff list (server-side filters, search and paging). */
+  employeesPage(filter: EmployeePageFilter = {}): Observable<Page<Employee>> {
+    return this.http.get<Page<Employee>>(`${this.base}/employees/page`, { params: toParams(filter) });
+  }
   /** Creates the employee and returns a one-time temporary password for their first sign-in. */
   createEmployee(body: EmployeeRequest): Observable<Credentials> {
     return this.http.post<Credentials>(`${this.base}/employees`, body);
@@ -88,6 +95,9 @@ export class ApiService {
   // Day-off requests
   dayOffRequests(filter: DayOffFilter = {}): Observable<DayOffRequest[]> {
     return this.http.get<DayOffRequest[]>(`${this.base}/day-off-requests`, { params: toParams(filter) });
+  }
+  dayOffRequestsPage(filter: DayOffPageFilter = {}): Observable<Page<DayOffRequest>> {
+    return this.http.get<Page<DayOffRequest>>(`${this.base}/day-off-requests/page`, { params: toParams(filter) });
   }
   createDayOff(body: CreateDayOffRequest): Observable<DayOffRequest[]> {
     return this.http.post<DayOffRequest[]>(`${this.base}/day-off-requests`, body);
