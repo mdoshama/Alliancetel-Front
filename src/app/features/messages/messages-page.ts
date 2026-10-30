@@ -53,13 +53,9 @@ export class MessagesPage implements OnInit, OnDestroy {
   protected readonly pageSize = signal(savedPageSize());
   protected readonly tab = signal<StatusTab>('ALL');
   protected readonly channel = signal<NotificationChannel | null>(null);
-  /** Which setup guide is open (admins): email or WhatsApp. */
-  protected readonly setup = signal<'EMAIL' | 'WHATSAPP' | null>(null);
   protected readonly loading = signal(true);
   protected readonly sending = signal(false);
   protected readonly retrying = signal<number | null>(null);
-  protected readonly copied = signal<string | null>(null);
-  protected readonly showTemplates = signal(false);
 
   protected announceArea: number | null = null;
   protected readonly message = signal('');
@@ -127,10 +123,6 @@ export class MessagesPage implements OnInit, OnDestroy {
     this.load();
   }
 
-  protected toggleSetup(which: 'EMAIL' | 'WHATSAPP'): void {
-    this.setup.set(this.setup() === which ? null : which);
-  }
-
   protected goToPage(page: number): void {
     this.page.set(page);
     this.load();
@@ -195,26 +187,4 @@ export class MessagesPage implements OnInit, OnDestroy {
       error: () => this.retrying.set(null),
     });
   }
-
-  protected copy(text: string, key: string): void {
-    navigator.clipboard?.writeText(text).then(() => {
-      this.copied.set(key);
-      setTimeout(() => this.copied.set(null), 1500);
-    });
-  }
-
-  protected readonly emailVars = [
-    { name: 'EMAIL_ENABLED', value: 'true', note: 'Turns email on.' },
-    { name: 'RESEND_API_KEY', value: 're_…', note: 'Resend → API Keys → Create (Sending access).' },
-    { name: 'EMAIL_FROM', value: 'AllianceTel <schedule@yourdomain.com>', note: 'An address on the domain you verified in Resend.' },
-    { name: 'EMAIL_REPLY_TO', value: 'manager@yourdomain.com', note: 'Optional: where replies go.' },
-    { name: 'APP_URL', value: 'https://your-domain.com', note: 'The button in each email opens this.' },
-  ];
-
-  protected readonly envVars = [
-    { name: 'WHATSAPP_ENABLED', value: 'true', note: 'Turns sending on.' },
-    { name: 'WHATSAPP_PHONE_NUMBER_ID', value: '', note: 'WhatsApp Manager → Phone numbers (the ID, not the number).' },
-    { name: 'WHATSAPP_ACCESS_TOKEN', value: '', note: 'A permanent System User token with whatsapp_business_messaging.' },
-    { name: 'APP_URL', value: 'https://your-domain.com', note: 'Link at the end of each schedule message.' },
-  ];
 }
