@@ -2,6 +2,10 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable, map } from 'rxjs';
 import {
+  NotificationItem,
+  NotificationChannel,
+  NotificationStatus,
+  WhatsAppStatus,
   ApproveManyResult,
   Area,
   AreaRequest,
@@ -117,6 +121,19 @@ export class ApiService {
   /** Approves many requests; with onlyIfCovered, ones that would leave a store short stay pending. */
   approveManyDaysOff(ids: number[], onlyIfCovered = true): Observable<ApproveManyResult> {
     return this.http.post<ApproveManyResult>(`${this.base}/day-off-requests/approve-many`, { ids, onlyIfCovered });
+  }
+  // WhatsApp messages
+  notifications(filter: { areaId?: number | null; status?: NotificationStatus | null; channel?: NotificationChannel | null; page?: number; size?: number } = {}): Observable<Page<NotificationItem>> {
+    return this.http.get<Page<NotificationItem>>(`${this.base}/notifications`, { params: toParams(filter) });
+  }
+  whatsappStatus(): Observable<WhatsAppStatus> {
+    return this.http.get<WhatsAppStatus>(`${this.base}/notifications/status`);
+  }
+  announce(areaId: number, message: string): Observable<{ recipients: number; reachable: number }> {
+    return this.http.post<{ recipients: number; reachable: number }>(`${this.base}/notifications/announce`, { areaId, message });
+  }
+  retryNotification(id: number): Observable<NotificationItem> {
+    return this.http.post<NotificationItem>(`${this.base}/notifications/${id}/retry`, {});
   }
   rejectDayOff(id: number, note?: string): Observable<DayOffRequest> {
     return this.http.post<DayOffRequest>(`${this.base}/day-off-requests/${id}/reject`, { note: note ?? null });

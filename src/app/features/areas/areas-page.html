@@ -77,13 +77,15 @@
   <form [formGroup]="form" (ngSubmit)="save()" id="areaForm">
     <div class="mb-3">
       <label class="form-label" for="areaName">Name</label>
-      <input id="areaName" class="form-control" formControlName="name" placeholder="e.g. San Diego"
-             [class.is-invalid]="form.controls.name.touched && form.controls.name.invalid" />
-      <div class="invalid-feedback">Name is required.</div>
+      <input id="areaName" class="form-control" formControlName="name" placeholder="e.g. San Diego" maxlength="100"
+             autocomplete="off" [class.is-invalid]="fieldError(form.controls.name, 'Name')" />
+      <div class="invalid-feedback">{{ fieldError(form.controls.name, 'Name') }}</div>
     </div>
     <div class="mb-3">
       <label class="form-label" for="areaDescription">Description</label>
-      <textarea id="areaDescription" class="form-control" rows="2" formControlName="description"></textarea>
+      <input id="areaDescription" class="form-control" formControlName="description" maxlength="255" autocomplete="off"
+             placeholder="e.g. Coastal stores north of downtown" [class.is-invalid]="fieldError(form.controls.description, 'Description')" />
+      <div class="invalid-feedback">{{ fieldError(form.controls.description, 'Description') }}</div>
     </div>
     <div class="form-check form-switch">
       <input class="form-check-input" type="checkbox" id="areaActive" formControlName="active" />

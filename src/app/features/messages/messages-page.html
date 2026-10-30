@@ -1,0 +1,255 @@
+@if (status(); as s) {
+  <div class="channel-status mb-3">
+    <div class="channel-pill" [class.is-on]="s.emailConnected">
+      <i class="bi bi-envelope"></i>
+      <div>
+        <div class="fw-semibold">Email {{ s.emailConnected ? 'connected' : 'not connected yet' }}</div>
+        <div class="small text-muted-2">
+          @if (s.emailConnected) { Sent from {{ s.emailFrom }} } @else { Emails are listed below but not sent. }
+        </div>
+      </div>
+      @if (auth.isAdmin()) {
+        <button type="button" class="btn btn-sm btn-light border ms-auto" (click)="toggleSetup('EMAIL')">
+          {{ setup() === 'EMAIL' ? 'Hide' : s.emailConnected ? 'Setup' : 'How to connect' }}
+        </button>
+      }
+    </div>
+    <div class="channel-pill" [class.is-on]="s.connected">
+      <i class="bi bi-whatsapp"></i>
+      <div>
+        <div class="fw-semibold">WhatsApp {{ s.connected ? 'connected' : 'not connected (optional)' }}</div>
+        <div class="small text-muted-2">
+          @if (s.connected) { Schedule updates also go to WhatsApp. } @else { Connect it any time; nothing else changes. }
+        </div>
+      </div>
+      @if (auth.isAdmin()) {
+        <button type="button" class="btn btn-sm btn-light border ms-auto" (click)="toggleSetup('WHATSAPP')">
+          {{ setup() === 'WHATSAPP' ? 'Hide' : s.connected ? 'Templates' : 'How to connect' }}
+        </button>
+      }
+    </div>
+  </div>
+
+  @if (auth.isAdmin() && setup() === 'EMAIL') {
+    <div class="card mb-3 wa-templates">
+      <div class="card-header fw-semibold"><i class="bi bi-envelope me-1"></i> Connect email (Resend)</div>
+      <div class="card-body">
+        <p class="small text-muted-2 mb-2">
+          Railway blocks ordinary (SMTP) email on its Free and Hobby plans, so the app sends through Resend's web API.
+          Resend's free plan covers 3,000 emails a month (100 a day).
+        </p>
+        <ol class="small mb-3 ps-3">
+          <li>Sign up at <strong>resend.com</strong>.</li>
+          <li><strong>Domains → Add domain</strong>: enter a subdomain of your site, e.g. <code>mail.yourdomain.com</code>. Add the DNS
+            records Resend shows (TXT and MX) in Namecheap → <strong>Advanced DNS</strong>, then click <strong>Verify</strong>
+            (usually a few minutes).</li>
+          <li><strong>API Keys → Create API Key</strong>, permission <strong>Sending access</strong>. Copy it (starts with <code>re_</code>; shown once).</li>
+          <li>On Railway, open the <strong>backend</strong> service → Variables and add the variables below. It restarts on its own.</li>
+          <li>Come back here: Email shows <strong>connected</strong>. Publish a week; each email turns <em>Sent</em> within seconds.</li>
+        </ol>
+        <div class="table-responsive">
+          <table class="table table-sm mb-0 table-stack">
+            <tbody>
+              @for (v of emailVars; track v.name) {
+                <tr>
+                  <td><code>{{ v.name }}</code></td>
+                  <td data-label="Value" class="small">{{ v.value || '—' }}</td>
+                  <td data-label="What" class="small text-muted-2">{{ v.note }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  }
+
+  @if (auth.isAdmin() && setup() === 'WHATSAPP') {
+    <div class="card mb-3 wa-templates">
+      <div class="card-header fw-semibold"><i class="bi bi-whatsapp me-1"></i> Connect WhatsApp (Meta WhatsApp Cloud API)</div>
+      <div class="card-body">
+        <ol class="small mb-3 ps-3">
+          <li>In <strong>WhatsApp Manager</strong>, create these four message templates: category <strong>Utility</strong>,
+            language <strong>English (US)</strong>, with the exact name and text below. Wait until each is approved.</li>
+          <li>On Railway, open the <strong>backend</strong> service → Variables, and add the variables below. It restarts on its own.</li>
+          <li>Come back here: WhatsApp shows <strong>connected</strong>. From then on, updates also go to WhatsApp for people who agreed.</li>
+        </ol>
+        <div class="row g-3">
+          @for (t of s.templates; track t.kind) {
+            <div class="col-lg-6">
+              <div class="wa-template">
+                <div class="d-flex align-items-center gap-2 mb-1">
+                  <code>{{ t.name }}</code>
+                  <span class="small text-muted-2">· {{ kindLabels[t.kind] }}</span>
+                  <button type="button" class="btn btn-sm btn-light border ms-auto" (click)="copy(t.body, t.kind)">
+                    <i class="bi" [class.bi-clipboard]="copied() !== t.kind" [class.bi-check2]="copied() === t.kind"></i>
+                    {{ copied() === t.kind ? 'Copied' : 'Copy text' }}
+                  </button>
+                </div>
+                <div class="wa-bubble">{{ t.body }}</div>
+              </div>
+            </div>
+          }
+        </div>
+        <h6 class="fw-semibold mt-3 mb-2">Railway variables (backend)</h6>
+        <div class="table-responsive">
+          <table class="table table-sm mb-0 table-stack">
+            <tbody>
+              @for (v of envVars; track v.name) {
+                <tr>
+                  <td><code>{{ v.name }}</code></td>
+                  <td data-label="Value" class="small">{{ v.value || '—' }}</td>
+                  <td data-label="What" class="small text-muted-2">{{ v.note }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  }
+
+  <div class="row g-3 mb-3">
+    <div class="col-6 col-lg-3">
+      <div class="card stat-card h-100">
+        <div class="stat-icon bg-success-subtle text-success"><i class="bi bi-send-check"></i></div>
+        <div><div class="stat-value">{{ s.queued }}</div><div class="stat-label">Sending now</div></div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-3">
+      <button type="button" class="card stat-card h-100 w-100 text-start border-0" (click)="setTab('FAILED')">
+        <div class="stat-icon bg-danger-subtle text-danger"><i class="bi bi-exclamation-triangle"></i></div>
+        <div><div class="stat-value">{{ s.failed }}</div><div class="stat-label">Failed</div></div>
+      </button>
+    </div>
+    <div class="col-6 col-lg-3">
+      <a class="card stat-card h-100 text-decoration-none text-body" routerLink="/employees">
+        <div class="stat-icon bg-secondary-subtle text-secondary"><i class="bi bi-envelope-slash"></i></div>
+        <div><div class="stat-value">{{ s.emailOff }}</div><div class="stat-label">Turned email off</div></div>
+      </a>
+    </div>
+    <div class="col-6 col-lg-3">
+      @if (s.connected) {
+        <a class="card stat-card h-100 text-decoration-none text-body" routerLink="/employees">
+          <div class="stat-icon bg-warning-subtle text-warning"><i class="bi bi-person-x"></i></div>
+          <div><div class="stat-value">{{ s.withoutPhone + s.notAgreed }}</div><div class="stat-label">Not on WhatsApp</div></div>
+        </a>
+      } @else {
+        <button type="button" class="card stat-card h-100 w-100 text-start border-0" (click)="setTab('NOT_SENT')">
+          <div class="stat-icon bg-secondary-subtle text-secondary"><i class="bi bi-slash-circle"></i></div>
+          <div><div class="stat-value">{{ s.notSent }}</div><div class="stat-label">Not sent</div></div>
+        </button>
+      }
+    </div>
+  </div>
+}
+
+<div class="card mb-3">
+  <div class="card-header fw-semibold"><i class="bi bi-megaphone me-1"></i> Send an announcement</div>
+  <div class="card-body">
+    <div class="announce-form">
+      @if (auth.isAdmin()) {
+        <div style="min-width: 180px">
+          <label class="form-label small text-muted-2 mb-1" for="annArea">To everyone in</label>
+          <select id="annArea" class="form-select" [(ngModel)]="announceArea">
+            @for (a of areas(); track a.id) {
+              <option [ngValue]="a.id">{{ a.name }}</option>
+            }
+          </select>
+        </div>
+      }
+      <div class="flex-grow-1">
+        <label class="form-label small text-muted-2 mb-1" for="annText">
+          Message @if (!auth.isAdmin()) { to everyone in {{ areaName(announceArea) }} }
+        </label>
+        <input id="annText" class="form-control" [maxlength]="maxMessage" autocomplete="off"
+               placeholder="e.g. Team meeting Friday 9am at Oceanside" [ngModel]="message()" (ngModelChange)="message.set($event)"
+               [class.is-invalid]="messageError()" (keydown.enter)="sendAnnouncement()" />
+        <div class="d-flex justify-content-between">
+          <div class="invalid-feedback d-block">{{ messageError() }}</div>
+          <div class="form-text text-nowrap">{{ message().length }} / {{ maxMessage }}</div>
+        </div>
+      </div>
+      <button type="button" class="btn btn-primary align-self-start announce-send"
+              [disabled]="sending() || !message().trim() || !!messageError() || announceArea == null" (click)="sendAnnouncement()">
+        @if (sending()) { <span class="spinner-border spinner-border-sm me-1"></span> } @else { <i class="bi bi-send me-1"></i> }
+        Send
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="page-toolbar">
+  <ul class="nav nav-pills">
+    @for (t of tabs; track t.value) {
+      <li class="nav-item">
+        <button type="button" class="nav-link" [class.active]="tab() === t.value" (click)="setTab(t.value)">{{ t.label }}</button>
+      </li>
+    }
+  </ul>
+  <select class="form-select ms-auto" style="width: auto" aria-label="Channel" [ngModel]="channel()" (ngModelChange)="setChannel($event)">
+    <option [ngValue]="null">Email and WhatsApp</option>
+    <option ngValue="EMAIL">Email</option>
+    <option ngValue="WHATSAPP">WhatsApp</option>
+  </select>
+  <button type="button" class="btn btn-light border" (click)="loadStatus(); load()"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
+</div>
+
+<div class="card messages-card">
+  @if (loading() && items().length === 0) {
+    <div class="empty-state"><div class="spinner-border text-primary"></div></div>
+  } @else if (items().length === 0) {
+    <div class="empty-state"><i class="bi bi-chat-dots"></i>No messages yet. They appear here when a week is published or changed, a day off is decided, or you send an announcement.</div>
+  } @else {
+    <div class="table-responsive" [class.is-refreshing]="loading()">
+      <table class="table table-hover table-stack table-stack-lg">
+        <thead>
+          <tr>
+            <th>When</th>
+            <th>To</th>
+            <th>About</th>
+            <th>Message</th>
+            <th>Status</th>
+            <th class="text-end"></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (m of items(); track m.id) {
+            <tr>
+              <td class="text-nowrap small">{{ m.createdAt | date: 'MMM d, h:mm a' }}</td>
+              <td data-label="To">
+                <div class="fw-semibold">
+                  <i class="bi me-1" [class.bi-envelope]="m.channel === 'EMAIL'" [class.text-primary]="m.channel === 'EMAIL'"
+                     [class.bi-whatsapp]="m.channel === 'WHATSAPP'" [class.text-success]="m.channel === 'WHATSAPP'"
+                     [attr.title]="m.channel === 'EMAIL' ? 'Email' : 'WhatsApp'"></i>{{ m.employeeName }}
+                </div>
+                <div class="small text-muted-2 text-break">
+                  @if (m.channel === 'EMAIL') { {{ m.email }} } @else { {{ m.phone ? formatPhone(m.phone) : 'No phone' }} }
+                </div>
+              </td>
+              <td data-label="About"><span class="badge text-bg-light border">{{ kindLabels[m.kind] }}</span></td>
+              <td data-label="Message" class="small msg-preview">
+                @if (m.subject) { <div class="fw-semibold mb-1">{{ m.subject }}</div> }
+                <div class="msg-body" [class.is-email]="m.channel === 'EMAIL'">{{ m.preview }}</div>
+              </td>
+              <td data-label="Status">
+                <span class="badge msg-status msg-{{ m.status }}">{{ statusLabels[m.status] }}</span>
+                @if (m.error) { <div class="small text-muted-2 mt-1 msg-error">{{ m.error }}</div> }
+                @if (m.status === 'SENT' && m.sentAt) { <div class="small text-muted-2 mt-1">{{ m.sentAt | date: 'h:mm a' }}</div> }
+              </td>
+              <td class="td-actions text-end">
+                @if (m.status === 'FAILED' && (m.channel === 'EMAIL' ? !!m.email : !!m.phone)) {
+                  <button type="button" class="btn btn-sm btn-outline-primary" [disabled]="retrying() === m.id" (click)="retry(m)">
+                    <i class="bi bi-arrow-repeat"></i> Try again
+                  </button>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+  <app-pagination [page]="page()" [size]="pageSize()" [total]="total()" label="messages"
+                  (pageChange)="goToPage($event)" (sizeChange)="changePageSize($event)" />
+</div>

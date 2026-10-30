@@ -626,7 +626,7 @@ export class SchedulePage implements OnInit {
     }
     const ok = await this.confirm.ask({
       title: 'Publish schedule?',
-      message: `The ${s.areaName} schedule for ${this.weekLabel()} will become visible to all ${s.rows.length} staff and locked for editing.`,
+      message: `The ${s.areaName} schedule for ${this.weekLabel()} will become visible to all ${s.rows.length} staff and locked for editing. Everyone gets their week by email (and on WhatsApp once it's connected); after a change, only people whose days changed hear about it.`,
       icon: 'bi-send-check',
       tone: notes.length ? 'warning' : 'primary',
       notes,

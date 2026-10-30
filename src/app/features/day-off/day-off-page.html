@@ -231,11 +231,13 @@
   </div>
   <div>
     <label class="form-label" for="nReason">Reason <span class="text-muted-2 small">(optional)</span></label>
-    <input id="nReason" class="form-control" maxlength="255" [(ngModel)]="formReason" />
+    <input id="nReason" class="form-control" maxlength="255" autocomplete="off" [(ngModel)]="formReason"
+           [class.is-invalid]="reasonError()" placeholder="e.g. Doctor's appointment" />
+    <div class="invalid-feedback">{{ reasonError() }}</div>
   </div>
   <ng-container modal-footer>
     <button type="button" class="btn btn-light" (click)="modalOpen.set(false)">Cancel</button>
-    <button type="button" class="btn btn-primary" [disabled]="saving() || !formEmployeeId() || formDays().size === 0" (click)="submit()">
+    <button type="button" class="btn btn-primary" [disabled]="saving() || !formEmployeeId() || formDays().size === 0 || !!reasonError()" (click)="submit()">
       @if (saving()) { <span class="spinner-border spinner-border-sm me-1"></span> }
       Submit request
     </button>

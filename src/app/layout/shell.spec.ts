@@ -25,12 +25,12 @@ describe('Shell', () => {
   it('shows the AllianceTel brand and the full menu to admins', async () => {
     const { el, labels } = await renderAs('ADMIN');
     expect(el.querySelector('.brand-text')?.textContent).toContain('AllianceTel');
-    expect(labels).toEqual(['Dashboard', 'Weekly Schedule', 'Day-off Requests', 'Employees', 'Areas', 'Stores']);
+    expect(labels).toEqual(['Dashboard', 'Weekly Schedule', 'Day-off Requests', 'Messages', 'Employees', 'Areas', 'Stores']);
   });
 
   it('shows managers their team but not areas', async () => {
     const { labels } = await renderAs('MANAGER');
-    expect(labels).toEqual(['Dashboard', 'Weekly Schedule', 'Day-off Requests', 'Stores', 'My Team']);
+    expect(labels).toEqual(['Dashboard', 'Weekly Schedule', 'Day-off Requests', 'Stores', 'Messages', 'My Team']);
   });
 
   it('shows employees only their own pages', async () => {

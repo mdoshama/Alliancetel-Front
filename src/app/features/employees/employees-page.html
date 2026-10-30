@@ -118,7 +118,10 @@
                 <div class="small text-muted-2">{{ e.employeeCode }}</div>
                 <div class="small text-muted-2 text-break">
                   <i class="bi bi-envelope me-1"></i>{{ e.email }}
-                  @if (e.phone) { <br /><i class="bi bi-telephone me-1"></i>{{ e.phone }} }
+                  @if (e.phone) {
+                    <br /><i class="bi bi-telephone me-1"></i>{{ formatPhone(e.phone) }}
+                    @if (e.whatsappOptIn) { <i class="bi bi-whatsapp text-success ms-1" title="Gets schedule updates on WhatsApp"></i> }
+                  }
                 </div>
               </td>
               <td data-label="Role"><span class="badge role-badge role-{{ e.role }}">{{ roleLabels[e.role] }}</span></td>
@@ -211,31 +214,51 @@
     <div class="row g-3">
       <div class="col-md-4">
         <label class="form-label" for="eCode">Employee code</label>
-        <input id="eCode" class="form-control" formControlName="employeeCode" placeholder="AT-1050"
-               [class.is-invalid]="form.controls.employeeCode.touched && form.controls.employeeCode.invalid" />
-        <div class="invalid-feedback">Required.</div>
+        <input id="eCode" class="form-control" formControlName="employeeCode" placeholder="AT-1050" maxlength="20"
+               autocomplete="off" [class.is-invalid]="fieldError(form.controls.employeeCode, 'Employee code')" />
+        <div class="invalid-feedback">{{ fieldError(form.controls.employeeCode, 'Employee code') }}</div>
       </div>
       <div class="col-md-4">
         <label class="form-label" for="eFirst">First name</label>
-        <input id="eFirst" class="form-control" formControlName="firstName"
-               [class.is-invalid]="form.controls.firstName.touched && form.controls.firstName.invalid" />
-        <div class="invalid-feedback">Required.</div>
+        <input id="eFirst" class="form-control" formControlName="firstName" maxlength="60" autocomplete="off"
+               [class.is-invalid]="fieldError(form.controls.firstName, 'First name')" />
+        <div class="invalid-feedback">{{ fieldError(form.controls.firstName, 'First name') }}</div>
       </div>
       <div class="col-md-4">
         <label class="form-label" for="eLast">Last name</label>
-        <input id="eLast" class="form-control" formControlName="lastName"
-               [class.is-invalid]="form.controls.lastName.touched && form.controls.lastName.invalid" />
-        <div class="invalid-feedback">Required.</div>
+        <input id="eLast" class="form-control" formControlName="lastName" maxlength="60" autocomplete="off"
+               [class.is-invalid]="fieldError(form.controls.lastName, 'Last name')" />
+        <div class="invalid-feedback">{{ fieldError(form.controls.lastName, 'Last name') }}</div>
       </div>
       <div class="col-md-7">
         <label class="form-label" for="eEmail">Email</label>
-        <input id="eEmail" type="email" class="form-control" formControlName="email"
-               [class.is-invalid]="form.controls.email.touched && form.controls.email.invalid" />
-        <div class="invalid-feedback">Enter a valid email.</div>
+        <input id="eEmail" type="email" class="form-control" formControlName="email" maxlength="120" autocomplete="off"
+               [class.is-invalid]="fieldError(form.controls.email, 'Email')" />
+        <div class="invalid-feedback">{{ fieldError(form.controls.email, 'Email') }}</div>
+        <div class="form-check form-switch mt-2">
+          <input class="form-check-input" type="checkbox" id="eEmailOptIn" formControlName="emailOptIn" />
+          <label class="form-check-label small" for="eEmailOptIn">
+            <i class="bi bi-envelope text-primary"></i> Email schedule updates
+          </label>
+        </div>
       </div>
       <div class="col-md-5">
         <label class="form-label" for="ePhone">Phone</label>
-        <input id="ePhone" class="form-control" formControlName="phone" />
+        <input id="ePhone" type="tel" inputmode="tel" class="form-control" formControlName="phone" maxlength="30"
+               placeholder="(619) 555-0142" autocomplete="off" (blur)="tidyPhone()"
+               [class.is-invalid]="fieldError(form.controls.phone, 'Phone')" />
+        @if (fieldError(form.controls.phone, 'Phone'); as msg) {
+          <div class="invalid-feedback">{{ msg }}</div>
+        } @else {
+          <div class="form-text">US number, or + and the country code.</div>
+        }
+        <div class="form-check form-switch mt-2">
+          <input class="form-check-input" type="checkbox" id="eWhatsapp" formControlName="whatsappOptIn"
+                 [attr.disabled]="!form.controls.phone.value.trim() ? true : null" />
+          <label class="form-check-label small" for="eWhatsapp">
+            <i class="bi bi-whatsapp text-success"></i> Agreed to get schedule updates on WhatsApp
+          </label>
+        </div>
       </div>
       <div class="col-md-4">
         <label class="form-label" for="eRole">Role</label>
@@ -267,7 +290,9 @@
       </div>
       <div class="col-md-3">
         <label class="form-label" for="eDays">Days / week</label>
-        <input id="eDays" type="number" min="1" max="7" class="form-control" formControlName="workDaysPerWeek" />
+        <input id="eDays" type="number" min="1" max="7" step="1" class="form-control" formControlName="workDaysPerWeek"
+               [class.is-invalid]="fieldError(form.controls.workDaysPerWeek, 'Days / week')" />
+        <div class="invalid-feedback">{{ fieldError(form.controls.workDaysPerWeek, 'Days / week') }}</div>
       </div>
       <div class="col-12">
         @if (form.controls.homeStoreId.value != null) {

@@ -2374,3 +2374,121 @@ body {
   color: #198754;
   font-size: 0.75em;
 }
+
+/* ---------------------------------------------------------------------------------------------
+   WhatsApp messages
+   --------------------------------------------------------------------------------------------- */
+.wa-optin {
+  min-width: 250px;
+}
+
+.announce-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: flex-start;
+
+  .announce-send {
+    margin-top: 1.6rem;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .announce-form .announce-send {
+    margin-top: 0;
+    width: 100%;
+  }
+}
+
+.wa-template {
+  border: 1px solid var(--at-border);
+  border-radius: 0.6rem;
+  padding: 0.6rem 0.75rem;
+  height: 100%;
+}
+
+/* Looks like a WhatsApp chat bubble so admins see what people receive. */
+.wa-bubble {
+  background: #dcf8c6;
+  color: #111b21;
+  border-radius: 0.6rem 0.6rem 0.6rem 0.15rem;
+  padding: 0.5rem 0.7rem;
+  font-size: 0.85rem;
+  white-space: pre-wrap;
+}
+
+.msg-preview {
+  max-width: 420px;
+  white-space: normal;
+}
+
+.msg-error {
+  max-width: 260px;
+}
+
+.msg-status {
+  &.msg-SENT {
+    background: #d1f2df;
+    color: #0f6b3a;
+  }
+
+  &.msg-QUEUED {
+    background: #e3ecff;
+    color: #2457d6;
+  }
+
+  &.msg-FAILED {
+    background: #fde2e4;
+    color: #b42318;
+  }
+
+  &.msg-NOT_SENT {
+    background: #eef0f3;
+    color: #5a6275;
+  }
+}
+
+button.stat-card {
+  cursor: pointer;
+}
+
+/* Messages page: one pill per channel */
+.channel-status {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 0.75rem;
+}
+
+.channel-pill {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-radius: 0.75rem;
+  background: #fff8e6;
+  border: 1px solid #f5c35b;
+
+  > .bi {
+    font-size: 1.4rem;
+    color: #b7791f;
+  }
+
+  &.is-on {
+    background: #e9f7ef;
+    border-color: #9ad5b2;
+
+    > .bi {
+      color: #198754;
+    }
+  }
+}
+
+/* Emails: first lines only, ending cleanly with "…" */
+.msg-body.is-email {
+  white-space: pre-line;
+  display: -webkit-box;
+  -webkit-line-clamp: 7;
+  line-clamp: 7;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}

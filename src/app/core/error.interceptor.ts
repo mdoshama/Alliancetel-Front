@@ -26,9 +26,8 @@ export function describeError(err: HttpErrorResponse): string {
   if (body && typeof body === 'object') {
     const fieldErrors = body['errors'] as Record<string, string> | undefined;
     if (fieldErrors && Object.keys(fieldErrors).length) {
-      return Object.entries(fieldErrors)
-        .map(([field, msg]) => `${field}: ${msg}`)
-        .join('; ');
+      // The server sends whole sentences, e.g. "Phone must be a valid number, e.g. (619) 555-0142."
+      return Object.values(fieldErrors).join(' ');
     }
     if (typeof body['detail'] === 'string') {
       return body['detail'];

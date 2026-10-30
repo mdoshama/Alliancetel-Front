@@ -10,6 +10,19 @@ import { ConfirmService } from '../../core/confirm.service';
 import { ToastService } from '../../core/toast.service';
 import { Modal } from '../../shared/modal';
 import { Pagination } from '../../shared/pagination';
+import {
+  applyServerErrors,
+  clean,
+  codeRule,
+  emailRule,
+  fieldError,
+  formatPhone,
+  normalizePhone,
+  notBlank,
+  personName,
+  phoneRule,
+  wholeNumber,
+} from '../../core/validation';
 
 @Component({
   selector: 'app-employees-page',
@@ -87,17 +100,19 @@ export class EmployeesPage implements OnInit {
   protected readonly storeRoleHelp = STORE_ROLE_HELP;
 
   protected readonly form = this.fb.nonNullable.group({
-    employeeCode: ['', [Validators.required, Validators.maxLength(20)]],
-    firstName: ['', [Validators.required, Validators.maxLength(60)]],
-    lastName: ['', [Validators.required, Validators.maxLength(60)]],
-    email: ['', [Validators.required, Validators.email, Validators.maxLength(120)]],
-    phone: ['', Validators.maxLength(30)],
+    employeeCode: ['', [Validators.required, notBlank, Validators.maxLength(20), codeRule]],
+    firstName: ['', [Validators.required, notBlank, Validators.maxLength(60), personName]],
+    lastName: ['', [Validators.required, notBlank, Validators.maxLength(60), personName]],
+    email: ['', [Validators.required, notBlank, Validators.maxLength(120), emailRule]],
+    phone: ['', [Validators.maxLength(30), phoneRule]],
     role: ['EMPLOYEE' as Role, Validators.required],
     areaId: [null as number | null],
     homeStoreId: [null as number | null],
     primaryAtStore: [false],
-    workDaysPerWeek: [6, [Validators.required, Validators.min(1), Validators.max(7)]],
+    workDaysPerWeek: [6, [Validators.required, Validators.min(1), Validators.max(7), wholeNumber]],
     active: [true],
+    whatsappOptIn: [false],
+    emailOptIn: [true],
   });
 
   private searchTimer?: ReturnType<typeof setTimeout>;
@@ -204,6 +219,8 @@ export class EmployeesPage implements OnInit {
       primaryAtStore: false,
       workDaysPerWeek: 6,
       active: true,
+      whatsappOptIn: false,
+      emailOptIn: true,
     });
     this.modalOpen.set(true);
   }
@@ -215,13 +232,15 @@ export class EmployeesPage implements OnInit {
       firstName: e.firstName,
       lastName: e.lastName,
       email: e.email,
-      phone: e.phone ?? '',
+      phone: formatPhone(e.phone),
       role: e.role,
       areaId: e.areaId,
       homeStoreId: e.homeStoreId,
       primaryAtStore: e.storeRole === 'PRIMARY',
       workDaysPerWeek: e.workDaysPerWeek,
       active: e.active,
+      whatsappOptIn: e.whatsappOptIn,
+      emailOptIn: e.emailOptIn,
     });
     this.modalOpen.set(true);
   }
@@ -238,7 +257,13 @@ export class EmployeesPage implements OnInit {
     }
     const body = {
       ...v,
-      phone: v.phone.trim() || null,
+      employeeCode: v.employeeCode.trim().toUpperCase(),
+      firstName: clean(v.firstName) ?? '',
+      lastName: clean(v.lastName) ?? '',
+      email: v.email.trim().toLowerCase(),
+      phone: normalizePhone(v.phone),
+      // No phone, no WhatsApp.
+      whatsappOptIn: !!v.phone.trim() && v.whatsappOptIn,
       areaId: v.areaId == null ? null : Number(v.areaId),
       homeStoreId: v.homeStoreId == null ? null : Number(v.homeStoreId),
       primaryAtStore: v.homeStoreId != null && v.primaryAtStore,
@@ -262,8 +287,25 @@ export class EmployeesPage implements OnInit {
         }
         this.load();
       },
-      error: () => this.saving.set(false),
+      error: (err) => {
+        this.saving.set(false);
+        applyServerErrors(this.form, err);
+      },
     });
+  }
+
+  protected readonly fieldError = fieldError;
+  protected readonly formatPhone = formatPhone;
+
+  /** Shows a typed phone number in the usual format once the field is left, e.g. (619) 555-0142. */
+  protected tidyPhone(): void {
+    const c = this.form.controls.phone;
+    try {
+      const n = normalizePhone(c.value);
+      if (n) c.setValue(formatPhone(n));
+    } catch {
+      // Left as typed; the field shows what's wrong.
+    }
   }
 
   /** Active stores in an area, for the home-store pickers. */

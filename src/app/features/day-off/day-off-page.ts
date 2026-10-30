@@ -11,6 +11,7 @@ import { ConfirmService } from '../../core/confirm.service';
 import { ToastService } from '../../core/toast.service';
 import { Modal } from '../../shared/modal';
 import { Pagination } from '../../shared/pagination';
+import { RULES, clean } from '../../core/validation';
 import { matchesSearch, savePageSize, savedPageSize } from '../../core/paging';
 
 type StatusTab = DayOffStatus | 'ALL';
@@ -70,6 +71,11 @@ export class DayOffPage implements OnInit {
   protected readonly formWeek = signal(addDays(weekStartOf(today()), 7));
   protected readonly formDays = signal<Set<string>>(new Set());
   protected formReason = '';
+
+  /** Message when the reason has characters the server won't accept. */
+  protected reasonError(): string {
+    return RULES.safeText.re.test(this.formReason) ? '' : `Reason: ${RULES.safeText.msg}`;
+  }
   /** Urgent request: lifts the one-per-store and weekly limits (still needs approval). */
   protected readonly formEmergency = signal(false);
   /** Days in the chosen week a colleague at the same store already has off, by date → first name. */
@@ -355,7 +361,7 @@ export class DayOffPage implements OnInit {
     }
     this.saving.set(true);
     const emergency = this.formEmergency();
-    this.api.createDayOff({ employeeId, dates, reason: this.formReason.trim() || null, emergency }).subscribe({
+    this.api.createDayOff({ employeeId, dates, reason: clean(this.formReason), emergency }).subscribe({
       next: (created) => {
         this.saving.set(false);
         this.modalOpen.set(false);

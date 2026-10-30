@@ -55,6 +55,12 @@ export const routes: Routes = [
         loadComponent: () => import('./features/areas/areas-page').then((m) => m.AreasPage),
       },
       {
+        path: 'messages',
+        title: 'Messages · AllianceTel',
+        data: { heading: 'Messages', roles: ['ADMIN', 'MANAGER'] },
+        loadComponent: () => import('./features/messages/messages-page').then((m) => m.MessagesPage),
+      },
+      {
         path: 'stores',
         title: 'Stores · AllianceTel',
         data: { heading: 'Stores' },

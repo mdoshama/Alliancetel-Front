@@ -7,6 +7,7 @@ import { ConfirmService } from '../../core/confirm.service';
 import { ToastService } from '../../core/toast.service';
 import { Modal } from '../../shared/modal';
 import { Pagination } from '../../shared/pagination';
+import { applyServerErrors, clean, fieldError, notBlank, placeName, safeText } from '../../core/validation';
 import { matchesSearch, savePageSize, savedPageSize, slicePage } from '../../core/paging';
 
 @Component({
@@ -45,9 +46,11 @@ export class AreasPage implements OnInit {
   protected readonly editing = signal<Area | null>(null);
   protected readonly modalOpen = signal(false);
 
+  protected readonly fieldError = fieldError;
+
   protected readonly form = this.fb.nonNullable.group({
-    name: ['', [Validators.required, Validators.maxLength(100)]],
-    description: ['', Validators.maxLength(255)],
+    name: ['', [Validators.required, notBlank, Validators.maxLength(100), placeName]],
+    description: ['', [Validators.maxLength(255), safeText]],
     active: [true],
   });
 
@@ -84,7 +87,7 @@ export class AreasPage implements OnInit {
       return;
     }
     const value = this.form.getRawValue();
-    const body = { name: value.name.trim(), description: value.description.trim() || null, active: value.active };
+    const body = { name: clean(value.name) ?? '', description: clean(value.description), active: value.active };
     const current = this.editing();
     const request = current ? this.api.updateArea(current.id, body) : this.api.createArea(body);
     this.saving.set(true);
@@ -95,7 +98,10 @@ export class AreasPage implements OnInit {
         this.toast.success(current ? `Area "${saved.name}" updated.` : `Area "${saved.name}" created.`);
         this.load();
       },
-      error: () => this.saving.set(false),
+      error: (err) => {
+        this.saving.set(false);
+        applyServerErrors(this.form, err);
+      },
     });
   }
 

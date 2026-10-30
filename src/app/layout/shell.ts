@@ -3,6 +3,8 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { filter } from 'rxjs';
 import { AuthService } from '../core/auth.service';
+import { ToastService } from '../core/toast.service';
+import { formatPhone } from '../core/validation';
 import { ROLE_LABELS, Role } from '../core/models';
 
 interface NavItem {
@@ -31,6 +33,7 @@ const SECTIONS: NavSection[] = [
       { label: 'Weekly Schedule', employeeLabel: 'My Schedule', icon: 'bi-calendar3-week', path: '/schedules', roles: ALL },
       { label: 'Day-off Requests', employeeLabel: 'My Days Off', icon: 'bi-calendar-x', path: '/day-off-requests', roles: ALL },
       { label: 'Stores', icon: 'bi-shop', path: '/stores', roles: ['MANAGER', 'EMPLOYEE'] },
+      { label: 'Messages', icon: 'bi-chat-dots', path: '/messages', roles: ['ADMIN', 'MANAGER'] },
     ],
   },
   {
@@ -115,6 +118,41 @@ export class Shell {
 
   protected closeMobile(): void {
     this.mobileOpen.set(false);
+  }
+
+  private readonly toast = inject(ToastService);
+  protected readonly formatPhone = formatPhone;
+  protected readonly savingWhatsapp = signal(false);
+
+  /** People turn their own WhatsApp updates on or off; Meta requires their agreement before we message them. */
+  protected toggleWhatsapp(event: Event): void {
+    const on = (event.target as HTMLInputElement).checked;
+    this.savingWhatsapp.set(true);
+    this.auth.setWhatsapp(on).subscribe({
+      next: () => {
+        this.savingWhatsapp.set(false);
+        this.toast.success(on ? "You'll get your schedule on WhatsApp." : 'WhatsApp schedule updates turned off.');
+      },
+      error: () => {
+        this.savingWhatsapp.set(false);
+        (event.target as HTMLInputElement).checked = !on;
+      },
+    });
+  }
+
+  protected toggleEmail(event: Event): void {
+    const on = (event.target as HTMLInputElement).checked;
+    this.savingWhatsapp.set(true);
+    this.auth.setEmailUpdates(on).subscribe({
+      next: () => {
+        this.savingWhatsapp.set(false);
+        this.toast.success(on ? "You'll get your schedule by email." : 'Email schedule updates turned off.');
+      },
+      error: () => {
+        this.savingWhatsapp.set(false);
+        (event.target as HTMLInputElement).checked = !on;
+      },
+    });
   }
 
   protected signOut(): void {

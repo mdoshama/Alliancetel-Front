@@ -19,6 +19,7 @@ import {
 import { ConfirmService } from '../../core/confirm.service';
 import { ToastService } from '../../core/toast.service';
 import { Modal } from '../../shared/modal';
+import { applyServerErrors, clean, codeRule, fieldError, notBlank, placeName, safeText, wholeNumber } from '../../core/validation';
 import { matchesSearch } from '../../core/paging';
 
 interface AreaGroup {
@@ -117,12 +118,14 @@ export class StoresPage implements OnInit {
     return [...byArea.values()].sort((a, b) => a.areaName.localeCompare(b.areaName));
   });
 
+  protected readonly fieldError = fieldError;
+
   protected readonly form = this.fb.nonNullable.group({
     areaId: [null as number | null, Validators.required],
-    name: ['', [Validators.required, Validators.maxLength(100)]],
-    code: ['', Validators.maxLength(12)],
-    address: ['', Validators.maxLength(255)],
-    minStaffPerDay: [1, [Validators.required, Validators.min(0), Validators.max(50)]],
+    name: ['', [Validators.required, notBlank, Validators.maxLength(100), placeName]],
+    code: ['', [Validators.maxLength(12), codeRule]],
+    address: ['', [Validators.maxLength(255), safeText]],
+    minStaffPerDay: [1, [Validators.required, Validators.min(0), Validators.max(50), wholeNumber]],
     active: [true],
   });
 
@@ -183,9 +186,9 @@ export class StoresPage implements OnInit {
     }
     const body = {
       areaId: Number(v.areaId),
-      name: v.name.trim(),
-      code: v.code.trim() || null,
-      address: v.address.trim() || null,
+      name: clean(v.name) ?? '',
+      code: v.code.trim().toUpperCase() || null,
+      address: clean(v.address),
       minStaffPerDay: Number(v.minStaffPerDay),
       active: v.active,
       hours: this.hoursRows.map((h) => ({
@@ -206,7 +209,10 @@ export class StoresPage implements OnInit {
         this.toast.success(`${saved.name} ${current ? 'updated' : 'added to ' + saved.areaName}.`);
         this.load();
       },
-      error: () => this.saving.set(false),
+      error: (err) => {
+        this.saving.set(false);
+        applyServerErrors(this.form, err);
+      },
     });
   }
 

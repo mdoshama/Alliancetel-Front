@@ -59,6 +59,30 @@ export class AuthService {
       .pipe(tap((res) => this.store(res)));
   }
 
+  /** Turns the signed-in person's WhatsApp schedule updates on or off. */
+  setWhatsapp(optIn: boolean): Observable<Me> {
+    return this.http.put<Me>('/api/auth/me/whatsapp', { optIn }).pipe(
+      tap((user) => {
+        const s = this.session();
+        if (s) {
+          this.save({ ...s, user });
+        }
+      }),
+    );
+  }
+
+  /** Turns the signed-in person's email schedule updates on or off. */
+  setEmailUpdates(optIn: boolean): Observable<Me> {
+    return this.http.put<Me>('/api/auth/me/email', { optIn }).pipe(
+      tap((user) => {
+        const s = this.session();
+        if (s) {
+          this.save({ ...s, user });
+        }
+      }),
+    );
+  }
+
   /** Re-reads the profile, e.g. after an admin changed this person's area. */
   refresh(): Observable<Me> {
     return this.http.get<Me>('/api/auth/me').pipe(

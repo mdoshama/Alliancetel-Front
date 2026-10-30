@@ -91,6 +91,10 @@ export interface Employee {
   active: boolean;
   loginEnabled: boolean;
   lastLoginAt: string | null;
+  /** Agreed to WhatsApp schedule updates. */
+  whatsappOptIn: boolean;
+  /** Gets schedule updates by email. */
+  emailOptIn: boolean;
 }
 
 /** Returned once when an account is created or its password is reset. */
@@ -111,6 +115,12 @@ export interface Me {
   homeStoreId?: number | null;
   homeStoreName?: string | null;
   mustChangePassword: boolean;
+  /** International form, e.g. +16195550142. */
+  phone?: string | null;
+  /** Gets schedule updates on WhatsApp. */
+  whatsappOptIn?: boolean;
+  /** Gets schedule updates by email (on unless turned off). */
+  emailOptIn?: boolean;
 }
 
 export interface LoginResponse {
@@ -132,6 +142,9 @@ export interface EmployeeRequest {
   active: boolean;
   /** Primary (true) or secondary (false) at the home store. */
   primaryAtStore?: boolean;
+  /** Agreed to WhatsApp schedule updates (needs a phone number). */
+  whatsappOptIn?: boolean;
+  emailOptIn?: boolean;
 }
 
 export interface EmployeeFilter {
@@ -362,3 +375,56 @@ export const DAY_TYPE_LABELS: Record<DayType, string> = {
   /** An approved day-off request: shown as Off with a check mark, and locked. */
   REQUESTED_OFF: 'Off (approved)',
 };
+
+// ---- WhatsApp messages ---------------------------------------------------------------------------------
+
+export type NotificationKind = 'WEEK_PUBLISHED' | 'WEEK_CHANGED' | 'DAY_OFF_DECISION' | 'ANNOUNCEMENT';
+export type NotificationStatus = 'QUEUED' | 'SENT' | 'FAILED' | 'NOT_SENT';
+export type NotificationChannel = 'EMAIL' | 'WHATSAPP';
+
+export const NOTIFICATION_KIND_LABELS: Record<NotificationKind, string> = {
+  WEEK_PUBLISHED: 'Week published',
+  WEEK_CHANGED: 'Schedule changed',
+  DAY_OFF_DECISION: 'Day-off decision',
+  ANNOUNCEMENT: 'Announcement',
+};
+
+export const NOTIFICATION_STATUS_LABELS: Record<NotificationStatus, string> = {
+  QUEUED: 'Sending…',
+  SENT: 'Sent',
+  FAILED: 'Failed',
+  NOT_SENT: 'Not sent',
+};
+
+export interface NotificationItem {
+  id: number;
+  employeeId: number | null;
+  employeeName: string | null;
+  channel: NotificationChannel;
+  phone: string | null;
+  email: string | null;
+  subject: string | null;
+  kind: NotificationKind;
+  status: NotificationStatus;
+  preview: string;
+  error: string | null;
+  attempts: number;
+  createdAt: string;
+  sentAt: string | null;
+}
+
+export interface WhatsAppStatus {
+  connected: boolean;
+  apiVersion: string;
+  language: string;
+  appUrlSet: boolean;
+  templates: { kind: NotificationKind; name: string; body: string }[];
+  queued: number;
+  failed: number;
+  notSent: number;
+  withoutPhone: number;
+  notAgreed: number;
+  emailConnected: boolean;
+  emailFrom: string;
+  emailOff: number;
+}

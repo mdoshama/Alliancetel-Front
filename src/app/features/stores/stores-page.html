@@ -188,23 +188,27 @@
       </div>
       <div class="col-8">
         <label class="form-label" for="sName">Store name</label>
-        <input id="sName" class="form-control" formControlName="name" placeholder="e.g. Oceanside"
-               [class.is-invalid]="form.controls.name.touched && form.controls.name.invalid" />
-        <div class="invalid-feedback">Required.</div>
+        <input id="sName" class="form-control" formControlName="name" placeholder="e.g. Oceanside" maxlength="100"
+               autocomplete="off" [class.is-invalid]="fieldError(form.controls.name, 'Store name')" />
+        <div class="invalid-feedback">{{ fieldError(form.controls.name, 'Store name') }}</div>
       </div>
       <div class="col-4">
         <label class="form-label" for="sCode">Short code</label>
-        <input id="sCode" class="form-control text-uppercase" formControlName="code" placeholder="OCN" maxlength="12" />
+        <input id="sCode" class="form-control text-uppercase" formControlName="code" placeholder="OCN" maxlength="12"
+               autocomplete="off" [class.is-invalid]="fieldError(form.controls.code, 'Short code')" />
+        <div class="invalid-feedback">{{ fieldError(form.controls.code, 'Short code') }}</div>
       </div>
       <div class="col-8">
         <label class="form-label" for="sAddress">Address <span class="text-muted-2 small">(optional)</span></label>
-        <input id="sAddress" class="form-control" formControlName="address" />
+        <input id="sAddress" class="form-control" formControlName="address" maxlength="255" autocomplete="off"
+               [class.is-invalid]="fieldError(form.controls.address, 'Address')" />
+        <div class="invalid-feedback">{{ fieldError(form.controls.address, 'Address') }}</div>
       </div>
       <div class="col-4">
         <label class="form-label" for="sMin">Min staff / day</label>
-        <input id="sMin" type="number" min="0" max="50" class="form-control" formControlName="minStaffPerDay"
-               [class.is-invalid]="form.controls.minStaffPerDay.touched && form.controls.minStaffPerDay.invalid" />
-        <div class="invalid-feedback">0–50</div>
+        <input id="sMin" type="number" min="0" max="50" step="1" class="form-control" formControlName="minStaffPerDay"
+               [class.is-invalid]="fieldError(form.controls.minStaffPerDay, 'Min staff')" />
+        <div class="invalid-feedback">{{ fieldError(form.controls.minStaffPerDay, 'Min staff') }}</div>
       </div>
       <div class="col-12">
         <span class="form-label d-block mb-1">Color <span class="small text-muted-2">(shown on the schedule)</span></span>

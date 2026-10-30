@@ -16,6 +16,7 @@ deployment guide live there.
 | **Employees / My Team** | Admin, Manager | Staff list, home store, Primary / Secondary / Floater, sign-in resets. Search, filters, sort and pages. |
 | **Areas** | Admin | San Diego, Los Angeles, San Francisco, … (search and pages) |
 | **Stores** | Everyone | Admins edit code, color, hours and minimum staff. Managers and employees see a directory: address with directions, weekly hours, "Your store". Search by name, code or address. |
+| **Messages** | Admin, Manager | Email and WhatsApp: whether each is connected, what was sent to whom (filter by channel; sent / failed with the reason / not sent and why), **Try again**, and **announcements** to an area. Admins also see how to connect each (Resend steps and Railway variables; WhatsApp templates). |
 | **Page not found** | Everyone | Friendly page for mistyped or old links. |
 
 ### On the schedule
@@ -58,6 +59,20 @@ deployment guide live there.
 - Under each list: "Showing 26–50 of 132 people", page links with Previous / Next and **Rows** (10, 25,
   50 or 100, remembered in this browser). On phones the links shrink to Previous · 2 / 6 · Next.
 - The new-request form's employee picker gets a search box when an area has more than 8 people.
+
+### Email and WhatsApp
+
+- Publishing a week emails each person their week (and sends it on WhatsApp once that's connected); later changes
+  go only to people whose days changed. Day-off decisions and announcements go out the same way.
+- In an employee's details: **Email schedule updates** (on by default), phone number (any format; shown as
+  (619) 555-0142, saved as +16195550142) and **Agreed to get schedule updates on WhatsApp**.
+- Everyone (except admins) can switch their own email and WhatsApp updates on or off in the account menu, top right.
+
+### Checked forms
+
+Every form shows what's wrong under the field before saving (names, codes, emails, phone numbers, store and area
+names, reasons), using the same rules as the server (`core/validation.ts`). Problems the server finds are shown on
+the matching field too.
 
 ### Works on any screen
 
