@@ -123,7 +123,9 @@ backend. Settings:
 | `BACKEND_URL` | `http://backend:8080` | Where the API runs. On Railway: `http://${{backend.RAILWAY_PRIVATE_DOMAIN}}:8080`. |
 | `PORT` | `80` | Port nginx listens on (Railway sets it). |
 
-nginx adds security headers, caches the hashed JS/CSS files for a year, never caches
+nginx adds security headers (`nginx/security-headers.conf`): a strict Content-Security-Policy that lets only this
+site's own scripts run (the production build turns off inline critical CSS so no inline script is needed), HSTS, and
+headers that stop the site being framed or sniffed. It also caches the hashed JS/CSS files for a year, never caches
 `index.html`, and answers `GET /healthz` for health checks. Railway settings are in
 `railway.json`; GitHub Actions (`.github/workflows/ci.yml`) runs the tests, the production build
 and a Docker build on every push.

@@ -3,6 +3,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { filter } from 'rxjs';
 import { AuthService } from '../core/auth.service';
+import { ConfirmService } from '../core/confirm.service';
 import { ToastService } from '../core/toast.service';
 import { formatPhone } from '../core/validation';
 import { ROLE_LABELS, Role } from '../core/models';
@@ -121,6 +122,7 @@ export class Shell {
   }
 
   private readonly toast = inject(ToastService);
+  private readonly confirm = inject(ConfirmService);
   protected readonly formatPhone = formatPhone;
   protected readonly savingWhatsapp = signal(false);
 
@@ -157,6 +159,20 @@ export class Shell {
 
   protected signOut(): void {
     this.auth.logout();
+  }
+
+  /** For a lost phone or a shared computer: ends every session, including this one. */
+  protected async signOutEverywhere(): Promise<void> {
+    const sure = await this.confirm.ask({
+      title: 'Sign out everywhere?',
+      message: "You'll be signed out on every phone and computer, including this one.",
+      icon: 'bi-phone',
+      confirmText: 'Sign out everywhere',
+      tone: 'danger',
+    });
+    if (sure) {
+      this.auth.logoutEverywhere().subscribe();
+    }
   }
 
   private updateHeading(): void {

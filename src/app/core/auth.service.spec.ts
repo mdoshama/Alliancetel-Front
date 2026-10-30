@@ -53,11 +53,32 @@ describe('AuthService', () => {
     expect(auth.token()).toBeNull();
   });
 
-  it('clears everything on logout', () => {
+  it('clears everything on logout and tells the server to end the session', () => {
     storeTestSession('ADMIN');
-    const { auth } = setup();
+    const { auth, http } = setup();
     auth.logout();
     expect(auth.isLoggedIn()).toBe(false);
     expect(localStorage.getItem('alliancetel.session')).toBeNull();
+    const req = http.expectOne('/api/auth/logout');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.headers.get('Authorization')).toBe('Bearer test-token');
+    req.flush(null, { status: 204, statusText: 'No Content' });
+  });
+
+  it('can end every session', () => {
+    storeTestSession('EMPLOYEE');
+    const { auth, http } = setup();
+    auth.logoutEverywhere().subscribe();
+    http.expectOne('/api/auth/logout-everywhere').flush(null, { status: 204, statusText: 'No Content' });
+    expect(auth.isLoggedIn()).toBe(false);
+    http.expectNone('/api/auth/logout');
+  });
+
+  it('does not call the server when the session already expired there', () => {
+    storeTestSession('ADMIN');
+    const { auth, http } = setup();
+    auth.logout('expired');
+    http.expectNone('/api/auth/logout');
+    expect(auth.isLoggedIn()).toBe(false);
   });
 });

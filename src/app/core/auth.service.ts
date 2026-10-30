@@ -95,9 +95,29 @@ export class AuthService {
     );
   }
 
+  /**
+   * Signs out this device. Unless the session already ended on the server, the server is told too, so a copied
+   * token stops working. Other devices stay signed in.
+   */
   logout(reason?: 'expired'): void {
+    const token = reason ? null : this.session()?.token;
+    if (token) {
+      this.http
+        .post<void>('/api/auth/logout', null, { headers: { Authorization: `Bearer ${token}` } })
+        .subscribe({ error: () => undefined });
+    }
     this.clear();
     this.router.navigate(['/login'], reason ? { queryParams: { reason } } : {});
+  }
+
+  /** Ends every session of this person (all browsers and phones), then signs out here. */
+  logoutEverywhere(): Observable<void> {
+    return this.http.post<void>('/api/auth/logout-everywhere', null).pipe(
+      tap(() => {
+        this.clear();
+        this.router.navigate(['/login']);
+      }),
+    );
   }
 
   private store(res: LoginResponse): void {

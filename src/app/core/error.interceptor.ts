@@ -8,8 +8,10 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
   const toast = inject(ToastService);
   return next(req).pipe(
     catchError((err: HttpErrorResponse) => {
-      // Sign-in problems are shown on the login page itself, and an expired session redirects there.
-      const silent = err.status === 401 || req.url.endsWith('/api/auth/login');
+      // Sign-in and password problems are shown on those pages themselves, and an expired session redirects to sign-in.
+      const silent =
+        err.status === 401 ||
+        ['/api/auth/login', '/api/auth/logout', '/api/auth/change-password'].some((path) => req.url.endsWith(path));
       if (!silent) {
         toast.error(describeError(err));
       }
