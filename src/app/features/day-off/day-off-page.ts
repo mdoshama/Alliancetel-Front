@@ -229,6 +229,50 @@ export class DayOffPage implements OnInit {
     });
   }
 
+  /** Approved → rejected (the day becomes a work day again) or rejected → approved, with a required reason. */
+  protected async changeDecision(r: DayOffRequest): Promise<void> {
+    const revoke = r.status === 'APPROVED';
+    const when = formatDay(r.date, { weekday: 'long', month: 'short', day: 'numeric' });
+    const first = r.employeeName.split(' ')[0];
+    const reason = await this.confirm.askWithInput({
+      title: revoke ? `Revoke ${first}'s day off?` : `Approve ${first}'s day off after all?`,
+      message: revoke
+        ? `${r.employeeName}'s approved day off on ${when} will be changed to rejected, and they'll be scheduled to work that day.`
+        : `${r.employeeName}'s rejected request for ${when} will be changed to approved, and they'll be taken off that day.`,
+      icon: revoke ? 'bi-arrow-counterclockwise' : 'bi-calendar-check',
+      tone: revoke ? 'warning' : 'primary',
+      notes: ['The employee is notified with your reason.'],
+      input: { label: 'Reason (required, shown to the employee)', placeholder: revoke ? 'e.g. Inventory day, all hands needed' : 'e.g. Coverage found', required: true },
+      confirmText: revoke ? 'Change to rejected' : 'Change to approved',
+    });
+    if (!reason) {
+      return;
+    }
+    const reasonOk = RULES.safeText.re.test(reason);
+    if (!reasonOk) {
+      this.toast.error(`Reason: ${RULES.safeText.msg}`);
+      return;
+    }
+    this.busyId.set(r.id);
+    this.api.changeDayOffDecision(r.id, revoke ? 'REJECTED' : 'APPROVED', reason).subscribe({
+      next: (saved) => {
+        this.busyId.set(null);
+        this.toast.success(`${r.employeeName}'s day off on ${formatDay(r.date, { weekday: 'short', month: 'short', day: 'numeric' })} is now ${revoke ? 'rejected' : 'approved'}.`);
+        if (saved.scheduleUpdate) {
+          this.toast.info(saved.scheduleUpdate);
+        }
+        this.load();
+      },
+      error: () => this.busyId.set(null),
+    });
+  }
+
+  /** A decided request can be changed by a manager/admin until the day has passed. */
+  protected canChangeDecision(r: DayOffRequest): boolean {
+    return r.status !== 'PENDING' && r.date >= this.todayIso
+      && this.auth.canManage() && (this.auth.isAdmin() || r.employeeId !== this.auth.user()?.id);
+  }
+
   protected async cancel(r: DayOffRequest): Promise<void> {
     const ok = await this.confirm.ask({
       title: 'Withdraw request?',

@@ -15,7 +15,7 @@ export interface ConfirmOptions {
   /** Extra lines shown as a highlighted list, e.g. warnings to consider before confirming. */
   notes?: string[];
   /** Ask for optional text (e.g. a reason); the entered text is returned on confirm. */
-  input?: { label: string; placeholder?: string; maxLength?: number };
+  input?: { label: string; placeholder?: string; maxLength?: number; /** Confirm stays disabled until text is entered. */ required?: boolean };
 }
 
 export interface ConfirmRequest extends ConfirmOptions {

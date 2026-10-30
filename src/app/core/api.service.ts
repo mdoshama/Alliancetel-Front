@@ -138,6 +138,10 @@ export class ApiService {
   rejectDayOff(id: number, note?: string): Observable<DayOffRequest> {
     return this.http.post<DayOffRequest>(`${this.base}/day-off-requests/${id}/reject`, { note: note ?? null });
   }
+  /** Managers/admins: switch an approved request to rejected (or back); the reason is required. */
+  changeDayOffDecision(id: number, status: 'APPROVED' | 'REJECTED', reason: string): Observable<DayOffRequest> {
+    return this.http.post<DayOffRequest>(`${this.base}/day-off-requests/${id}/change-decision`, { status, reason });
+  }
   cancelDayOff(id: number): Observable<void> {
     return this.http.delete<void>(`${this.base}/day-off-requests/${id}`);
   }

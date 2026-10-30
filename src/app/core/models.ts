@@ -192,6 +192,11 @@ export interface DayOffRequest {
   reviewNote: string | null;
   reviewedAt: string | null;
   createdAt: string;
+  /** Set when a manager or admin changed the decision later: the earlier decision, who, why and when. */
+  previousStatus?: DayOffStatus | null;
+  decisionChangedBy?: string | null;
+  decisionChangeReason?: string | null;
+  decisionChangedAt?: string | null;
   /** After approval: how that week's existing schedule was updated. */
   scheduleUpdate?: string | null;
 }

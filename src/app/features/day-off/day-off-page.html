@@ -87,6 +87,12 @@
                 @if (r.reviewNote) {
                   <div class="small fst-italic">Manager: {{ r.reviewNote }}</div>
                 }
+                @if (r.decisionChangeReason) {
+                  <div class="small fst-italic">
+                    <i class="bi bi-arrow-repeat me-1"></i>Changed from {{ r.previousStatus | titlecase }}
+                    @if (r.decisionChangedBy) { by {{ r.decisionChangedBy }} }: {{ r.decisionChangeReason }}
+                  </div>
+                }
               </td>
               <td data-label="Status"><span class="badge status-badge status-{{ r.status }}">{{ r.status | titlecase }}</span></td>
               @if (auth.canManage() && status() === 'PENDING') {
@@ -124,6 +130,14 @@
                   <span class="small text-muted-2 me-2">
                     {{ auth.isManager() && r.employeeId === auth.user()?.id ? 'Awaiting admin' : 'Awaiting manager' }}
                   </span>
+                }
+                @if (canChangeDecision(r)) {
+                  <button type="button" class="btn btn-sm me-1"
+                          [class]="r.status === 'APPROVED' ? 'btn btn-sm me-1 btn-outline-warning' : 'btn btn-sm me-1 btn-outline-success'"
+                          [disabled]="busyId() === r.id" (click)="changeDecision(r)"
+                          [title]="r.status === 'APPROVED' ? 'Change to rejected' : 'Change to approved'">
+                    <i class="bi bi-arrow-repeat"></i> {{ r.status === 'APPROVED' ? 'Revoke' : 'Approve instead' }}
+                  </button>
                 }
                 @if (canWithdraw(r)) {
                   <button type="button" class="btn btn-sm btn-link text-muted-2" (click)="cancel(r)" title="Withdraw request">

@@ -41,6 +41,7 @@ import { ConfirmService } from '../core/confirm.service';
             <div class="modal-footer border-0 pt-0 px-4 pb-4">
               <button type="button" class="btn btn-light" (click)="cancel()">{{ req.cancelText ?? 'Cancel' }}</button>
               <button #okButton type="button" class="btn" [class]="'btn btn-' + (req.tone === 'danger' ? 'danger' : req.tone === 'warning' ? 'warning' : req.tone === 'success' ? 'success' : 'primary')"
+                      [disabled]="req.input?.required && !text.trim()"
                       (click)="ok()">{{ req.confirmText ?? 'Confirm' }}</button>
             </div>
           </div>
@@ -82,6 +83,9 @@ export class ConfirmDialog {
 
   protected ok(): void {
     const req = this.confirm.current();
+    if (req?.input?.required && !this.text.trim()) {
+      return;
+    }
     req?.resolve(req.input ? this.text.trim() : '');
   }
 
