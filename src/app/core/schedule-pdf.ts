@@ -52,10 +52,7 @@ export async function buildSchedulePdf(s: Schedule): Promise<Blob> {
   doc.setTextColor(0);
 
   const head = [['Employee', ...s.dates.map((d) => formatDay(d, { weekday: 'short', month: 'short', day: 'numeric' }))]];
-  const body = s.rows.map((r) => [
-    r.employeeName + (r.homeStoreName ? `\n${r.homeStoreName}` : ''),
-    ...r.days.map(pdfCellText),
-  ]);
+  const body = s.rows.map((r) => [r.employeeName, ...r.days.map(pdfCellText)]);
 
   autoTable(doc, {
     head,
