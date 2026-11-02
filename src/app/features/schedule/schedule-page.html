@@ -43,6 +43,10 @@
         <button type="button" class="btn btn-outline-primary" [disabled]="working()" (click)="generate()">
           <i class="bi bi-arrow-repeat me-1"></i> Regenerate
         </button>
+        <button type="button" class="btn btn-outline-success" [disabled]="working()" (click)="saveDraft()"
+                title="Save this draft up to here. You can come back and carry on later.">
+          <i class="bi bi-save me-1"></i> Save draft
+        </button>
         <button type="button" class="btn btn-primary" [disabled]="working()" (click)="publish()">
           <i class="bi bi-send-check me-1"></i> Publish
         </button>
@@ -51,6 +55,17 @@
           <i class="bi bi-unlock me-1"></i> Revert to draft
         </button>
       }
+    }
+    @if (schedule()?.status === 'PUBLISHED') {
+      <button type="button" class="btn btn-outline-primary" [disabled]="pdfBusy() !== null" (click)="downloadPdf()">
+        @if (pdfBusy() === 'download') { <span class="spinner-border spinner-border-sm me-1"></span> } @else { <i class="bi bi-file-earmark-pdf me-1"></i> }
+        Download PDF
+      </button>
+      <button type="button" class="btn btn-outline-primary" [disabled]="pdfBusy() !== null" (click)="sharePdf()"
+              title="Share the schedule as a PDF (WhatsApp, email, messages…)">
+        @if (pdfBusy() === 'share') { <span class="spinner-border spinner-border-sm me-1"></span> } @else { <i class="bi bi-share me-1"></i> }
+        Share PDF
+      </button>
     }
   </div>
 </div>
@@ -218,6 +233,43 @@
       </ul>
     </div>
   }
+  @if (canEdit()) {
+    @if (s.draftSavedAt) {
+      <div class="alert py-2 d-flex flex-wrap align-items-center gap-2"
+           [class.alert-success]="!s.changedSinceSave" [class.alert-light]="s.changedSinceSave" [class.border]="s.changedSinceSave">
+        <i class="bi" [class.bi-check2-circle]="!s.changedSinceSave" [class.bi-pencil]="s.changedSinceSave"></i>
+        <div class="me-auto">
+          @if (s.changedSinceSave) {
+            <strong>Changed since you saved</strong> at {{ s.draftSavedAt | date: 'MMM d, h:mm a' }}.
+            <span class="small">Save again to keep a new checkpoint.</span>
+          } @else {
+            <strong>Draft saved</strong> {{ s.draftSavedAt | date: 'MMM d, h:mm a' }}.
+            <span class="small">You can stop here and carry on later.</span>
+          }
+        </div>
+        @if (s.coverageGaps.length > 0) {
+          <button type="button" class="btn btn-sm btn-danger" [disabled]="working()" (click)="openFill()">
+            <i class="bi bi-person-plus me-1"></i> Add people where needed ({{ s.coverageGaps.length }})
+          </button>
+        } @else {
+          <span class="small"><i class="bi bi-shop me-1"></i>Every store is covered — ready to publish.</span>
+        }
+        @if (s.changedSinceSave) {
+          <button type="button" class="btn btn-sm btn-outline-success" [disabled]="working()" (click)="saveDraft()">
+            <i class="bi bi-save me-1"></i> Save again
+          </button>
+        }
+      </div>
+    } @else {
+      <div class="alert alert-light border py-2 d-flex flex-wrap align-items-center gap-2">
+        <i class="bi bi-info-circle"></i>
+        <span class="me-auto small">Not saved yet. Changes are kept as you make them; press <strong>Save draft</strong> to save up to here, then add people where stores are short.</span>
+        <button type="button" class="btn btn-sm btn-outline-success" [disabled]="working()" (click)="saveDraft()">
+          <i class="bi bi-save me-1"></i> Save draft
+        </button>
+      </div>
+    }
+  }
   @if (s.coverageGaps.length > 0 && auth.canManage()) {
     <div class="alert alert-danger py-2">
       <div class="mb-1">
@@ -307,7 +359,7 @@
           <span class="d-flex align-items-center gap-1"><span class="day-chip type-WORK has-store auto-moved px-2" style="--store-color: #475569"><i class="bi bi-arrow-left-right"></i></span> auto-moved</span>
           <span class="d-flex align-items-center gap-1"><span class="day-chip type-OFF px-2"><span class="edited-dot"></span>&nbsp;</span> edited</span>
           @if (canEdit()) {
-            <span class="drag-hint d-none d-lg-inline"><i class="bi bi-arrows-move me-1"></i>@if (view() === 'stores') {Drag a person to another store or day, onto someone to swap, or onto Off} @else {Drag any day onto any other day to swap them, or onto a store's row to send the shift there}</span>
+            <span class="drag-hint d-none d-lg-inline"><i class="bi bi-arrows-move me-1"></i>@if (view() === 'stores') {Drag a person to another store or day, onto someone working to swap, or onto Off} @else {Drag a work day onto a colleague's work day to swap, onto your own day off to move it, or onto a store's row}</span>
           }
         }
       </div>
@@ -630,6 +682,11 @@
               <div class="invalid-feedback d-block mb-3">Pick the store they work at that day.</div>
             }
           }
+          @if (e.cell.type === 'OFF' && editType === 'WORK') {
+            <div class="small text-warning-emphasis mb-2">
+              <i class="bi bi-exclamation-triangle me-1"></i>This cancels {{ e.row.employeeName.split(' ')[0] }}'s day off: they'll work this day.
+            </div>
+          }
           <button type="button" class="btn btn-primary w-100" [disabled]="working() || storeMissing()" (click)="saveDay()">Save day</button>
         </div>
       </div>
@@ -637,7 +694,7 @@
       <div class="col-lg-6">
         <div class="border rounded-3 p-3 h-100">
           <h6 class="fw-semibold mb-1"><i class="bi bi-arrow-left-right me-1 text-primary"></i>Swap with a colleague</h6>
-          <p class="small text-muted-2 mb-2">They trade assignments for {{ format(e.cell.date, { weekday: 'long' }) }}.</p>
+          <p class="small text-muted-2 mb-2">Two people working {{ format(e.cell.date, { weekday: 'long' }) }} trade stores. Someone who is off is never put to work by a swap.</p>
           <div style="max-height: 220px; overflow-y: auto" class="mb-2">
             @for (c of swapCandidates(); track c.cell.entryId) {
               <button type="button" class="swap-option" [class.selected]="swapWith() === c.cell.entryId"
@@ -653,7 +710,10 @@
                 </span>
               </button>
             } @empty {
-              <p class="small text-muted-2 mb-0">Nobody with a different assignment that day.</p>
+              <p class="small text-muted-2 mb-0">
+                @if (e.cell.type === 'WORK') { Nobody else is working at a different store that day. }
+                @else { {{ e.row.employeeName.split(' ')[0] }} is off, so there's no shift to swap. }
+              </p>
             }
           </div>
           @if (swapWith() !== null) {
@@ -695,5 +755,46 @@
   }
   <ng-container modal-footer>
     <button type="button" class="btn btn-light" (click)="closeEditor()">Close</button>
+  </ng-container>
+</app-modal>
+
+<app-modal [open]="fillOpen()" size="lg" [title]="'Add people where needed'" (closed)="fillOpen.set(false)">
+  <p class="small text-muted-2">
+    Stores below their minimum, and who can be added. Only people who work that day are listed — anyone who is off
+    stays off. People come from no store or from a store with more than it needs, so nothing else goes short.
+  </p>
+  @for (g of fillGaps(); track g.gap.storeId + g.gap.date) {
+    <div class="border rounded-3 p-3 mb-2">
+      <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+        <span class="fw-semibold">{{ format(g.gap.date, { weekday: 'long', month: 'short', day: 'numeric' }) }} · {{ g.gap.storeName }}</span>
+        <span class="badge text-bg-danger">{{ g.gap.scheduled }}/{{ g.gap.required }} · needs {{ g.missing }} more</span>
+      </div>
+      @for (c of g.candidates; track c.cell.entryId) {
+        <div class="d-flex align-items-center gap-2 py-1 border-top">
+          <div class="flex-grow-1">
+            <div class="small fw-semibold">
+              {{ c.row.employeeName }}
+              @if (c.row.storeRole === 'PRIMARY') { <i class="bi bi-star-fill ms-1" style="color: #e0a100" title="Primary at their store"></i> }
+              @if (c.row.homeStoreId === g.gap.storeId) { <span class="badge text-bg-light border ms-1">Home store</span> }
+              @if (c.pendingRequest) { <span class="req-flag ms-1" title="Asked for this day off (waiting)">Off?</span> }
+            </div>
+            <div class="text-muted-2" style="font-size: 0.75rem">Now: {{ c.from }}</div>
+          </div>
+          <button type="button" class="btn btn-sm btn-outline-primary" [disabled]="working()" (click)="addPerson(g, c)">
+            <i class="bi bi-plus-lg"></i> Add
+          </button>
+        </div>
+      } @empty {
+        <div class="small text-muted-2 border-top pt-2">
+          Nobody can be spared that day without leaving another store short, and people who are off aren't used.
+          Lower the minimum, or reject a day-off request for that day.
+        </div>
+      }
+    </div>
+  } @empty {
+    <div class="empty-state py-4"><i class="bi bi-check2-circle text-success"></i>Every store meets its minimum.</div>
+  }
+  <ng-container modal-footer>
+    <button type="button" class="btn btn-light" (click)="fillOpen.set(false)">Close</button>
   </ng-container>
 </app-modal>

@@ -8,6 +8,7 @@ import { AuthService } from '../../core/auth.service';
 import { addDays, formatDay, formatWeekRange, today, weekStartOf } from '../../core/date-utils';
 import {
   Area,
+  CoverageGap,
   DAY_TYPE_LABELS,
   DayCell,
   DayHours,
@@ -26,6 +27,7 @@ import { formatHours, formatTime } from '../../core/store-hours';
 import { ConfirmService } from '../../core/confirm.service';
 import { ToastService } from '../../core/toast.service';
 import { Modal } from '../../shared/modal';
+import { buildSchedulePdf, downloadBlob, schedulePdfName, sharePdf } from '../../core/schedule-pdf';
 
 const SCHEDULE_VIEW_KEY = 'alliancetel.scheduleView';
 
@@ -42,6 +44,23 @@ interface StorePerson {
   row: EmployeeRow;
   dayIndex: number;
   cell: DayCell;
+}
+
+/** Someone who could be added to a short store on a day: they work that day and the move doesn't open a new gap. */
+interface FillCandidate {
+  row: EmployeeRow;
+  cell: DayCell;
+  /** Where they are now, e.g. "Oceanside (3 of 2 needed)" or "No store yet". */
+  from: string;
+  /** They asked for this day off (still waiting for a decision). */
+  pendingRequest: boolean;
+}
+
+interface FillGap {
+  gap: CoverageGap;
+  dayIndex: number;
+  missing: number;
+  candidates: FillCandidate[];
 }
 
 interface StoreBoardRow {
@@ -100,18 +119,20 @@ export class SchedulePage implements OnInit {
     return e && row ? { row, cell: row.days[e.dayIndex], dayIndex: e.dayIndex } : null;
   });
 
-  /** Colleagues on the same day who can trade assignments (approved days off can't be swapped away). */
+  /**
+   * Colleagues working at another store that day, to trade stores with. Only two working people can swap: someone who
+   * is off is never put to work by a swap.
+   */
   protected readonly swapCandidates = computed(() => {
     const e = this.editCell();
     const s = this.schedule();
-    if (!e || !s) {
+    if (!e || !s || e.cell.type !== 'WORK') {
       return [];
     }
     return s.rows
       .filter((r) => r.employeeId !== e.row.employeeId)
       .map((r) => ({ row: r, cell: r.days[e.dayIndex] }))
-      .filter((c) => c.cell.type !== 'REQUESTED_OFF')
-      .filter((c) => c.cell.type !== e.cell.type || c.cell.storeId !== e.cell.storeId)
+      .filter((c) => c.cell.type === 'WORK' && c.cell.storeId !== e.cell.storeId)
       .sort((a, b) => (a.cell.storeLabel ?? '~').localeCompare(b.cell.storeLabel ?? '~'));
   });
 
@@ -185,17 +206,8 @@ export class SchedulePage implements OnInit {
     return parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1][0]}.` : parts[0];
   }
 
-  /** A store cell accepts a work day (moved there, any day) or a day off on the same day (they work there). */
+  /** A store cell accepts a work day (moved there). Someone who is off can't be dropped onto a store to work. */
   protected canDropOnStoreCell(storeId: number | null, dayIndex: number): boolean {
-    const d = this.drag();
-    if (!d || storeId === null) {
-      return false;
-    }
-    const from = d.row.days[d.dayIndex];
-    if (from.type === 'OFF') {
-      const coverage = this.schedule()?.storeCoverage.find((c) => c.storeId === storeId);
-      return dayIndex === d.dayIndex && !coverage?.dailyHours[dayIndex]?.closed;
-    }
     return this.canDropOnStore(storeId, dayIndex);
   }
 
@@ -228,11 +240,7 @@ export class SchedulePage implements OnInit {
     if (!d || !ok || storeId === null) {
       return;
     }
-    if (d.row.days[d.dayIndex].type === 'OFF') {
-      await this.setWorkDay(d.row, dayIndex, storeId);
-    } else {
-      await this.exchangeDays(d.row, d.dayIndex, d.row, dayIndex, storeId);
-    }
+    await this.exchangeDays(d.row, d.dayIndex, d.row, dayIndex, storeId);
   }
 
   protected async onDropOnOff(event: DragEvent, dayIndex: number): Promise<void> {
@@ -243,37 +251,6 @@ export class SchedulePage implements OnInit {
     if (d && ok) {
       await this.setDayOff(d.row, dayIndex);
     }
-  }
-
-  /** Puts someone who was off to work at a store that day (one more work day for them). */
-  private async setWorkDay(row: EmployeeRow, dayIndex: number, storeId: number): Promise<void> {
-    const s = this.schedule();
-    if (!s) {
-      return;
-    }
-    const first = row.employeeName.split(' ')[0];
-    const day = formatDay(s.dates[dayIndex], { weekday: 'long', month: 'short', day: 'numeric' });
-    const store = s.stores.find((x) => x.id === storeId)?.name ?? 'the store';
-    if (!(await this.confirmPrimaryMove(row, storeId, 'on ' + day, dayIndex))) {
-      return;
-    }
-    const days = row.scheduledWorkDays + 1;
-    if (days > row.expectedWorkDays) {
-      const ok = await this.confirm.ask({
-        title: `Give ${first} an extra work day?`,
-        message: `${first} is off on ${day}. Working at ${store} makes it ${days} days this week (usually ${row.expectedWorkDays}).`,
-        icon: 'bi-exclamation-triangle',
-        tone: 'warning',
-        confirmText: 'Add the day',
-      });
-      if (!ok) {
-        return;
-      }
-    }
-    this.run(
-      this.api.updateScheduleEntry(s.id, row.days[dayIndex].entryId, 'WORK', storeId),
-      `${first} now works at ${store} on ${day}.`,
-    );
   }
 
   /** Gives someone the day off (one less work day for them). */
@@ -653,6 +630,136 @@ export class SchedulePage implements OnInit {
     }
   }
 
+  // ---------- Save draft, then add people where needed ----------
+
+  /** The "Add people where needed" panel. */
+  protected readonly fillOpen = signal(false);
+
+  /** "Save draft": everything up to here is kept, so the manager can stop and carry on later. */
+  protected saveDraft(): void {
+    const s = this.schedule();
+    if (!s) {
+      return;
+    }
+    const gaps = s.coverageGaps.length;
+    this.run(
+      this.api.saveDraft(s.id),
+      gaps > 0
+        ? `Draft saved. ${gaps} store-day${gaps === 1 ? ' needs' : 's need'} people — use "Add people where needed".`
+        : 'Draft saved. Every store is covered.',
+    );
+  }
+
+  /**
+   * Every short store-day, with the people who could be added there: only people who work that day (never anyone who
+   * is off), coming from no store or from a store that has more than its minimum, so the move doesn't open a new gap.
+   */
+  protected readonly fillGaps = computed<FillGap[]>(() => {
+    const s = this.schedule();
+    if (!s) {
+      return [];
+    }
+    return s.coverageGaps.map((gap) => {
+      const dayIndex = s.dates.indexOf(gap.date);
+      const countAt = (storeId: number) =>
+        s.storeCoverage.find((c) => c.storeId === storeId)?.dailyHeadCount[dayIndex] ?? 0;
+      const minAt = (storeId: number) => s.storeCoverage.find((c) => c.storeId === storeId)?.minStaffPerDay ?? 0;
+      const candidates: FillCandidate[] = s.rows
+        .map((row) => ({ row, cell: row.days[dayIndex] }))
+        .filter(({ cell }) => cell.type === 'WORK' && cell.storeId !== gap.storeId)
+        .filter(({ cell }) => cell.storeId === null || countAt(cell.storeId) > minAt(cell.storeId))
+        .map(({ row, cell }) => ({
+          row,
+          cell,
+          from:
+            cell.storeId === null
+              ? 'No store yet'
+              : `${cell.storeName} (${countAt(cell.storeId)} there, ${minAt(cell.storeId)} needed)`,
+          pendingRequest: !!cell.request,
+        }))
+        .sort(
+          (a, b) =>
+            Number(a.pendingRequest) - Number(b.pendingRequest) ||
+            Number(a.cell.storeId !== null) - Number(b.cell.storeId !== null) ||
+            Number(b.row.homeStoreId === gap.storeId) - Number(a.row.homeStoreId === gap.storeId) ||
+            Number(a.row.storeRole === 'PRIMARY') - Number(b.row.storeRole === 'PRIMARY') ||
+            a.row.employeeName.localeCompare(b.row.employeeName),
+        );
+      return { gap, dayIndex, missing: gap.required - gap.scheduled, candidates };
+    });
+  });
+
+  protected openFill(): void {
+    this.fillOpen.set(true);
+  }
+
+  /** Adds one person to a short store for that day. */
+  protected async addPerson(g: FillGap, c: FillCandidate): Promise<void> {
+    const s = this.schedule();
+    if (!s) {
+      return;
+    }
+    const day = formatDay(g.gap.date, { weekday: 'long', month: 'short', day: 'numeric' });
+    if (!(await this.confirmPrimaryMove(c.row, g.gap.storeId, 'on ' + day, g.dayIndex))) {
+      return;
+    }
+    const first = c.row.employeeName.split(' ')[0];
+    this.working.set(true);
+    this.api.addToStore(s.id, c.cell.entryId, g.gap.storeId).subscribe({
+      next: (updated) => {
+        this.schedule.set(updated);
+        this.working.set(false);
+        this.toast.success(`${first} added to ${g.gap.storeName} on ${day}.`);
+        if (updated.coverageGaps.length === 0) {
+          this.fillOpen.set(false);
+          this.toast.success('Every store now meets its minimum. Save the draft, then publish when ready.');
+        }
+      },
+      error: () => this.working.set(false),
+    });
+  }
+
+  // ---------- PDF ----------
+
+  protected readonly pdfBusy = signal<'download' | 'share' | null>(null);
+
+  protected async downloadPdf(): Promise<void> {
+    const s = this.schedule();
+    if (!s || this.pdfBusy()) {
+      return;
+    }
+    this.pdfBusy.set('download');
+    try {
+      downloadBlob(await buildSchedulePdf(s), schedulePdfName(s));
+    } catch {
+      this.toast.error("Couldn't create the PDF. Please try again.");
+    } finally {
+      this.pdfBusy.set(null);
+    }
+  }
+
+  /** Opens the share sheet with the PDF (WhatsApp, Mail…). Where sharing files isn't possible, downloads it instead. */
+  protected async sharePdf(): Promise<void> {
+    const s = this.schedule();
+    if (!s || this.pdfBusy()) {
+      return;
+    }
+    this.pdfBusy.set('share');
+    try {
+      const blob = await buildSchedulePdf(s);
+      const name = schedulePdfName(s);
+      const result = await sharePdf(blob, name, `${s.areaName} schedule · ${this.weekLabel()}`);
+      if (result === 'unsupported') {
+        downloadBlob(blob, name);
+        this.toast.info("This browser can't share files directly, so the PDF was downloaded. Attach it to your message.");
+      }
+    } catch {
+      this.toast.error("Couldn't share the PDF. Try Download PDF instead.");
+    } finally {
+      this.pdfBusy.set(null);
+    }
+  }
+
   /** True when a store has fewer people than its minimum on that day of the week. */
   protected isShort(storeId: number | null, minStaffPerDay: number, scheduled: number): boolean {
     return storeId !== null && scheduled < minStaffPerDay;
@@ -854,6 +961,10 @@ export class SchedulePage implements OnInit {
     const from = d.row.days[d.dayIndex];
     const to = row.days[dayIndex];
     if (to.type === 'REQUESTED_OFF') {
+      return false;
+    }
+    // Between two people only work days trade: nobody who is off gets a shift. (Your own day off can still move.)
+    if (d.row.employeeId !== row.employeeId && from.type !== to.type) {
       return false;
     }
     return !(from.type === to.type && from.storeId === to.storeId);

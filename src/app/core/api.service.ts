@@ -183,6 +183,14 @@ export class ApiService {
   moveForWeek(scheduleId: number, employeeId: number, storeId: number): Observable<Schedule> {
     return this.http.post<Schedule>(`${this.base}/schedules/${scheduleId}/move-for-week`, { employeeId, storeId });
   }
+  /** "Save draft": a checkpoint so the manager can stop here and carry on later. */
+  saveDraft(scheduleId: number): Observable<Schedule> {
+    return this.http.post<Schedule>(`${this.base}/schedules/${scheduleId}/save-draft`, {});
+  }
+  /** "Add people where needed": move someone who works that day to a short store (never someone who is off). */
+  addToStore(scheduleId: number, entryId: number, storeId: number): Observable<Schedule> {
+    return this.http.post<Schedule>(`${this.base}/schedules/${scheduleId}/add-to-store`, { entryId, storeId });
+  }
   publishSchedule(scheduleId: number): Observable<Schedule> {
     return this.http.post<Schedule>(`${this.base}/schedules/${scheduleId}/publish`, {});
   }

@@ -357,6 +357,10 @@ export interface Schedule {
   status: ScheduleStatus;
   publishedAt: string | null;
   updatedAt: string;
+  /** Last "Save draft" checkpoint, or null if the draft was never saved. */
+  draftSavedAt: string | null;
+  /** The draft changed after its last save (always true before the first save). */
+  changedSinceSave: boolean;
   dates: string[];
   dailyHeadCount: number[];
   pendingDayOffRequests: number;
