@@ -1,4 +1,153 @@
+<!-- Welcome + quick actions -->
+<div class="dash-hero mb-4">
+  <div>
+    <div class="dash-hero-date">{{ format(today, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) }}</div>
+    <h2 class="dash-hero-title">{{ greeting() }}</h2>
+    <p class="dash-hero-sub mb-0">
+      Here's how {{ auth.isAdmin() ? 'AllianceTel' : (auth.user()?.areaName || 'your area') }} is doing today.
+    </p>
+  </div>
+  <div class="dash-actions">
+    <a class="btn btn-light" routerLink="/eod"><i class="bi bi-receipt me-1"></i>End of Day</a>
+    <a class="btn btn-light" routerLink="/schedules"><i class="bi bi-calendar3-week me-1"></i>Schedule</a>
+    <a class="btn btn-primary" routerLink="/performance"><i class="bi bi-graph-up-arrow me-1"></i>Performance</a>
+  </div>
+</div>
+
+<!-- Sales this month -->
+<div class="d-flex align-items-baseline mb-2">
+  <h3 class="dash-section-title mb-0">Sales this month</h3>
+  <span class="small text-muted-2 ms-2">{{ format(monthRange.from, { month: 'short', day: 'numeric' }) }} – {{ format(monthRange.to, { month: 'short', day: 'numeric' }) }}</span>
+  <a class="ms-auto small" routerLink="/performance">Full report <i class="bi bi-arrow-right"></i></a>
+</div>
 <div class="row g-3 mb-4">
+  <div class="col-6 col-xl-3">
+    <a class="card stat-card h-100 text-decoration-none text-body" routerLink="/performance">
+      <div class="stat-icon bg-primary-subtle text-primary"><i class="bi bi-box-seam"></i></div>
+      <div>
+        <div class="stat-value">{{ salesLoaded() ? (month()?.totals?.boxes ?? 0) : '–' }}</div>
+        <div class="stat-label">Boxes sold</div>
+      </div>
+    </a>
+  </div>
+  <div class="col-6 col-xl-3">
+    <a class="card stat-card h-100 text-decoration-none text-body" routerLink="/performance">
+      <div class="stat-icon bg-success-subtle text-success"><i class="bi bi-headphones"></i></div>
+      <div>
+        <div class="stat-value">{{ salesLoaded() ? ((month()?.totals?.accessories ?? 0) | currency: 'USD' : 'symbol' : '1.0-0') : '–' }}</div>
+        <div class="stat-label">Accessories</div>
+      </div>
+    </a>
+  </div>
+  <div class="col-6 col-xl-3">
+    <a class="card stat-card h-100 text-decoration-none text-body" routerLink="/performance">
+      <div class="stat-icon bg-info-subtle text-info"><i class="bi bi-bag-check"></i></div>
+      <div>
+        <div class="stat-value">{{ salesLoaded() ? ((month()?.totals?.sales ?? 0) | number) : '–' }}</div>
+        <div class="stat-label">Sales logged</div>
+      </div>
+    </a>
+  </div>
+  <div class="col-6 col-xl-3">
+    <a class="card stat-card h-100 text-decoration-none text-body" routerLink="/eod">
+      <div class="stat-icon bg-warning-subtle text-warning"><i class="bi bi-patch-check"></i></div>
+      <div>
+        <div class="stat-value">{{ month()?.totals?.approvedReports ?? 0 }}<span class="fs-6 text-muted-2">/{{ month()?.totals?.reports ?? 0 }}</span></div>
+        <div class="stat-label">EODs approved</div>
+      </div>
+    </a>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <!-- Today's close-out -->
+  <div class="col-lg-7">
+    <div class="card h-100">
+      <div class="card-header d-flex align-items-center flex-wrap gap-2">
+        <span class="fw-semibold"><i class="bi bi-safe me-1 text-primary"></i>Today's close-out</span>
+        @if (stores().length) {
+          <span class="badge rounded-pill text-bg-light border">{{ closedToday() }} of {{ stores().length }} submitted</span>
+        }
+        <a class="ms-auto small" routerLink="/eod">Open End of Day</a>
+      </div>
+      @if (stores().length) {
+        <div class="dash-progress" role="progressbar" [attr.aria-valuenow]="closedToday()" aria-valuemin="0" [attr.aria-valuemax]="stores().length">
+          <div [style.width.%]="(closedToday() / stores().length) * 100"></div>
+        </div>
+        <ul class="list-group list-group-flush dash-store-list">
+          @for (s of stores(); track s.storeId) {
+            <li class="list-group-item d-flex align-items-center gap-2">
+              <div class="min-w-0">
+                <div class="fw-semibold text-truncate">{{ s.storeName }}</div>
+                <div class="small text-muted-2 text-truncate">
+                  @if (auth.isAdmin()) { {{ s.areaName }} · }
+                  {{ s.sales }} sale{{ s.sales === 1 ? '' : 's' }}
+                  @if (s.submittedBy) { · by {{ s.submittedBy }} }
+                </div>
+              </div>
+              <div class="ms-auto text-end">
+                <div class="fw-semibold">{{ s.totalSale | currency }}</div>
+                <span class="badge {{ statusClass(s.status) }}">{{ s.status ? statusLabels[s.status] : 'Nothing logged' }}</span>
+              </div>
+            </li>
+          }
+        </ul>
+        <div class="card-footer small d-flex">
+          <span class="text-muted-2">Total sale today</span>
+          <span class="ms-auto fw-semibold">{{ salesToday() | currency }}</span>
+        </div>
+      } @else {
+        <div class="empty-state py-4"><i class="bi bi-shop"></i>No active stores yet.</div>
+      }
+    </div>
+  </div>
+
+  <!-- Top performers -->
+  <div class="col-lg-5">
+    <div class="card h-100">
+      <div class="card-header d-flex align-items-center">
+        <span class="fw-semibold"><i class="bi bi-trophy me-1 text-warning"></i>Top performers this month</span>
+        <a class="ms-auto small" routerLink="/performance">See all</a>
+      </div>
+      @if (topPerformers().length === 0) {
+        <div class="empty-state py-4"><i class="bi bi-bar-chart"></i>No sales logged this month yet.</div>
+      } @else {
+        <ol class="list-unstyled mb-0 p-3 dash-leaders">
+          @for (e of topPerformers(); track e.employeeId; let i = $index) {
+            <li>
+              <a class="dash-leader" [routerLink]="['/performance/employees', e.employeeId]">
+                <span class="dash-rank" [class.gold]="i === 0">{{ i + 1 }}</span>
+                <span class="flex-grow-1 min-w-0">
+                  <span class="d-flex">
+                    <span class="fw-semibold text-truncate">{{ e.name }}</span>
+                    <span class="ms-auto small text-nowrap"><strong>{{ e.boxes }}</strong> box{{ e.boxes === 1 ? '' : 'es' }} · {{ e.accessories | currency: 'USD' : 'symbol' : '1.0-0' }}</span>
+                  </span>
+                  <span class="dash-bar"><span [style.width.%]="(e.boxes / topBoxes()) * 100"></span></span>
+                </span>
+              </a>
+            </li>
+          }
+        </ol>
+      }
+      @if (trend().length > 1) {
+        <div class="card-footer">
+          <div class="small text-muted-2 mb-1">Boxes per day</div>
+          <div class="dash-trend" aria-hidden="true">
+            @for (d of trend(); track d.date) {
+              <span [style.height.%]="(d.boxes / trendMax()) * 100 || 2" [attr.title]="format(d.date, { month: 'short', day: 'numeric' }) + ': ' + d.boxes"></span>
+            }
+          </div>
+        </div>
+      }
+    </div>
+  </div>
+</div>
+
+<!-- Workforce -->
+<div class="d-flex align-items-baseline mb-2">
+  <h3 class="dash-section-title mb-0">Workforce</h3>
+</div>
+<div class="row g-3 mb-3">
   <div class="col-6 col-xl-3">
     <div class="card stat-card h-100">
       <div class="stat-icon bg-primary-subtle text-primary"><i class="bi bi-geo-alt"></i></div>
@@ -44,7 +193,7 @@
       <div class="card-body">
         @if (loaded() && activeAreas().length === 0) {
           <div class="empty-state py-4">
-            <i class="bi bi-geo-alt"></i>No areas yet. <a routerLink="/areas">Add one</a>
+            <i class="bi bi-geo-alt"></i>No areas yet.@if (auth.isAdmin()) { <a routerLink="/areas">Add one</a> }
           </div>
         }
         @for (a of activeAreas(); track a.id) {

@@ -12,6 +12,7 @@ import { describeError } from '../../core/error.interceptor';
   templateUrl: './login-page.html',
 })
 export class LoginPage {
+  protected readonly year = new Date().getFullYear();
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly fb = inject(FormBuilder);

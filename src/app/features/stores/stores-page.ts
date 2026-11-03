@@ -126,6 +126,7 @@ export class StoresPage implements OnInit {
     code: ['', [Validators.maxLength(12), codeRule]],
     address: ['', [Validators.maxLength(255), safeText]],
     minStaffPerDay: [1, [Validators.required, Validators.min(0), Validators.max(50), wholeNumber]],
+    taxRate: [0 as number | null, [Validators.min(0), Validators.max(30)]],
     active: [true],
   });
 
@@ -149,7 +150,7 @@ export class StoresPage implements OnInit {
 
   protected openCreate(areaId: number | null = this.areaFilter): void {
     this.editing.set(null);
-    this.form.reset({ areaId, name: '', code: '', address: '', minStaffPerDay: 1, active: true });
+    this.form.reset({ areaId, name: '', code: '', address: '', minStaffPerDay: 1, taxRate: 0, active: true });
     this.hoursRows = defaultWeek();
     this.hoursTouched = false;
     this.color = null;
@@ -164,6 +165,7 @@ export class StoresPage implements OnInit {
       code: store.code ?? '',
       address: store.address ?? '',
       minStaffPerDay: store.minStaffPerDay,
+      taxRate: store.taxRate ?? 0,
       active: store.active,
     });
     this.hoursRows = WEEK_DAYS.map((day) => {
@@ -190,6 +192,7 @@ export class StoresPage implements OnInit {
       code: v.code.trim().toUpperCase() || null,
       address: clean(v.address),
       minStaffPerDay: Number(v.minStaffPerDay),
+      taxRate: Number(v.taxRate ?? 0),
       active: v.active,
       hours: this.hoursRows.map((h) => ({
         day: h.day,

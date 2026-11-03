@@ -6,7 +6,8 @@ import { AuthService } from '../core/auth.service';
 import { ConfirmService } from '../core/confirm.service';
 import { ToastService } from '../core/toast.service';
 import { formatPhone } from '../core/validation';
-import { ROLE_LABELS, Role } from '../core/models';
+import { HttpClient } from '@angular/common/http';
+import { MessagingInfo, ROLE_LABELS, Role } from '../core/models';
 
 interface NavItem {
   label: string;
@@ -26,27 +27,41 @@ const ALL: Role[] = ['ADMIN', 'MANAGER', 'EMPLOYEE'];
 const SECTIONS: NavSection[] = [
   {
     title: 'Overview',
-    items: [{ label: 'Dashboard', icon: 'bi-speedometer2', path: '/dashboard', roles: ['ADMIN', 'MANAGER'] }],
+    items: [
+      { label: 'Dashboard', icon: 'bi-grid-1x2', path: '/dashboard', roles: ['ADMIN', 'MANAGER'] },
+      { label: 'Performance', icon: 'bi-graph-up-arrow', path: '/performance', roles: ['ADMIN', 'MANAGER'] },
+    ],
   },
   {
-    title: 'Scheduling',
+    title: 'Workforce',
     items: [
       { label: 'Weekly Schedule', employeeLabel: 'My Schedule', icon: 'bi-calendar3-week', path: '/schedules', roles: ALL },
       { label: 'Day-off Requests', employeeLabel: 'My Days Off', icon: 'bi-calendar-x', path: '/day-off-requests', roles: ALL },
-      { label: 'Stores', icon: 'bi-shop', path: '/stores', roles: ['MANAGER', 'EMPLOYEE'] },
+      { label: 'Employees', icon: 'bi-people', path: '/employees', roles: ['ADMIN'] },
+      { label: 'My Team', icon: 'bi-people', path: '/employees', roles: ['MANAGER'] },
       { label: 'Messages', icon: 'bi-chat-dots', path: '/messages', roles: ['ADMIN', 'MANAGER'] },
     ],
   },
   {
-    title: 'Administration',
+    title: 'Sales & Operations',
     items: [
-      { label: 'Employees', icon: 'bi-people', path: '/employees', roles: ['ADMIN'] },
-      { label: 'My Team', icon: 'bi-people', path: '/employees', roles: ['MANAGER'] },
+      { label: 'End of Day', icon: 'bi-receipt', path: '/eod', roles: ALL },
+      { label: 'My Performance', icon: 'bi-graph-up-arrow', path: '/my-performance', roles: ['EMPLOYEE'] },
+      { label: 'Commission', icon: 'bi-cash-coin', path: '/commission', roles: ['ADMIN'] },
+    ],
+  },
+  {
+    title: 'Organization',
+    items: [
       { label: 'Areas', icon: 'bi-geo-alt', path: '/areas', roles: ['ADMIN'] },
-      { label: 'Stores', icon: 'bi-shop', path: '/stores', roles: ['ADMIN'] },
+      { label: 'Stores', icon: 'bi-shop', path: '/stores', roles: ALL },
+      { label: 'Devices', icon: 'bi-phone', path: '/devices', roles: ['ADMIN'] },
     ],
   },
 ];
+
+/** Shown in the sidebar footer; bump with each release. */
+export const APP_VERSION = '2.0';
 
 const COLLAPSE_KEY = 'alliancetel.sidebarCollapsed';
 const DESKTOP_MIN_WIDTH = 992;
@@ -88,7 +103,13 @@ export class Shell {
   /** Mobile: sidebar slides in over the page. */
   protected readonly mobileOpen = signal(false);
   protected readonly menuOpen = signal(false);
+  /** Loaded the first time the account menu opens: Sandbox join instructions for WhatsApp, if used. */
+  protected readonly messaging = signal<MessagingInfo | null>(null);
+  private readonly http = inject(HttpClient);
   protected readonly heading = signal('');
+  /** The menu section the current page belongs to (shown before the page title). */
+  protected readonly section = signal('');
+  protected readonly appVersion = APP_VERSION;
 
   constructor() {
     // The shell is created while the first navigation is still running; NavigationEnd sets the heading.
@@ -117,6 +138,22 @@ export class Shell {
     }
   }
 
+  protected toggleMenu(): void {
+    this.menuOpen.update((v) => !v);
+    if (this.menuOpen() && !this.messaging() && !this.auth.isAdmin()) {
+      this.http.get<MessagingInfo>('/api/auth/messaging').subscribe({
+        next: (info) => this.messaging.set(info),
+        error: () => undefined,
+      });
+    }
+  }
+
+  /** Opens WhatsApp with the join phrase ready to send to the Sandbox number. */
+  protected sandboxLink(info: MessagingInfo): string {
+    const number = (info.sandboxNumber ?? '').replace(/\D/g, '');
+    return `https://wa.me/${number}?text=${encodeURIComponent(info.sandboxJoin ?? '')}`;
+  }
+
   protected closeMobile(): void {
     this.mobileOpen.set(false);
   }
@@ -134,6 +171,22 @@ export class Shell {
       next: () => {
         this.savingWhatsapp.set(false);
         this.toast.success(on ? "You'll get your schedule on WhatsApp." : 'WhatsApp schedule updates turned off.');
+      },
+      error: () => {
+        this.savingWhatsapp.set(false);
+        (event.target as HTMLInputElement).checked = !on;
+      },
+    });
+  }
+
+  /** Texts need the person's own agreement (US carrier rules), so only they can turn this on. */
+  protected toggleSms(event: Event): void {
+    const on = (event.target as HTMLInputElement).checked;
+    this.savingWhatsapp.set(true);
+    this.auth.setSms(on).subscribe({
+      next: () => {
+        this.savingWhatsapp.set(false);
+        this.toast.success(on ? "You'll get your schedule by text message." : 'Text message updates turned off.');
       },
       error: () => {
         this.savingWhatsapp.set(false);
@@ -186,6 +239,9 @@ export class Shell {
     const heading =
       (this.auth.isEmployee() && employeeHeading) || (this.auth.isManager() && managerHeading) || data['heading'];
     this.heading.set((heading as string) ?? '');
+    const path = '/' + (this.router.url.split(/[?#]/)[0].split('/')[1] ?? '');
+    const owner = this.sections().find((sec) => sec.items.some((i) => i.path === path));
+    this.section.set(owner?.title ?? '');
   }
 }
 

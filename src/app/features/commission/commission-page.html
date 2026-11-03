@@ -1,0 +1,354 @@
+<div class="page-toolbar">
+  <div>
+    <label class="form-label small text-muted-2 mb-1" for="cmMonth">Month</label>
+    <input id="cmMonth" type="month" class="form-control" [ngModel]="month()" (ngModelChange)="selectMonth($event)" />
+  </div>
+  <div style="min-width: 180px">
+    <label class="form-label small text-muted-2 mb-1" for="cmArea">Area</label>
+    <select id="cmArea" class="form-select" [ngModel]="areaId()" (ngModelChange)="selectArea($event)">
+      <option [ngValue]="null">All areas</option>
+      @for (a of areas(); track a.id) { <option [ngValue]="a.id">{{ a.name }}</option> }
+    </select>
+  </div>
+  <div>
+    <span class="form-label small text-muted-2 mb-1 d-block">Show</span>
+    <div class="btn-group" role="tablist" aria-label="Commission sections">
+      <button type="button" class="btn" role="tab" [attr.aria-selected]="tab() === 'payouts'"
+              [class.btn-primary]="tab() === 'payouts'" [class.btn-outline-primary]="tab() !== 'payouts'" (click)="tab.set('payouts')">
+        <i class="bi bi-cash-coin me-1"></i>Payouts</button>
+      <button type="button" class="btn" role="tab" [attr.aria-selected]="tab() === 'adjustments'"
+              [class.btn-primary]="tab() === 'adjustments'" [class.btn-outline-primary]="tab() !== 'adjustments'" (click)="tab.set('adjustments')">
+        <i class="bi bi-exclamation-diamond me-1"></i>Fines &amp; rewards</button>
+      <button type="button" class="btn" role="tab" [attr.aria-selected]="tab() === 'plan'"
+              [class.btn-primary]="tab() === 'plan'" [class.btn-outline-primary]="tab() !== 'plan'" (click)="tab.set('plan')">
+        <i class="bi bi-sliders me-1"></i>Plan settings</button>
+    </div>
+  </div>
+  @if (tab() === 'payouts' && data(); as d) {
+    <div class="ms-auto d-flex gap-2 toolbar-actions">
+      <button type="button" class="btn btn-outline-secondary" (click)="exportCsv()"><i class="bi bi-download me-1"></i>Export CSV</button>
+      @if (d.finalized) {
+        <button type="button" class="btn btn-outline-secondary" [disabled]="busy()" (click)="reopenMonth()"><i class="bi bi-unlock me-1"></i>Reopen month</button>
+      } @else {
+        <button type="button" class="btn btn-primary" [disabled]="busy()" (click)="finalizeMonth()"><i class="bi bi-lock me-1"></i>Finalize month</button>
+      }
+    </div>
+  }
+</div>
+
+<p class="small text-muted-2"><i class="bi bi-shield-lock me-1"></i>Only admins can see this page.</p>
+
+@if (loading() && !data()) {
+  <div class="card"><div class="empty-state"><div class="spinner-border text-primary"></div></div></div>
+} @else if (data(); as d) {
+  @if (tab() === 'payouts') {
+    <div class="alert py-2 d-flex flex-wrap align-items-center gap-2" [class.alert-success]="d.finalized" [class.alert-light]="!d.finalized" [class.border]="!d.finalized">
+      <i class="bi" [class.bi-lock-fill]="d.finalized" [class.bi-activity]="!d.finalized"></i>
+      @if (d.finalized) {
+        <span><strong>{{ monthLabel() }} is finalized</strong>, by {{ d.finalizedBy }} on {{ d.finalizedAt | date: 'MMM d, h:mm a' }}. These are the payouts as saved.</span>
+      } @else {
+        <span><strong>{{ monthLabel() }} is open.</strong> Numbers update as EODs are approved. Only approved EODs count.</span>
+      }
+    </div>
+    @if (d.warnings.length) {
+      <div class="alert alert-warning py-2">
+        <ul class="mb-0 ps-3 small">
+          @for (w of d.warnings; track w) { <li>{{ w }}</li> }
+        </ul>
+      </div>
+    }
+
+    <div class="row g-3 mb-3" [class.opacity-50]="loading()">
+      <div class="col-6 col-xl-3">
+        <div class="card stat-card h-100">
+          <div class="stat-icon bg-primary-subtle text-primary"><i class="bi bi-cash-coin"></i></div>
+          <div><div class="stat-value fs-5">{{ d.totals.total | currency }}</div><div class="stat-label">Total payout · {{ d.totals.people }} people</div></div>
+        </div>
+      </div>
+      <div class="col-6 col-xl-3">
+        <div class="card stat-card h-100">
+          <div class="stat-icon bg-info-subtle text-info"><i class="bi bi-box-seam"></i></div>
+          <div><div class="stat-value fs-5">{{ d.totals.boxPay | currency }}</div><div class="stat-label">Activations, upgrades and flat rates</div></div>
+        </div>
+      </div>
+      <div class="col-6 col-xl-3">
+        <div class="card stat-card h-100">
+          <div class="stat-icon bg-success-subtle text-success"><i class="bi bi-headphones"></i></div>
+          <div><div class="stat-value fs-5">{{ d.totals.accessoryPay | currency }}</div><div class="stat-label">Accessories</div></div>
+        </div>
+      </div>
+      <div class="col-6 col-xl-3">
+        <div class="card stat-card h-100">
+          <div class="stat-icon bg-danger-subtle text-danger"><i class="bi bi-exclamation-diamond"></i></div>
+          <div><div class="stat-value fs-5">{{ d.totals.fines + d.totals.rewards | currency }}</div><div class="stat-label">Fines {{ d.totals.fines | currency }} · rewards {{ d.totals.rewards | currency }}</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" [class.opacity-50]="loading()">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead>
+            <tr>
+              <th>Employee</th>
+              <th class="text-end">Activations</th>
+              <th class="text-end">Upgrades</th>
+              <th class="text-end">BTS · HINT · Unlock</th>
+              <th class="text-end">Accessories</th>
+              <th class="text-end">Fines / rewards</th>
+              <th class="text-end">Total</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (s of visibleStatements(); track s.employeeId) {
+              @let p = s.pay;
+              <tr role="button" (click)="toggle(s)" [attr.aria-expanded]="expanded() === s.employeeId">
+                <td>
+                  <a [routerLink]="['/performance/employees', s.employeeId]" [queryParams]="{ from: month() + '-01' }" (click)="$event.stopPropagation()"
+                     class="fw-semibold text-decoration-none">{{ s.name }}</a>
+                  <div class="small text-muted-2">{{ s.areaName ?? '' }}@if (s.homeStoreName) { · {{ s.homeStoreName }} }</div>
+                  @if (s.noCallNoShows >= 3) { <span class="badge text-bg-danger mt-1">{{ s.noCallNoShows }} no call, no shows</span> }
+                </td>
+                <td class="text-end">{{ p.activations }} × {{ p.activationRate | currency }}<div class="fw-semibold">{{ p.activationPay | currency }}</div></td>
+                <td class="text-end">{{ p.upgrades }} × {{ p.upgradeRate | currency }}<div class="fw-semibold">{{ p.upgradePay | currency }}</div></td>
+                <td class="text-end">{{ p.bts }} · {{ p.homeInternet }} · {{ p.unlock + p.metroLocked }}<div class="fw-semibold">{{ p.btsPay + p.homeInternetPay + p.unlockPay + p.metroLockedPay | currency }}</div></td>
+                <td class="text-end">{{ p.accessoriesNet | currency }} × {{ p.accessoryPercent }}%<div class="fw-semibold">{{ p.accessoryPay | currency }}</div></td>
+                <td class="text-end">
+                  @if (p.fines) { <div class="text-danger">{{ p.fines | currency }}</div> }
+                  @if (p.rewards) { <div class="text-success">+{{ p.rewards | currency }}</div> }
+                  @if (!p.fines && !p.rewards) { <span class="text-muted-2">—</span> }
+                </td>
+                <td class="text-end fw-bold fs-6">{{ p.total | currency }}</td>
+                <td class="text-end"><i class="bi" [class.bi-chevron-down]="expanded() !== s.employeeId" [class.bi-chevron-up]="expanded() === s.employeeId"></i></td>
+              </tr>
+              @if (expanded() === s.employeeId) {
+                <tr class="table-light">
+                  <td colspan="8">
+                    <div class="row g-3 small py-2">
+                      <div class="col-md-4">
+                        <div class="fw-semibold mb-1">Boxes</div>
+                        <div class="d-flex"><span>New activations {{ p.activations }} × {{ p.activationRate | currency }}</span><span class="ms-auto">{{ p.activationPay | currency }}</span></div>
+                        <div class="d-flex"><span>Upgrades {{ p.upgrades }} × {{ p.upgradeRate | currency }}</span><span class="ms-auto">{{ p.upgradePay | currency }}</span></div>
+                        <div class="d-flex"><span>BTS (tablets) {{ p.bts }}</span><span class="ms-auto">{{ p.btsPay | currency }}</span></div>
+                        <div class="d-flex"><span>Home internet {{ p.homeInternet }}</span><span class="ms-auto">{{ p.homeInternetPay | currency }}</span></div>
+                        <div class="d-flex"><span>Unlock {{ p.unlock }} · Metro used {{ p.metroLocked }}</span><span class="ms-auto">{{ p.unlockPay + p.metroLockedPay | currency }}</span></div>
+                      </div>
+                      <div class="col-md-4">
+                        <div class="fw-semibold mb-1">Accessories</div>
+                        <div class="d-flex"><span>Sold (approved EODs)</span><span class="ms-auto">{{ p.accessoriesGross | currency }}</span></div>
+                        <div class="d-flex"><span>After tax and cost</span><span class="ms-auto">{{ p.accessoriesNet | currency }}</span></div>
+                        <div class="d-flex"><span>Commission at {{ p.accessoryPercent }}%</span><span class="ms-auto">{{ p.accessoryPay | currency }}</span></div>
+                        @if (s.pendingBoxes || s.pendingAccessories) {
+                          <div class="text-muted-2 mt-2"><i class="bi bi-hourglass me-1"></i>Waiting for approval: {{ s.pendingBoxes }} boxes, {{ s.pendingAccessories | currency }} accessories.</div>
+                        }
+                      </div>
+                      <div class="col-md-4">
+                        <div class="fw-semibold mb-1">Fines and rewards</div>
+                        @for (a of s.adjustments; track a.id) {
+                          <div class="d-flex"><span>{{ format(a.date, { month: 'short', day: 'numeric' }) }} · {{ a.typeLabel }}@if (a.type === 'LATE') { ({{ a.quantity }} min) }</span>
+                            <span class="ms-auto" [class.text-danger]="a.amount < 0" [class.text-success]="a.amount > 0">{{ a.amount | currency }}</span></div>
+                        } @empty { <div class="text-muted-2">None this month.</div> }
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              }
+            } @empty {
+              <tr><td colspan="8" class="text-center text-muted-2 py-4">Nobody to pay for {{ monthLabel() }}.</td></tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      @if (emptyCount() > 0) {
+        <div class="card-footer text-center">
+          <button type="button" class="btn btn-link btn-sm" (click)="showEmpty.set(!showEmpty())">
+            {{ showEmpty() ? 'Hide' : 'Show' }} {{ emptyCount() }} {{ emptyCount() === 1 ? 'person' : 'people' }} with nothing this month
+          </button>
+        </div>
+      }
+    </div>
+  }
+
+  @if (tab() === 'adjustments') {
+    <div class="row g-3">
+      <div class="col-lg-5">
+        <div class="card">
+          <div class="card-header"><h2 class="h6 mb-0">Record a fine or reward</h2></div>
+          <div class="card-body">
+            @if (d.finalized) {
+              <div class="alert alert-light border small">{{ monthLabel() }} is finalized. Reopen it on Payouts to change fines or rewards, or pick a date in another month.</div>
+            }
+            <div class="mb-3">
+              <label class="form-label small" for="adjEmp">Employee</label>
+              <select id="adjEmp" class="form-select" [(ngModel)]="adjEmployeeId">
+                <option [ngValue]="null" disabled>Pick someone…</option>
+                @for (e of staff(); track e.id) { <option [ngValue]="e.id">{{ e.fullName }}@if (e.areaName) { · {{ e.areaName }} }</option> }
+              </select>
+            </div>
+            <label class="form-label small mb-1">What happened</label>
+            <div class="d-flex flex-wrap gap-1 mb-3" role="radiogroup" aria-label="Type">
+              @for (t of types(); track t.value) {
+                <button type="button" class="btn btn-sm" role="radio" [attr.aria-checked]="adjTypeSig() === t.value"
+                        [class.btn-danger]="adjTypeSig() === t.value && !t.reward" [class.btn-success]="adjTypeSig() === t.value && t.reward"
+                        [class.btn-outline-secondary]="adjTypeSig() !== t.value" (click)="pickType(t.value)">{{ t.label }}</button>
+              }
+            </div>
+            <div class="row g-2 mb-3">
+              <div class="col-6">
+                <label class="form-label small" for="adjDate">Date</label>
+                <input id="adjDate" type="date" class="form-control" [(ngModel)]="adjDate" />
+              </div>
+              @if (selectedType()?.perMinute) {
+                <div class="col-6">
+                  <label class="form-label small" for="adjMin">Minutes late</label>
+                  <input id="adjMin" type="number" min="1" class="form-control" [(ngModel)]="adjMinutes" />
+                </div>
+              }
+              <div class="col-6">
+                <label class="form-label small" for="adjAmt">Amount @if (selectedType()?.defaultAmount) { <span class="text-muted-2">(optional)</span> }</label>
+                <div class="input-group"><span class="input-group-text">$</span>
+                  <input id="adjAmt" type="number" min="0" step="0.01" class="form-control" [placeholder]="selectedType()?.defaultAmount ? (adjPreview() | currency) : ''" [(ngModel)]="adjAmount" /></div>
+              </div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label small" for="adjNote">Note (optional)</label>
+              <input id="adjNote" class="form-control" maxlength="255" [(ngModel)]="adjNote" />
+            </div>
+            <div class="d-flex align-items-center gap-2">
+              <span class="small" [class.text-danger]="!selectedType()?.reward" [class.text-success]="selectedType()?.reward">
+                {{ selectedType()?.reward ? 'Adds' : 'Takes off' }} {{ adjPreview() | currency }}
+              </span>
+              <button type="button" class="btn btn-primary ms-auto" [disabled]="busy()" (click)="saveAdjustment()">Save</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-7">
+        <div class="card">
+          <div class="card-header d-flex align-items-center gap-2"><h2 class="h6 mb-0">{{ monthLabel() }}</h2>
+            <span class="badge rounded-pill text-bg-light border">{{ allAdjustments().length }}</span></div>
+          <ul class="list-group list-group-flush">
+            @for (a of allAdjustments(); track a.id) {
+              <li class="list-group-item d-flex flex-wrap align-items-center gap-2">
+                <div class="me-auto">
+                  <div class="fw-semibold">{{ a.employeeName }}</div>
+                  <div class="small text-muted-2">{{ format(a.date, { weekday: 'short', month: 'short', day: 'numeric' }) }} · {{ a.typeLabel }}@if (a.type === 'LATE') { ({{ a.quantity }} min) }@if (a.note) { · {{ a.note }} } · by {{ a.createdBy }}</div>
+                </div>
+                <span class="fw-semibold" [class.text-danger]="a.amount < 0" [class.text-success]="a.amount > 0">{{ a.amount | currency }}</span>
+                @if (!d.finalized) {
+                  <button type="button" class="btn btn-sm btn-link text-danger" (click)="removeAdjustment(a.id, a.typeLabel, a.employeeName)" [attr.aria-label]="'Remove ' + a.typeLabel"><i class="bi bi-trash"></i></button>
+                }
+              </li>
+            } @empty {
+              <li class="list-group-item text-muted-2 small py-4 text-center">No fines or rewards in {{ monthLabel() }}.</li>
+            }
+          </ul>
+        </div>
+      </div>
+    </div>
+  }
+
+  @if (tab() === 'plan' && plan; as p) {
+    <form class="row g-3" (ngSubmit)="savePlan()">
+      <div class="col-lg-6">
+        <div class="card h-100">
+          <div class="card-header"><h2 class="h6 mb-0">New activation (NL/AAL)</h2></div>
+          <div class="card-body small">
+            <p class="text-muted-2">The month's number of activations sets the rate paid on all of them.</p>
+            <div class="row g-2 align-items-center mb-2">
+              <div class="col-6">Up to <input type="number" min="0" class="form-control form-control-sm d-inline-block" style="width: 70px" name="a1" [(ngModel)]="p.activationTier1Max" /> activations</div>
+              <div class="col-6"><div class="input-group input-group-sm"><span class="input-group-text">$</span><input type="number" min="0" step="0.01" class="form-control" name="a1r" [(ngModel)]="p.activationTier1Rate" /><span class="input-group-text">each</span></div></div>
+              <div class="col-6">Up to <input type="number" min="0" class="form-control form-control-sm d-inline-block" style="width: 70px" name="a2" [(ngModel)]="p.activationTier2Max" /></div>
+              <div class="col-6"><div class="input-group input-group-sm"><span class="input-group-text">$</span><input type="number" min="0" step="0.01" class="form-control" name="a2r" [(ngModel)]="p.activationTier2Rate" /><span class="input-group-text">each</span></div></div>
+              <div class="col-6">{{ p.activationTier2Max + 1 }} or more</div>
+              <div class="col-6"><div class="input-group input-group-sm"><span class="input-group-text">$</span><input type="number" min="0" step="0.01" class="form-control" name="a3r" [(ngModel)]="p.activationTier3Rate" /><span class="input-group-text">each</span></div></div>
+            </div>
+            <div class="row g-2 align-items-center">
+              <div class="col-6">BTS (tablets)</div>
+              <div class="col-6"><div class="input-group input-group-sm"><span class="input-group-text">$</span><input type="number" min="0" step="0.01" class="form-control" name="bts" [(ngModel)]="p.btsRate" /></div></div>
+              <div class="col-6">T-Mobile Home Internet (HINT)</div>
+              <div class="col-6"><div class="input-group input-group-sm"><span class="input-group-text">$</span><input type="number" min="0" step="0.01" class="form-control" name="hint" [(ngModel)]="p.homeInternetRate" /></div></div>
+              <div class="col-6">FREE LINE pays as</div>
+              <div class="col-6"><select class="form-select form-select-sm" name="fl" [(ngModel)]="p.freeLinePaysAs"><option value="NONE">Nothing</option><option value="ACTIVATION">An activation</option><option value="UPGRADE">An upgrade</option></select></div>
+              <div class="col-6">REACT pays as</div>
+              <div class="col-6"><select class="form-select form-select-sm" name="re" [(ngModel)]="p.reactivationPaysAs"><option value="NONE">Nothing</option><option value="ACTIVATION">An activation</option><option value="UPGRADE">An upgrade</option></select></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-6">
+        <div class="card h-100">
+          <div class="card-header"><h2 class="h6 mb-0">Upgrade</h2></div>
+          <div class="card-body small">
+            <p class="text-muted-2">The month's number of upgrades sets the rate paid on all of them.</p>
+            <div class="row g-2 align-items-center">
+              <div class="col-6">Up to <input type="number" min="0" class="form-control form-control-sm d-inline-block" style="width: 70px" name="u1" [(ngModel)]="p.upgradeTier1Max" /> upgrades</div>
+              <div class="col-6"><div class="input-group input-group-sm"><span class="input-group-text">$</span><input type="number" min="0" step="0.01" class="form-control" name="u1r" [(ngModel)]="p.upgradeTier1Rate" /><span class="input-group-text">each</span></div></div>
+              <div class="col-6">{{ p.upgradeTier1Max + 1 }} or more</div>
+              <div class="col-6"><div class="input-group input-group-sm"><span class="input-group-text">$</span><input type="number" min="0" step="0.01" class="form-control" name="u2r" [(ngModel)]="p.upgradeTier2Rate" /><span class="input-group-text">each</span></div></div>
+              <div class="col-6">UNLOCK phones</div>
+              <div class="col-6"><div class="input-group input-group-sm"><span class="input-group-text">$</span><input type="number" min="0" step="0.01" class="form-control" name="ul" [(ngModel)]="p.unlockRate" /></div></div>
+              <div class="col-6">Metro used phones (M.LOCK)</div>
+              <div class="col-6"><div class="input-group input-group-sm"><span class="input-group-text">$</span><input type="number" min="0" step="0.01" class="form-control" name="ml" [(ngModel)]="p.metroLockedRate" /></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-6">
+        <div class="card h-100">
+          <div class="card-header"><h2 class="h6 mb-0">Accessories (after tax and cost)</h2></div>
+          <div class="card-body small">
+            <div class="row g-2 align-items-center mb-3">
+              <div class="col-12 text-muted-2">Sales tax comes off at each store's own rate (set on the Stores page).</div>
+              <div class="col-6">Cost of the accessories</div>
+              <div class="col-6"><div class="input-group input-group-sm"><input type="number" min="0" step="0.01" class="form-control" name="cost" [(ngModel)]="p.costPercent" /><span class="input-group-text">% of the price</span></div></div>
+            </div>
+            <div class="row g-2 align-items-center mb-3">
+              <div class="col-6">$0 to $<input type="number" min="0" class="form-control form-control-sm d-inline-block" style="width: 90px" name="t1" [(ngModel)]="p.accessoryTier1Max" /></div>
+              <div class="col-6"><div class="input-group input-group-sm"><input type="number" min="0" step="0.1" class="form-control" name="t1p" [(ngModel)]="p.accessoryTier1Percent" /><span class="input-group-text">%</span></div></div>
+              <div class="col-6">Above that, below ${{ p.accessoryTier3From }}</div>
+              <div class="col-6"><div class="input-group input-group-sm"><input type="number" min="0" step="0.1" class="form-control" name="t2p" [(ngModel)]="p.accessoryTier2Percent" /><span class="input-group-text">%</span></div></div>
+              <div class="col-6">$<input type="number" min="0" class="form-control form-control-sm d-inline-block" style="width: 90px" name="t3" [(ngModel)]="p.accessoryTier3From" /> and more</div>
+              <div class="col-6"><div class="input-group input-group-sm"><input type="number" min="0" step="0.1" class="form-control" name="t3p" [(ngModel)]="p.accessoryTier3Percent" /><span class="input-group-text">%</span></div></div>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="radio" id="mWhole" name="mode" value="WHOLE" [(ngModel)]="p.accessoryMode" />
+              <label class="form-check-label" for="mWhole">Whole month's amount at the rate reached ($4,000 pays 10% of $4,000)</label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="radio" id="mBr" name="mode" value="BRACKETS" [(ngModel)]="p.accessoryMode" />
+              <label class="form-check-label" for="mBr">Each part at its own rate ($3,000 at 2% + $1,000 at 10%)</label>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-6">
+        <div class="card h-100">
+          <div class="card-header"><h2 class="h6 mb-0">Fines and rewards</h2></div>
+          <div class="card-body small">
+            <div class="row g-2 align-items-center">
+              <div class="col-6">Late, per minute</div>
+              <div class="col-6"><div class="input-group input-group-sm"><span class="input-group-text">$</span><input type="number" min="0" step="0.01" class="form-control" name="late" [(ngModel)]="p.lateFinePerMinute" /></div></div>
+              <div class="col-6">No call, no show (3rd time: let go)</div>
+              <div class="col-6"><div class="input-group input-group-sm"><span class="input-group-text">$</span><input type="number" min="0" step="0.01" class="form-control" name="ncns" [(ngModel)]="p.noCallNoShowFine" /></div></div>
+              <div class="col-6">No uniform</div>
+              <div class="col-6"><div class="input-group input-group-sm"><span class="input-group-text">$</span><input type="number" min="0" step="0.01" class="form-control" name="uni" [(ngModel)]="p.noUniformFine" /></div></div>
+              <div class="col-6">Missed meeting</div>
+              <div class="col-6"><div class="input-group input-group-sm"><span class="input-group-text">$</span><input type="number" min="0" step="0.01" class="form-control" name="meet" [(ngModel)]="p.missedMeetingFine" /></div></div>
+              <div class="col-6">Missed Sync Sphere meeting</div>
+              <div class="col-6"><div class="input-group input-group-sm"><span class="input-group-text">$</span><input type="number" min="0" step="0.01" class="form-control" name="sync" [(ngModel)]="p.missedSyncMeetingFine" /></div></div>
+              <div class="col-6">Reward: scorecard below 1000 ranking</div>
+              <div class="col-6"><div class="input-group input-group-sm"><span class="input-group-text">$</span><input type="number" min="0" step="0.01" class="form-control" name="score" [(ngModel)]="p.scorecardReward" /></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 d-flex flex-wrap align-items-center gap-2">
+        @if (p.updatedAt) { <span class="small text-muted-2">Last changed by {{ p.updatedBy }} on {{ p.updatedAt | date: 'MMM d, y, h:mm a' }}.</span> }
+        <span class="small text-muted-2">Changes apply to open months right away; finalized months keep their payouts.</span>
+        <button type="submit" class="btn btn-primary ms-auto" [disabled]="planSaving()">Save plan</button>
+      </div>
+    </form>
+  }
+}

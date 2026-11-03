@@ -71,6 +71,18 @@ export class AuthService {
     );
   }
 
+  /** Turns the signed-in person's text-message updates on or off (only they can agree to texts). */
+  setSms(optIn: boolean): Observable<Me> {
+    return this.http.put<Me>('/api/auth/me/sms', { optIn }).pipe(
+      tap((user) => {
+        const s = this.session();
+        if (s) {
+          this.save({ ...s, user });
+        }
+      }),
+    );
+  }
+
   /** Turns the signed-in person's email schedule updates on or off. */
   setEmailUpdates(optIn: boolean): Observable<Me> {
     return this.http.put<Me>('/api/auth/me/email', { optIn }).pipe(

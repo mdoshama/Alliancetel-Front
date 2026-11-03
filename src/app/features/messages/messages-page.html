@@ -4,6 +4,24 @@
       <i class="bi bi-exclamation-triangle me-1"></i> Email isn't connected, so messages are listed below but not sent.
     </div>
   }
+  <div class="channel-strip mb-3">
+    <span class="channel-pill" [class.on]="s.emailConnected"><i class="bi bi-envelope"></i> Email {{ s.emailConnected ? 'connected' : 'not connected' }}</span>
+    <span class="channel-pill" [class.on]="s.connected"><i class="bi bi-whatsapp"></i> WhatsApp {{ s.connected ? 'connected' : 'not connected' }}
+      @if (s.whatsappProvider === 'twilio') { <span class="opacity-75">· Twilio{{ s.sandboxNumber ? ' Sandbox' : '' }}</span> }
+    </span>
+    <span class="channel-pill" [class.on]="s.smsConnected" [attr.title]="s.smsConnected ? 'From ' + s.smsFrom : 'Set SMS_ENABLED and the Twilio settings to send texts'">
+      <i class="bi bi-chat-text"></i> Text {{ s.smsConnected ? 'connected' : 'not connected' }}
+      @if (s.smsConnected && s.smsNotAgreed) { <span class="opacity-75">· {{ s.smsNotAgreed }} haven't agreed</span> }
+    </span>
+  </div>
+  @if (s.connected && s.sandboxNumber) {
+    <div class="alert alert-info small py-2 mb-3">
+      <i class="bi bi-info-circle me-1"></i>
+      WhatsApp is using the <strong>Twilio Sandbox</strong> (for testing). Each person must first send
+      <strong>{{ s.sandboxJoin }}</strong> on WhatsApp to {{ formatPhone(s.sandboxNumber) }}; they see this in their account menu.
+      Messages reach them for 24 hours after they last messaged the Sandbox.
+    </div>
+  }
 
   <div class="row g-3 mb-3">
     <div class="col-6 col-lg-3">
@@ -84,9 +102,10 @@
     }
   </ul>
   <select class="form-select ms-auto" style="width: auto" aria-label="Channel" [ngModel]="channel()" (ngModelChange)="setChannel($event)">
-    <option [ngValue]="null">Email and WhatsApp</option>
+    <option [ngValue]="null">All channels</option>
     <option ngValue="EMAIL">Email</option>
     <option ngValue="WHATSAPP">WhatsApp</option>
+    <option ngValue="SMS">Text message</option>
   </select>
   <button type="button" class="btn btn-light border" (click)="loadStatus(); load()"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
 </div>
@@ -117,7 +136,8 @@
                 <div class="fw-semibold">
                   <i class="bi me-1" [class.bi-envelope]="m.channel === 'EMAIL'" [class.text-primary]="m.channel === 'EMAIL'"
                      [class.bi-whatsapp]="m.channel === 'WHATSAPP'" [class.text-success]="m.channel === 'WHATSAPP'"
-                     [attr.title]="m.channel === 'EMAIL' ? 'Email' : 'WhatsApp'"></i>{{ m.employeeName }}
+                     [class.bi-chat-text]="m.channel === 'SMS'" [class.text-info]="m.channel === 'SMS'"
+                     [attr.title]="m.channel === 'EMAIL' ? 'Email' : m.channel === 'SMS' ? 'Text message' : 'WhatsApp'"></i>{{ m.employeeName }}
                 </div>
                 <div class="small text-muted-2 text-break">
                   @if (m.channel === 'EMAIL') { {{ m.email }} } @else { {{ m.phone ? formatPhone(m.phone) : 'No phone' }} }

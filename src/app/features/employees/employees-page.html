@@ -114,13 +114,18 @@
           @for (e of employees(); track e.id) {
             <tr [class.opacity-50]="!e.active">
               <td style="min-width: 190px">
-                <div class="fw-semibold">{{ e.fullName }}</div>
+                <div class="fw-semibold">
+                  @if (e.role !== 'ADMIN') {
+                    <a [routerLink]="['/performance/employees', e.id]" class="text-decoration-none" title="See their sales performance">{{ e.fullName }}</a>
+                  } @else { {{ e.fullName }} }
+                </div>
                 <div class="small text-muted-2">{{ e.employeeCode }}</div>
                 <div class="small text-muted-2 text-break">
                   <i class="bi bi-envelope me-1"></i>{{ e.email }}
                   @if (e.phone) {
                     <br /><i class="bi bi-telephone me-1"></i>{{ formatPhone(e.phone) }}
                     @if (e.whatsappOptIn) { <i class="bi bi-whatsapp text-success ms-1" title="Gets schedule updates on WhatsApp"></i> }
+                    @if (e.smsOptIn) { <i class="bi bi-chat-text text-info ms-1" title="Gets schedule updates by text message"></i> }
                   }
                 </div>
               </td>

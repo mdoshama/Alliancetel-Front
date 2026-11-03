@@ -107,10 +107,21 @@ body {
 }
 
 .brand-text {
+  display: flex;
+  flex-direction: column;
   font-weight: 700;
   font-size: 1.1rem;
+  line-height: 1.15;
   letter-spacing: 0.01em;
   white-space: nowrap;
+}
+
+.brand-sub {
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #8fa3d6;
 }
 
 .sidebar-nav {
@@ -154,9 +165,9 @@ body {
   }
 
   &.active {
-    background: var(--at-primary);
+    background: linear-gradient(90deg, var(--at-primary) 0%, #3a6ae6 100%);
     color: #fff;
-    box-shadow: 0 4px 12px rgba(var(--at-primary-rgb), 0.35);
+    box-shadow: 0 6px 16px rgba(var(--at-primary-rgb), 0.35);
   }
 }
 
@@ -196,10 +207,37 @@ body {
   border-bottom: 1px solid var(--at-border);
 }
 
+.topbar-heading {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.topbar-crumb {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-right: 0.45rem;
+  font-size: 0.85rem;
+  color: var(--at-muted);
+  white-space: nowrap;
+
+  i {
+    font-size: 0.7rem;
+  }
+
+  @media (max-width: 575.98px) {
+    display: none;
+  }
+}
+
 .topbar-title {
   font-size: 1.1rem;
   font-weight: 600;
   margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .topbar-toggle {
@@ -1441,9 +1479,10 @@ body {
 
   .toolbar-actions {
     margin-left: 0 !important;
+    flex-wrap: wrap;
 
     .btn {
-      flex: 1 1 0;
+      flex: 1 1 auto;
       padding-left: 0.4rem;
       padding-right: 0.4rem;
       font-size: 0.85rem;
@@ -2491,4 +2530,220 @@ button.stat-card {
   line-clamp: 7;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+/* ---------- Operations dashboard ---------- */
+
+.dash-hero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem 1.5rem;
+  padding: 1.5rem 1.75rem;
+  border-radius: 1rem;
+  color: #dbe3f5;
+  background:
+    radial-gradient(circle at 90% 0%, rgba(var(--at-primary-rgb), 0.55), transparent 50%),
+    linear-gradient(135deg, var(--at-navy) 0%, var(--at-navy-2) 100%);
+  box-shadow: 0 10px 30px rgba(15, 29, 58, 0.18);
+}
+
+.dash-hero-date {
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #8fa3d6;
+}
+
+.dash-hero-title {
+  margin: 0.15rem 0 0.25rem;
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.dash-hero-sub {
+  color: #b9c5e3;
+}
+
+.dash-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-left: auto;
+
+  .btn-light {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.18);
+    color: #fff;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+  }
+
+  @media (max-width: 575.98px) {
+    margin-left: 0;
+    width: 100%;
+
+    .btn {
+      flex: 1 1 auto;
+    }
+  }
+}
+
+.dash-section-title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--at-muted);
+}
+
+.dash-progress {
+  height: 4px;
+  background: var(--at-page-bg);
+
+  > div {
+    height: 100%;
+    background: linear-gradient(90deg, #1f9d55, #34c172);
+    transition: width 0.4s ease;
+  }
+}
+
+.dash-store-list {
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.min-w-0 {
+  min-width: 0;
+}
+
+.dash-leaders li + li {
+  margin-top: 0.85rem;
+}
+
+.dash-leader {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: inherit;
+  text-decoration: none;
+
+  &:hover .fw-semibold {
+    color: var(--at-primary);
+  }
+}
+
+.dash-rank {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  background: var(--at-page-bg);
+  color: var(--at-muted);
+
+  &.gold {
+    background: #fff1c2;
+    color: #8a5a00;
+  }
+}
+
+.dash-bar {
+  display: block;
+  height: 6px;
+  margin-top: 0.35rem;
+  border-radius: 3px;
+  background: var(--at-page-bg);
+
+  > span {
+    display: block;
+    height: 100%;
+    border-radius: 3px;
+    background: var(--at-primary);
+  }
+}
+
+.dash-trend {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 48px;
+
+  > span {
+    flex: 1 1 0;
+    max-width: 18px;
+    min-height: 2px;
+    border-radius: 2px 2px 0 0;
+    background: rgba(var(--at-primary-rgb), 0.55);
+
+    &:last-child {
+      background: var(--at-primary);
+    }
+  }
+}
+
+/* ---------- End of Day ---------- */
+
+/* "Over by $x" nudge in the close out: log it as accessories. */
+.over-hint {
+  padding: 0.6rem 0.7rem;
+  border-radius: 0.5rem;
+  background: var(--bs-warning-bg-subtle);
+  color: var(--bs-warning-text-emphasis);
+}
+
+/* ---------- Messages: which channels are connected ---------- */
+
+.channel-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.channel-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  border: 1px solid #e3e7ef !important;
+  background: #f6f7f9;
+  color: #4a5263;
+
+  i {
+    font-size: 0.9rem;
+    color: inherit !important;
+  }
+
+  &.on {
+    border-color: #bfe5cd !important;
+    background: #e2f5ea;
+    color: #146c43;
+  }
+}
+
+.sms-consent {
+  font-size: 0.72rem;
+  max-width: 240px;
+  white-space: normal;
+}
+
+.sandbox-hint {
+  font-size: 0.75rem;
+  line-height: 1.35;
+  max-width: 240px;
+  white-space: normal;
+  padding: 0.4rem 0.55rem;
+  border-radius: 0.4rem;
+  background: #e8f7ee;
+  color: #146c43;
 }

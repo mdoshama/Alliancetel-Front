@@ -2,7 +2,7 @@
   <aside class="sidebar" aria-label="Main navigation">
     <a class="sidebar-brand" [routerLink]="auth.homeUrl()">
       <span class="brand-mark">AT</span>
-      <span class="brand-text">AllianceTel</span>
+      <span class="brand-text">AllianceTel<span class="brand-sub">Enterprise Suite</span></span>
     </a>
 
     <nav class="sidebar-nav">
@@ -19,7 +19,7 @@
 
     <div class="sidebar-footer">
       <i class="bi bi-shield-check"></i>
-      <span class="link-label">Workforce Scheduling</span>
+      <span class="link-label">AllianceTel Enterprise · v{{ appVersion }}</span>
     </div>
   </aside>
 
@@ -30,11 +30,14 @@
       <button type="button" class="btn btn-light btn-sm topbar-toggle" aria-label="Toggle menu" (click)="toggleSidebar()">
         <i class="bi bi-list fs-5"></i>
       </button>
-      <h1 class="topbar-title">{{ heading() }}</h1>
+      <div class="topbar-heading">
+        @if (section()) { <span class="topbar-crumb">{{ section() }}<i class="bi bi-chevron-right"></i></span> }
+        <h1 class="topbar-title">{{ heading() }}</h1>
+      </div>
 
       @if (auth.user(); as user) {
         <div class="ms-auto user-menu">
-          <button type="button" class="user-menu-toggle" (click)="menuOpen.set(!menuOpen())" [attr.aria-expanded]="menuOpen()">
+          <button type="button" class="user-menu-toggle" (click)="toggleMenu()" [attr.aria-expanded]="menuOpen()">
             <span class="d-none d-sm-flex flex-column align-items-end lh-sm">
               <span class="fw-semibold small">{{ user.fullName }}</span>
               <span class="text-muted-2" style="font-size: 0.75rem">
@@ -70,6 +73,26 @@
                   </div>
                   <div class="small text-muted-2 mt-1">
                     @if (user.phone) { To {{ formatPhone(user.phone) }} } @else { No phone number on file. Ask your manager to add it. }
+                  </div>
+                  @if (messaging(); as m) {
+                    @if (m.sandboxNumber && m.sandboxJoin) {
+                      <div class="sandbox-hint mt-2">
+                        First, on WhatsApp send <strong>{{ m.sandboxJoin }}</strong> to {{ formatPhone(m.sandboxNumber) }}.
+                        <a [href]="sandboxLink(m)" target="_blank" rel="noopener">Open WhatsApp</a>
+                      </div>
+                    }
+                  }
+                </div>
+                <div class="px-3 pb-2 wa-optin">
+                  <div class="form-check form-switch mb-0">
+                    <input class="form-check-input" type="checkbox" id="smsOptIn" [checked]="!!user.smsOptIn"
+                           [disabled]="!user.phone || savingWhatsapp()" (change)="toggleSms($event)" />
+                    <label class="form-check-label small" for="smsOptIn">
+                      <i class="bi bi-chat-text text-info"></i> By text message
+                    </label>
+                  </div>
+                  <div class="small text-muted-2 mt-1 sms-consent">
+                    Schedule texts from AllianceTel. Msg &amp; data rates may apply. Reply STOP to stop, HELP for help.
                   </div>
                 </div>
                 <div class="dropdown-divider"></div>

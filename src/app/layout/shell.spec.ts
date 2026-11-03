@@ -25,17 +25,17 @@ describe('Shell', () => {
   it('shows the AllianceTel brand and the full menu to admins', async () => {
     const { el, labels } = await renderAs('ADMIN');
     expect(el.querySelector('.brand-text')?.textContent).toContain('AllianceTel');
-    expect(labels).toEqual(['Dashboard', 'Weekly Schedule', 'Day-off Requests', 'Messages', 'Employees', 'Areas', 'Stores']);
+    expect(labels).toEqual(['Dashboard', 'Performance', 'Weekly Schedule', 'Day-off Requests', 'Employees', 'Messages', 'End of Day', 'Commission', 'Areas', 'Stores', 'Devices']);
   });
 
   it('shows managers their team but not areas', async () => {
     const { labels } = await renderAs('MANAGER');
-    expect(labels).toEqual(['Dashboard', 'Weekly Schedule', 'Day-off Requests', 'Stores', 'Messages', 'My Team']);
+    expect(labels).toEqual(['Dashboard', 'Performance', 'Weekly Schedule', 'Day-off Requests', 'My Team', 'Messages', 'End of Day', 'Stores']);
   });
 
   it('shows employees only their own pages', async () => {
     const { labels } = await renderAs('EMPLOYEE');
-    expect(labels).toEqual(['My Schedule', 'My Days Off', 'Stores']);
+    expect(labels).toEqual(['My Schedule', 'My Days Off', 'End of Day', 'My Performance', 'Stores']);
   });
 
   it('shows the signed-in user and their area in the top bar', async () => {
@@ -43,6 +43,17 @@ describe('Shell', () => {
     expect(el.querySelector('.user-menu-toggle')?.textContent).toContain('Sam Rivera');
     expect(el.querySelector('.user-menu-toggle')?.textContent).toContain('Manager · San Diego');
     expect(el.querySelector('.avatar')?.textContent?.trim()).toBe('SR');
+  });
+
+  it('lets staff turn on email, WhatsApp and text-message updates from their menu', async () => {
+    const { fixture, el } = await renderAs('EMPLOYEE');
+    (el.querySelector('.user-menu-toggle') as HTMLButtonElement).click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(el.querySelector('#emailOptIn')).not.toBeNull();
+    expect(el.querySelector('#waOptIn')).not.toBeNull();
+    expect(el.querySelector('label[for=smsOptIn]')?.textContent).toContain('By text message');
+    expect(el.querySelector('.sms-consent')?.textContent).toContain('Reply STOP');
   });
 
   it('collapses the sidebar on desktop when the menu button is clicked', async () => {

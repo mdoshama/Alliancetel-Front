@@ -1,3 +1,4 @@
+import { RouterLink } from '@angular/router';
 import { Component, OnInit, computed, inject, input, signal } from '@angular/core';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { DatePipe } from '@angular/common';
@@ -26,7 +27,7 @@ import {
 
 @Component({
   selector: 'app-employees-page',
-  imports: [ReactiveFormsModule, FormsModule, Modal, DatePipe, Pagination],
+  imports: [ReactiveFormsModule, FormsModule, Modal, DatePipe, Pagination, RouterLink],
   templateUrl: './employees-page.html',
 })
 export class EmployeesPage implements OnInit {

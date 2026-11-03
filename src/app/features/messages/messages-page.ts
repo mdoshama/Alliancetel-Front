@@ -150,7 +150,10 @@ export class MessagesPage implements OnInit, OnDestroy {
       icon: 'bi-megaphone',
       tone: 'primary',
       notes: [
-        'Everyone gets it by email (unless they turned email off)' + (s?.connected ? ', and on WhatsApp if they agreed.' : '.'),
+        'Everyone gets it by email (unless they turned email off)' +
+          (s?.connected ? ', on WhatsApp if they agreed' : '') +
+          (s?.smsConnected ? ', and by text if they agreed' : '') +
+          '.',
         ...(s && !s.emailConnected ? ["Email isn't connected yet, so it will only be recorded here."] : []),
       ],
       confirmText: 'Send announcement',
