@@ -2747,3 +2747,14 @@ button.stat-card {
   background: #e8f7ee;
   color: #146c43;
 }
+
+.sms-consent-box {
+  max-width: 260px;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--at-border);
+  border-radius: 0.5rem;
+  background: #f8faff;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  white-space: normal;
+}

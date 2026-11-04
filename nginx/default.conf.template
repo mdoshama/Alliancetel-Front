@@ -51,6 +51,20 @@ server {
         include /etc/nginx/snippets/security-headers.conf;
     }
 
+    # Public Privacy Policy and Terms (plain HTML, readable without JavaScript; linked from the SMS campaign).
+    # Exact matches so /privacy and /terms are served directly, without a redirect to /privacy/.
+    location = /privacy {
+        try_files /privacy/index.html =404;
+        add_header Cache-Control "no-cache";
+        include /etc/nginx/snippets/security-headers.conf;
+    }
+
+    location = /terms {
+        try_files /terms/index.html =404;
+        add_header Cache-Control "no-cache";
+        include /etc/nginx/snippets/security-headers.conf;
+    }
+
     # Build output has content hashes in file names, so it can be cached for a long time.
     location ~* \.(?:js|css|woff2?|ttf|eot|svg|png|jpe?g|gif|ico)$ {
         try_files $uri =404;

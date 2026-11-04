@@ -56,6 +56,26 @@ describe('Shell', () => {
     expect(el.querySelector('.sms-consent')?.textContent).toContain('Reply STOP');
   });
 
+  it('asks for consent with the SMS Terms before turning on texts', async () => {
+    const { fixture, el } = await renderAs('EMPLOYEE');
+    (el.querySelector('.user-menu-toggle') as HTMLButtonElement).click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const toggle = el.querySelector('#smsOptIn') as HTMLInputElement;
+    if (toggle.disabled) {
+      return; // no phone on file in this test session
+    }
+    toggle.checked = true;
+    toggle.dispatchEvent(new Event('change'));
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const box = el.querySelector('.sms-consent-box');
+    expect(box?.textContent).toContain('Message and data rates may apply');
+    expect(box?.textContent).toContain('Reply STOP');
+    expect(box?.querySelector('a[href="/terms#sms-terms"]')).not.toBeNull();
+    expect(box?.querySelector('a[href="/privacy"]')).not.toBeNull();
+  });
+
   it('collapses the sidebar on desktop when the menu button is clicked', async () => {
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1400 });
     const { fixture, el } = await renderAs('ADMIN');

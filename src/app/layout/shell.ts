@@ -8,6 +8,7 @@ import { ToastService } from '../core/toast.service';
 import { formatPhone } from '../core/validation';
 import { HttpClient } from '@angular/common/http';
 import { MessagingInfo, ROLE_LABELS, Role } from '../core/models';
+import { SMS_CONSENT_TEXT } from '../features/legal/legal-info';
 
 interface NavItem {
   label: string;
@@ -179,18 +180,41 @@ export class Shell {
     });
   }
 
+  /** Turning texts on first shows the consent wording and the SMS Terms; nothing is sent until they agree. */
+  protected readonly smsConsentOpen = signal(false);
+  protected readonly smsConsentText = SMS_CONSENT_TEXT;
+
   /** Texts need the person's own agreement (US carrier rules), so only they can turn this on. */
   protected toggleSms(event: Event): void {
     const on = (event.target as HTMLInputElement).checked;
+    if (on) {
+      this.smsConsentOpen.set(true);
+      return;
+    }
+    if (this.smsConsentOpen()) {
+      this.smsConsentOpen.set(false);
+      return;
+    }
+    this.saveSms(false, event);
+  }
+
+  protected agreeToSms(): void {
+    this.saveSms(true);
+  }
+
+  private saveSms(on: boolean, event?: Event): void {
     this.savingWhatsapp.set(true);
     this.auth.setSms(on).subscribe({
       next: () => {
         this.savingWhatsapp.set(false);
+        this.smsConsentOpen.set(false);
         this.toast.success(on ? "You'll get your schedule by text message." : 'Text message updates turned off.');
       },
       error: () => {
         this.savingWhatsapp.set(false);
-        (event.target as HTMLInputElement).checked = !on;
+        if (event) {
+          (event.target as HTMLInputElement).checked = !on;
+        }
       },
     });
   }

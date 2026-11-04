@@ -85,19 +85,36 @@
                 </div>
                 <div class="px-3 pb-2 wa-optin">
                   <div class="form-check form-switch mb-0">
-                    <input class="form-check-input" type="checkbox" id="smsOptIn" [checked]="!!user.smsOptIn"
+                    <input class="form-check-input" type="checkbox" id="smsOptIn" [checked]="!!user.smsOptIn || smsConsentOpen()"
                            [disabled]="!user.phone || savingWhatsapp()" (change)="toggleSms($event)" />
                     <label class="form-check-label small" for="smsOptIn">
                       <i class="bi bi-chat-text text-info"></i> By text message
                     </label>
                   </div>
-                  <div class="small text-muted-2 mt-1 sms-consent">
-                    Schedule texts from AllianceTel. Msg &amp; data rates may apply. Reply STOP to stop, HELP for help.
-                  </div>
+                  @if (smsConsentOpen()) {
+                    <div class="sms-consent-box mt-2" role="group" aria-label="Text message consent">
+                      <p class="mb-2">{{ smsConsentText }}</p>
+                      <p class="mb-2">
+                        See the <a href="/terms#sms-terms" target="_blank" rel="noopener">SMS Terms</a> and
+                        <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>.
+                      </p>
+                      <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-primary btn-sm flex-grow-1" [disabled]="savingWhatsapp()" (click)="agreeToSms()">I agree</button>
+                        <button type="button" class="btn btn-light btn-sm border" (click)="smsConsentOpen.set(false)">Cancel</button>
+                      </div>
+                    </div>
+                  } @else {
+                    <div class="small text-muted-2 mt-1 sms-consent">
+                      Msg &amp; data rates may apply. Reply STOP to stop, HELP for help.
+                      <a href="/terms#sms-terms" target="_blank" rel="noopener">SMS Terms</a> ·
+                      <a href="/privacy" target="_blank" rel="noopener">Privacy</a>
+                    </div>
+                  }
                 </div>
                 <div class="dropdown-divider"></div>
               }
               <a class="dropdown-item" routerLink="/change-password"><i class="bi bi-key me-2"></i>Change password</a>
+              <a class="dropdown-item" href="/terms" target="_blank" rel="noopener"><i class="bi bi-file-text me-2"></i>Terms &amp; Privacy</a>
               <button type="button" class="dropdown-item" (click)="signOutEverywhere()">
                 <i class="bi bi-phone me-2"></i>Sign out everywhere
               </button>
