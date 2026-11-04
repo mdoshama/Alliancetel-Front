@@ -1,9 +1,11 @@
 /**
  * Details shown on the Privacy Policy and Terms & Conditions pages and in the text-message consent.
- * BRAND_NAME must match the Brand name registered with Twilio (A2P 10DLC) exactly.
+ * legalName must match the Brand (legal company name) registered with Twilio for A2P 10DLC exactly.
  */
 export const LEGAL = {
   brandName: 'AllianceTel',
+  /** The registered legal entity (the Brand registered with Twilio for A2P 10DLC). */
+  legalName: 'NAZRA ANWAR LLC',
   /** Where people (and carriers) can reach us about privacy, texts or these terms. */
   contactEmail: 'support@atdirect.app',
   website: 'atdirect.app',
@@ -14,7 +16,8 @@ export const LEGAL = {
 
 /** The consent wording shown before someone turns on texts (also what the SMS campaign's opt-in describes). */
 export const SMS_CONSENT_TEXT =
-  `By turning on text messages, you agree to receive recurring automated work schedule texts from ${LEGAL.brandName} ` +
+  `By turning on text messages, you agree to receive recurring automated work schedule texts from ` +
+  `${LEGAL.brandName} (${LEGAL.legalName}) ` +
   `at the mobile number on your account: your weekly schedule, schedule changes, day-off decisions and team ` +
   `announcements. ${LEGAL.messageFrequency}. Message and data rates may apply. Reply STOP to opt out at any time, ` +
   `or HELP for help. Consent is not a condition of employment.`;
