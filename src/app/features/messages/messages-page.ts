@@ -56,6 +56,11 @@ export class MessagesPage implements OnInit, OnDestroy {
   protected readonly loading = signal(true);
   protected readonly sending = signal(false);
   protected readonly retrying = signal<number | null>(null);
+  /** Admins: clearing old messages. */
+  protected readonly clearOptions = [30, 60, 90, 180, 365];
+  protected clearDays = 90;
+  protected readonly clearing = signal(false);
+  protected readonly deleting = signal<number | null>(null);
 
   protected announceArea: number | null = null;
   protected readonly message = signal('');
@@ -175,6 +180,53 @@ export class MessagesPage implements OnInit, OnDestroy {
         this.load();
       },
       error: () => this.sending.set(false),
+    });
+  }
+
+  /** Admins: remove messages older than the chosen age (all areas). Ones still being sent are kept. */
+  protected async clearOld(): Promise<void> {
+    const days = this.clearDays;
+    const ok = await this.confirm.ask({
+      title: `Clear messages older than ${days} days?`,
+      message: 'They are removed from the Messages page for every area. This can\'t be undone.',
+      icon: 'bi-trash3',
+      tone: 'danger',
+      notes: ['Messages still being sent are kept.', 'People keep the emails, texts and WhatsApp messages they already got.'],
+      confirmText: 'Clear messages',
+    });
+    if (!ok) return;
+    this.clearing.set(true);
+    this.api.clearNotifications(days).subscribe({
+      next: (res) => {
+        this.clearing.set(false);
+        this.toast.success(res.deleted === 0 ? `No messages older than ${days} days.` : `Cleared ${res.deleted} message${res.deleted === 1 ? '' : 's'}.`);
+        this.page.set(0);
+        this.loadStatus();
+        this.load();
+      },
+      error: () => this.clearing.set(false),
+    });
+  }
+
+  /** Admins: remove one message from the history. */
+  protected async remove(item: NotificationItem): Promise<void> {
+    const ok = await this.confirm.ask({
+      title: 'Delete this message?',
+      message: `The message to ${item.employeeName} is removed from this page. It isn't recalled from their phone or inbox.`,
+      icon: 'bi-trash3',
+      tone: 'danger',
+      confirmText: 'Delete',
+    });
+    if (!ok) return;
+    this.deleting.set(item.id);
+    this.api.deleteNotification(item.id).subscribe({
+      next: () => {
+        this.deleting.set(null);
+        this.toast.success('Message deleted.');
+        this.loadStatus();
+        this.load(true);
+      },
+      error: () => this.deleting.set(null),
     });
   }
 

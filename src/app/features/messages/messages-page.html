@@ -116,6 +116,16 @@
     <option ngValue="SMS">Text message</option>
   </select>
   <button type="button" class="btn btn-light border" (click)="loadStatus(); load()"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
+  @if (auth.isAdmin()) {
+    <div class="input-group clear-old" style="width: auto">
+      <select class="form-select" aria-label="Clear messages older than" [(ngModel)]="clearDays">
+        @for (d of clearOptions; track d) { <option [ngValue]="d">Older than {{ d }} days</option> }
+      </select>
+      <button type="button" class="btn btn-outline-danger" [disabled]="clearing()" (click)="clearOld()">
+        <i class="bi bi-trash3 me-1"></i>Clear
+      </button>
+    </div>
+  }
 </div>
 
 <div class="card messages-card">
@@ -165,6 +175,12 @@
                 @if (m.status === 'FAILED' && (m.channel === 'EMAIL' ? !!m.email : !!m.phone)) {
                   <button type="button" class="btn btn-sm btn-outline-primary" [disabled]="retrying() === m.id" (click)="retry(m)">
                     <i class="bi bi-arrow-repeat"></i> Try again
+                  </button>
+                }
+                @if (auth.isAdmin() && m.status !== 'QUEUED') {
+                  <button type="button" class="btn btn-sm btn-link text-danger ms-1" [disabled]="deleting() === m.id"
+                          [attr.aria-label]="'Delete message to ' + m.employeeName" title="Delete this message" (click)="remove(m)">
+                    <i class="bi bi-trash3"></i>
                   </button>
                 }
               </td>

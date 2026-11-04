@@ -151,6 +151,14 @@ export class ApiService {
   announce(areaId: number, message: string): Observable<{ recipients: number; reachable: number }> {
     return this.http.post<{ recipients: number; reachable: number }>(`${this.base}/notifications/announce`, { areaId, message });
   }
+  /** Admins only: remove one message from the history. */
+  deleteNotification(id: number): Observable<void> {
+    return this.http.delete<void>(`${this.base}/notifications/${id}`);
+  }
+  /** Admins only: clear messages older than the given number of days (all areas, or one). */
+  clearNotifications(olderThanDays: number, areaId: number | null = null): Observable<{ deleted: number }> {
+    return this.http.delete<{ deleted: number }>(`${this.base}/notifications`, { params: toParams({ olderThanDays, areaId }) });
+  }
   retryNotification(id: number): Observable<NotificationItem> {
     return this.http.post<NotificationItem>(`${this.base}/notifications/${id}/retry`, {});
   }
