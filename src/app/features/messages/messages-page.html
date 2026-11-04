@@ -7,7 +7,9 @@
   <div class="channel-strip mb-3">
     <span class="channel-pill" [class.on]="s.emailConnected"><i class="bi bi-envelope"></i> Email {{ s.emailConnected ? 'connected' : 'not connected' }}</span>
     <span class="channel-pill" [class.on]="s.connected"><i class="bi bi-whatsapp"></i> WhatsApp {{ s.connected ? 'connected' : 'not connected' }}
-      @if (s.whatsappProvider === 'twilio') { <span class="opacity-75">· Twilio{{ s.sandboxNumber ? ' Sandbox' : '' }}</span> }
+      @if (s.whatsappProvider === 'twilio') {
+        <span class="opacity-75">· {{ s.sandboxNumber ? 'Twilio Sandbox' : 'Twilio ' + formatPhone(s.whatsappFrom || '') }}</span>
+      }
     </span>
     <span class="channel-pill" [class.on]="s.smsConnected" [attr.title]="s.smsConnected ? 'From ' + s.smsFrom : 'Set SMS_ENABLED and the Twilio settings to send texts'">
       <i class="bi bi-chat-text"></i> Text {{ s.smsConnected ? 'connected' : 'not connected' }}
@@ -17,9 +19,15 @@
   @if (s.connected && s.sandboxNumber) {
     <div class="alert alert-info small py-2 mb-3">
       <i class="bi bi-info-circle me-1"></i>
-      WhatsApp is using the <strong>Twilio Sandbox</strong> (for testing). Each person must first send
-      <strong>{{ s.sandboxJoin }}</strong> on WhatsApp to {{ formatPhone(s.sandboxNumber) }}; they see this in their account menu.
-      Messages reach them for 24 hours after they last messaged the Sandbox.
+      WhatsApp is sending from the <strong>Twilio Sandbox</strong> number ({{ formatPhone(s.sandboxNumber) }}), which is for testing.
+      @if (s.sandboxJoin) { Each person must first send <strong>{{ s.sandboxJoin }}</strong> to it; they see this in their account menu. }
+      To send from your own registered WhatsApp number, set <code>TWILIO_WHATSAPP_FROM</code> to it in Railway.
+    </div>
+  } @else if (s.connected && s.whatsappProvider === 'twilio' && !s.whatsappTemplatesReady) {
+    <div class="alert alert-warning small py-2 mb-3">
+      <i class="bi bi-exclamation-triangle me-1"></i>
+      WhatsApp is sending from {{ formatPhone(s.whatsappFrom || '') }}, but the approved message templates aren't all set
+      (<code>TWILIO_WA_CONTENT_…</code>). Until they are, WhatsApp only reaches people who messaged you in the last 24 hours.
     </div>
   }
 

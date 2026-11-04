@@ -453,6 +453,9 @@ export interface WhatsAppStatus {
   whatsappProvider: 'meta' | 'twilio';
   sandboxNumber: string | null;
   sandboxJoin: string | null;
+  /** Twilio: the number WhatsApp comes from, and whether all four approved templates are set. */
+  whatsappFrom: string | null;
+  whatsappTemplatesReady: boolean;
 }
 
 /** Which update channels are on, for everyone signed in (shown in the account menu). */
