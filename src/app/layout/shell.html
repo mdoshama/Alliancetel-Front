@@ -93,13 +93,20 @@
                   </div>
                   @if (smsConsentOpen()) {
                     <div class="sms-consent-box mt-2" role="group" aria-label="Text message consent">
+                      <div class="fw-semibold mb-1">Text message consent</div>
+                      <label class="form-label mb-1" for="smsPhone">Mobile number</label>
+                      <input id="smsPhone" class="form-control form-control-sm mb-2" [value]="formatPhone(user.phone || '')" readonly />
                       <p class="mb-2">{{ smsConsentText }}</p>
-                      <p class="mb-2">
-                        See the <a href="/terms#sms-terms" target="_blank" rel="noopener">SMS Terms</a> and
-                        <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>.
-                      </p>
+                      <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="smsAgree" [checked]="smsAgreed()" (change)="smsAgreed.set($any($event.target).checked)" />
+                        <label class="form-check-label" for="smsAgree">
+                          I agree to receive work schedule text messages from AllianceTel (NAZRA ANWAR LLC) at this number,
+                          and to the <a href="/terms#sms-terms" target="_blank" rel="noopener">SMS Terms</a> and
+                          <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>.
+                        </label>
+                      </div>
                       <div class="d-flex gap-2">
-                        <button type="button" class="btn btn-primary btn-sm flex-grow-1" [disabled]="savingWhatsapp()" (click)="agreeToSms()">I agree</button>
+                        <button type="button" class="btn btn-primary btn-sm flex-grow-1" [disabled]="!smsAgreed() || savingWhatsapp()" (click)="agreeToSms()">Turn on text messages</button>
                         <button type="button" class="btn btn-light btn-sm border" (click)="smsConsentOpen.set(false)">Cancel</button>
                       </div>
                     </div>

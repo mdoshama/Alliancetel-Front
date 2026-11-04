@@ -395,7 +395,7 @@ export const DAY_TYPE_LABELS: Record<DayType, string> = {
 
 // ---- WhatsApp messages ---------------------------------------------------------------------------------
 
-export type NotificationKind = 'WEEK_PUBLISHED' | 'WEEK_CHANGED' | 'DAY_OFF_DECISION' | 'ANNOUNCEMENT';
+export type NotificationKind = 'WEEK_PUBLISHED' | 'WEEK_CHANGED' | 'DAY_OFF_DECISION' | 'ANNOUNCEMENT' | 'SMS_OPT_IN';
 export type NotificationStatus = 'QUEUED' | 'SENT' | 'FAILED' | 'NOT_SENT';
 export type NotificationChannel = 'EMAIL' | 'WHATSAPP' | 'SMS';
 
@@ -404,6 +404,7 @@ export const NOTIFICATION_KIND_LABELS: Record<NotificationKind, string> = {
   WEEK_CHANGED: 'Schedule changed',
   DAY_OFF_DECISION: 'Day-off decision',
   ANNOUNCEMENT: 'Announcement',
+  SMS_OPT_IN: 'Text sign-up',
 };
 
 export const NOTIFICATION_STATUS_LABELS: Record<NotificationStatus, string> = {

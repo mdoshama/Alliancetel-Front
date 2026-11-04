@@ -65,6 +65,12 @@ server {
         include /etc/nginx/snippets/security-headers.conf;
     }
 
+    location = /sms-consent {
+        try_files /sms-consent/index.html =404;
+        add_header Cache-Control "no-cache";
+        include /etc/nginx/snippets/security-headers.conf;
+    }
+
     # Build output has content hashes in file names, so it can be cached for a long time.
     location ~* \.(?:js|css|woff2?|ttf|eot|svg|png|jpe?g|gif|ico)$ {
         try_files $uri =404;

@@ -182,12 +182,15 @@ export class Shell {
 
   /** Turning texts on first shows the consent wording and the SMS Terms; nothing is sent until they agree. */
   protected readonly smsConsentOpen = signal(false);
+  /** The consent box's "I agree" tick, unticked each time it opens. */
+  protected readonly smsAgreed = signal(false);
   protected readonly smsConsentText = SMS_CONSENT_TEXT;
 
   /** Texts need the person's own agreement (US carrier rules), so only they can turn this on. */
   protected toggleSms(event: Event): void {
     const on = (event.target as HTMLInputElement).checked;
     if (on) {
+      this.smsAgreed.set(false);
       this.smsConsentOpen.set(true);
       return;
     }
@@ -199,6 +202,9 @@ export class Shell {
   }
 
   protected agreeToSms(): void {
+    if (!this.smsAgreed()) {
+      return;
+    }
     this.saveSms(true);
   }
 
