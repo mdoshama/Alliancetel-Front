@@ -7,7 +7,7 @@
         <div class="text-muted-2 small">
           <span class="badge text-bg-light border me-1">{{ roleLabels[user.role] }}</span>
           @if (user.areaName) { {{ user.areaName }} }
-          @if (user.homeStoreName) { · {{ user.homeStoreName }} }
+          @if (user.homeStoreName && !auth.isEmployee()) { · {{ user.homeStoreName }} }
         </div>
       </div>
       @if (birthdayLabel(); as b) {
@@ -72,9 +72,13 @@
           <dt class="col-sm-4 text-muted-2 fw-normal">Role</dt>
           <dd class="col-sm-8">{{ roleLabels[user.role] }}</dd>
           <dt class="col-sm-4 text-muted-2 fw-normal">Area</dt>
-          <dd class="col-sm-8">{{ user.areaName || '—' }}</dd>
-          <dt class="col-sm-4 text-muted-2 fw-normal">Home store</dt>
-          <dd class="col-sm-8 mb-0">{{ user.homeStoreName || 'None (floater)' }}</dd>
+          <dd class="col-sm-8" [class.mb-0]="auth.isEmployee()">{{ user.areaName || '—' }}</dd>
+          <!-- Primary / secondary / floater is for admins and managers only, so employees don't see their home store
+               here (having none would give away that they float). Their schedule shows where they work each day. -->
+          @if (!auth.isEmployee()) {
+            <dt class="col-sm-4 text-muted-2 fw-normal">Home store</dt>
+            <dd class="col-sm-8 mb-0">{{ user.homeStoreName || '—' }}</dd>
+          }
         </dl>
         <div class="card-footer small text-muted-2">Something wrong here? Ask your manager or an admin to fix it.</div>
       </div>

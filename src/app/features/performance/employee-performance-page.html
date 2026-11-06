@@ -7,7 +7,7 @@
       <div class="me-auto">
         <h2 class="h4 mb-0">{{ p.name }}</h2>
         <div class="text-muted-2 small">
-          {{ roleLabels[p.role] }} · {{ p.employeeCode }}@if (p.areaName) { · {{ p.areaName }} }@if (p.homeStoreName) { · home store {{ p.homeStoreName }} }
+          {{ roleLabels[p.role] }} · {{ p.employeeCode }}@if (p.areaName) { · {{ p.areaName }} }@if (p.homeStoreName && auth.canManage()) { · home store {{ p.homeStoreName }} }
           @if (!p.active) { <span class="badge text-bg-secondary ms-1">Inactive</span> }
         </div>
       </div>
