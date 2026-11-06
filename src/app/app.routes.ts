@@ -12,6 +12,12 @@ export const routes: Routes = [
     loadComponent: () => import('./features/auth/login-page').then((m) => m.LoginPage),
   },
   {
+    // Opened from the welcome / reset email or text: anyone with a valid link, signed in or not.
+    path: 'set-password',
+    title: 'Set your password · AllianceTel',
+    loadComponent: () => import('./features/auth/set-password-page').then((m) => m.SetPasswordPage),
+  },
+  {
     path: 'change-password',
     title: 'Change password · AllianceTel',
     canActivate: [signedInGuard],
@@ -97,6 +103,12 @@ export const routes: Routes = [
         title: 'Messages · AllianceTel',
         data: { heading: 'Messages', roles: ['ADMIN', 'MANAGER'] },
         loadComponent: () => import('./features/messages/messages-page').then((m) => m.MessagesPage),
+      },
+      {
+        path: 'profile',
+        title: 'My Profile · AllianceTel',
+        data: { heading: 'My Profile' },
+        loadComponent: () => import('./features/profile/profile-page').then((m) => m.ProfilePage),
       },
       {
         path: 'stores',

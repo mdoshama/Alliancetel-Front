@@ -120,6 +120,7 @@
                 </div>
                 <div class="dropdown-divider"></div>
               }
+              <a class="dropdown-item" routerLink="/profile" (click)="menuOpen.set(false)"><i class="bi bi-person-circle me-2"></i>My profile</a>
               <a class="dropdown-item" routerLink="/change-password"><i class="bi bi-key me-2"></i>Change password</a>
               <a class="dropdown-item" href="/terms" target="_blank" rel="noopener"><i class="bi bi-file-text me-2"></i>Terms &amp; Privacy</a>
               <button type="button" class="dropdown-item" (click)="signOutEverywhere()">

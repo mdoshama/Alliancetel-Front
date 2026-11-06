@@ -111,3 +111,22 @@ export function applyServerErrors(form: { get(path: string): AbstractControl | n
 /** A whole number (no decimals). */
 export const wholeNumber: ValidatorFn = (control) =>
   control.value === null || control.value === '' || Number.isInteger(Number(control.value)) ? null : { rule: 'Use a whole number.' };
+
+/** 'yyyy-MM-dd' for the date this many years ago (local time). */
+export function yearsAgo(years: number): string {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - years);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/** Same limits as the server: a birth date at least 14 and at most 100 years ago (catches a wrong year). Blank is fine. */
+export const BIRTH_MIN_AGE = 14;
+export const BIRTH_MAX_AGE = 100;
+export const birthDateRule: ValidatorFn = (control) => {
+  const v = ((control.value as string | null) ?? '').trim();
+  if (!v) return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return { rule: 'Enter a valid date.' };
+  if (v > yearsAgo(BIRTH_MIN_AGE)) return { rule: `Must be at least ${BIRTH_MIN_AGE} years ago. Check the year.` };
+  if (v < yearsAgo(BIRTH_MAX_AGE)) return { rule: `More than ${BIRTH_MAX_AGE} years ago. Check the year.` };
+  return null;
+};

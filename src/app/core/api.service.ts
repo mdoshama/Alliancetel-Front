@@ -44,6 +44,7 @@ import {
   Schedule,
   Store,
   StoreRequest,
+  UpcomingBirthday,
 } from './models';
 
 function toParams(filter: object): HttpParams {
@@ -98,19 +99,24 @@ export class ApiService {
     return this.http.get<Page<Employee>>(`${this.base}/employees/page`, { params: toParams(filter) });
   }
   /** Creates the employee and returns a one-time temporary password for their first sign-in. */
-  createEmployee(body: EmployeeRequest): Observable<Credentials> {
-    return this.http.post<Credentials>(`${this.base}/employees`, body);
+  createEmployee(body: EmployeeRequest, textLink = false): Observable<Credentials> {
+    return this.http.post<Credentials>(`${this.base}/employees`, body, { params: toParams({ textLink }) });
   }
   /** Move someone to another store in their area (managers can do this for their own area). */
   /** primary: true = primary, false = secondary, undefined = keep. */
   changeHomeStore(id: number, storeId: number | null, primary?: boolean): Observable<Employee> {
     return this.http.patch<Employee>(`${this.base}/employees/${id}/home-store`, { storeId, primary: primary ?? null });
   }
-  resetPassword(id: number): Observable<Credentials> {
-    return this.http.post<Credentials>(`${this.base}/employees/${id}/reset-password`, {});
+  /** New temporary password; also emails (and texts, if they agreed to texts or textLink) a set-password link. */
+  resetPassword(id: number, textLink = false): Observable<Credentials> {
+    return this.http.post<Credentials>(`${this.base}/employees/${id}/reset-password`, {}, { params: toParams({ textLink }) });
   }
   updateEmployee(id: number, body: EmployeeRequest): Observable<Employee> {
     return this.http.put<Employee>(`${this.base}/employees/${id}`, body);
+  }
+  /** Birthdays in the next `days` days (default 30), soonest first. */
+  upcomingBirthdays(days = 30, areaId: number | null = null): Observable<UpcomingBirthday[]> {
+    return this.http.get<UpcomingBirthday[]>(`${this.base}/employees/birthdays`, { params: toParams({ days, areaId }) });
   }
   deactivateEmployee(id: number): Observable<void> {
     return this.http.delete<void>(`${this.base}/employees/${id}`);

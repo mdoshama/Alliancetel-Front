@@ -2758,3 +2758,11 @@ button.stat-card {
   line-height: 1.4;
   white-space: normal;
 }
+
+/* My Profile header */
+.profile-avatar {
+  width: 64px;
+  height: 64px;
+  font-size: 1.4rem;
+  flex-shrink: 0;
+}

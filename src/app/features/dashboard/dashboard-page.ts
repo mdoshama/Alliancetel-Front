@@ -6,7 +6,7 @@ import { catchError, map } from 'rxjs/operators';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { formatDay, today, weekStartOf } from '../../core/date-utils';
-import { Area, DayOffRequest, EodStatus, EodStoreDay, PerfLeaderboard } from '../../core/models';
+import { Area, DayOffRequest, EodStatus, EodStoreDay, PerfLeaderboard, UpcomingBirthday } from '../../core/models';
 import { periodRange } from '../../core/periods';
 import { EOD_STATUS_LABELS } from '../eod/eod-page';
 
@@ -33,6 +33,9 @@ export class DashboardPage implements OnInit {
   protected readonly stores = signal<StoreToday[]>([]);
   protected readonly month = signal<PerfLeaderboard | null>(null);
   protected readonly loaded = signal(false);
+  /** Birthdays in the next 30 days (admins: everyone; managers: their area). */
+  protected readonly birthdays = signal<UpcomingBirthday[]>([]);
+  protected readonly birthdaysLoaded = signal(false);
   protected readonly salesLoaded = signal(false);
   protected readonly format = formatDay;
   protected readonly statusLabels = EOD_STATUS_LABELS;
@@ -71,6 +74,13 @@ export class DashboardPage implements OnInit {
       this.loadToday(list);
     });
     this.api
+      .upcomingBirthdays(30)
+      .pipe(catchError(() => of([] as UpcomingBirthday[])))
+      .subscribe((list) => {
+        this.birthdays.set(list);
+        this.birthdaysLoaded.set(true);
+      });
+    this.api
       .dayOffRequests({ status: 'PENDING', from: weekStartOf(today()) })
       .subscribe((list) => this.pending.set(list));
     this.api
@@ -98,6 +108,11 @@ export class DashboardPage implements OnInit {
         ),
       ),
     ).subscribe((lists) => this.stores.set(lists.flat()));
+  }
+
+  /** "Today", "Tomorrow", "In 5 days". */
+  protected whenLabel(days: number): string {
+    return days === 0 ? 'Today' : days === 1 ? 'Tomorrow' : `In ${days} days`;
   }
 
   protected statusClass(status: EodStatus | null): string {

@@ -101,12 +101,44 @@ export interface Employee {
   emailOptIn: boolean;
   /** Agreed to text messages (only they can turn it on). */
   smsOptIn: boolean;
+  /** Date of birth 'yyyy-MM-dd', or null when not on file. */
+  birthDate: string | null;
+}
+
+/** A coming birthday, for the dashboard and the staff list (admins: everyone; managers: their area). */
+export interface UpcomingBirthday {
+  employeeId: number;
+  fullName: string;
+  role: Role;
+  areaId: number | null;
+  areaName: string | null;
+  homeStoreName: string | null;
+  birthDate: string;
+  /** The date it falls on next ('yyyy-MM-dd'); Feb 29 birthdays fall on Feb 28 outside leap years. */
+  nextBirthday: string;
+  /** 0 = today. */
+  daysUntil: number;
+  /** The age they turn that day. */
+  turning: number;
 }
 
 /** Returned once when an account is created or its password is reset. */
 export interface Credentials {
   employee: Employee;
   temporaryPassword: string;
+  /** A set-password link was emailed / texted to them. */
+  linkEmailed?: boolean;
+  linkTexted?: boolean;
+  /** Why the link wasn't (fully) sent, if it wasn't. */
+  linkNote?: string | null;
+}
+
+/** Who a set-password link is for. */
+export interface SetupLinkInfo {
+  firstName: string;
+  email: string;
+  /** Welcome link for a new account (false: password reset). */
+  newAccount: boolean;
 }
 
 export interface Me {
@@ -129,6 +161,8 @@ export interface Me {
   emailOptIn?: boolean;
   /** Gets schedule updates by text message. */
   smsOptIn?: boolean;
+  /** Date of birth 'yyyy-MM-dd', or null when not on file. */
+  birthDate?: string | null;
 }
 
 export interface LoginResponse {
@@ -153,6 +187,8 @@ export interface EmployeeRequest {
   /** Agreed to WhatsApp schedule updates (needs a phone number). */
   whatsappOptIn?: boolean;
   emailOptIn?: boolean;
+  /** Date of birth 'yyyy-MM-dd' (optional), for birthday reminders. */
+  birthDate?: string | null;
 }
 
 export interface EmployeeFilter {
@@ -395,7 +431,7 @@ export const DAY_TYPE_LABELS: Record<DayType, string> = {
 
 // ---- WhatsApp messages ---------------------------------------------------------------------------------
 
-export type NotificationKind = 'WEEK_PUBLISHED' | 'WEEK_CHANGED' | 'DAY_OFF_DECISION' | 'ANNOUNCEMENT' | 'SMS_OPT_IN';
+export type NotificationKind = 'WEEK_PUBLISHED' | 'WEEK_CHANGED' | 'DAY_OFF_DECISION' | 'ANNOUNCEMENT' | 'SMS_OPT_IN' | 'BIRTHDAY_REMINDER' | 'ACCOUNT_SETUP';
 export type NotificationStatus = 'QUEUED' | 'SENT' | 'FAILED' | 'NOT_SENT';
 export type NotificationChannel = 'EMAIL' | 'WHATSAPP' | 'SMS';
 
@@ -405,6 +441,8 @@ export const NOTIFICATION_KIND_LABELS: Record<NotificationKind, string> = {
   DAY_OFF_DECISION: 'Day-off decision',
   ANNOUNCEMENT: 'Announcement',
   SMS_OPT_IN: 'Text sign-up',
+  BIRTHDAY_REMINDER: 'Birthday reminder',
+  ACCOUNT_SETUP: 'Set-password link',
 };
 
 export const NOTIFICATION_STATUS_LABELS: Record<NotificationStatus, string> = {

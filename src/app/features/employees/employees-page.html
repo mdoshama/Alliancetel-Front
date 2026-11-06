@@ -118,6 +118,11 @@
                   @if (e.role !== 'ADMIN') {
                     <a [routerLink]="['/performance/employees', e.id]" class="text-decoration-none" title="See their sales performance">{{ e.fullName }}</a>
                   } @else { {{ e.fullName }} }
+                  @if (birthdaySoon().get(e.id); as days) {
+                    <i class="bi bi-cake2 text-danger ms-1" [attr.title]="birthdayTitle(days)" [attr.aria-label]="birthdayTitle(days)"></i>
+                  } @else if (birthdaySoon().get(e.id) === 0) {
+                    <i class="bi bi-cake2-fill text-danger ms-1" title="Birthday today!" aria-label="Birthday today"></i>
+                  }
                 </div>
                 <div class="small text-muted-2">{{ e.employeeCode }}</div>
                 <div class="small text-muted-2 text-break">
@@ -299,6 +304,36 @@
                [class.is-invalid]="fieldError(form.controls.workDaysPerWeek, 'Days / week')" />
         <div class="invalid-feedback">{{ fieldError(form.controls.workDaysPerWeek, 'Days / week') }}</div>
       </div>
+      @if (!editing()) {
+        <div class="col-12 order-last">
+          <div class="alert alert-light border small mb-0 d-flex gap-2 align-items-start">
+            <i class="bi bi-envelope-paper text-primary fs-5"></i>
+            <div class="flex-grow-1">
+              We'll email them a link to choose their own password (you'll also get a temporary password as a backup).
+              @if (form.controls.phone.value.trim()) {
+                <div class="form-check mt-1 mb-0">
+                  <input class="form-check-input" type="checkbox" id="eTextLink" [checked]="textLink()"
+                         (change)="textLink.set($any($event.target).checked)" />
+                  <label class="form-check-label" for="eTextLink">
+                    Also text the link to their phone. They agreed to get it by text.
+                  </label>
+                </div>
+              }
+            </div>
+          </div>
+        </div>
+      }
+      <div class="col-md-4">
+        <label class="form-label" for="eBirth">Birth date <span class="text-muted-2 small">(optional)</span></label>
+        <input id="eBirth" type="date" class="form-control" formControlName="birthDate"
+               [min]="birthDateMin" [max]="birthDateMax"
+               [class.is-invalid]="fieldError(form.controls.birthDate, 'Birth date')" />
+        @if (fieldError(form.controls.birthDate, 'Birth date'); as msg) {
+          <div class="invalid-feedback">{{ msg }}</div>
+        } @else {
+          <div class="form-text"><i class="bi bi-cake2"></i> Admins and managers get a reminder a week before.</div>
+        }
+      </div>
       <div class="col-12">
         @if (form.controls.homeStoreId.value != null) {
           <span class="form-label d-block mb-2">Role at this store</span>
@@ -346,9 +381,26 @@
 
 <app-modal [open]="issued() !== null" title="Sign-in details" (closed)="issued.set(null)">
   @if (issued(); as c) {
+    @if (c.linkEmailed || c.linkTexted) {
+      <div class="alert alert-success small py-2 mb-3">
+        <i class="bi bi-send-check me-1"></i>
+        We sent {{ c.employee.firstName }} a link to choose their password
+        @if (c.linkEmailed && c.linkTexted) { by email and text message. }
+        @else if (c.linkTexted) { by text message. }
+        @else { by email. }
+      </div>
+    }
+    @if (c.linkNote) {
+      <div class="alert alert-warning small py-2 mb-3"><i class="bi bi-exclamation-triangle me-1"></i>{{ c.linkNote }}</div>
+    }
     <p class="mb-2">
-      Give <strong>{{ c.employee.fullName }}</strong> these details. They'll be asked to choose their own password the first
-      time they sign in.
+      @if (c.linkEmailed || c.linkTexted) {
+        If they can't use the link, give <strong>{{ c.employee.fullName }}</strong> this temporary password instead. They'll be
+        asked to choose their own the first time they sign in.
+      } @else {
+        Give <strong>{{ c.employee.fullName }}</strong> these details. They'll be asked to choose their own password the first
+        time they sign in.
+      }
     </p>
     <dl class="row small mb-2">
       <dt class="col-4 text-muted-2 fw-normal">Email</dt>

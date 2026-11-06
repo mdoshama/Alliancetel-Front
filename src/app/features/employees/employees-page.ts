@@ -13,6 +13,10 @@ import { Modal } from '../../shared/modal';
 import { Pagination } from '../../shared/pagination';
 import {
   applyServerErrors,
+  BIRTH_MAX_AGE,
+  BIRTH_MIN_AGE,
+  birthDateRule,
+  yearsAgo,
   clean,
   codeRule,
   emailRule,
@@ -69,6 +73,8 @@ export class EmployeesPage implements OnInit {
   /** One-time temporary password shown after creating an account or resetting it. */
   protected readonly issued = signal<Credentials | null>(null);
   protected readonly copied = signal(false);
+  /** New account: also text the set-password link (the admin confirms they agreed to get it by text). */
+  protected readonly textLink = signal(true);
 
   // Filters
   protected areaFilter: number | null = null;
@@ -114,7 +120,16 @@ export class EmployeesPage implements OnInit {
     active: [true],
     whatsappOptIn: [false],
     emailOptIn: [true],
+    /** 'yyyy-MM-dd' from the date picker; empty = not on file. */
+    birthDate: ['', [birthDateRule]],
   });
+
+  /** Date picker limits, same as the server's. */
+  protected readonly birthDateMax = yearsAgo(BIRTH_MIN_AGE);
+  protected readonly birthDateMin = yearsAgo(BIRTH_MAX_AGE);
+
+  /** Employee id → days until their birthday, for people with one in the next week (cake icon in the list). */
+  protected readonly birthdaySoon = signal<Map<number, number>>(new Map());
 
   private searchTimer?: ReturnType<typeof setTimeout>;
 
@@ -126,7 +141,15 @@ export class EmployeesPage implements OnInit {
     this.storeFilter.set(Number.isFinite(storeFromQuery) && storeFromQuery > 0 ? storeFromQuery : null);
     this.api.areas().subscribe((list) => this.areas.set(list));
     this.api.stores().subscribe((list) => this.stores.set(list));
+    this.api.upcomingBirthdays(7).subscribe({
+      next: (list) => this.birthdaySoon.set(new Map(list.map((b) => [b.employeeId, b.daysUntil]))),
+      error: () => this.birthdaySoon.set(new Map()),
+    });
     this.load();
+  }
+
+  protected birthdayTitle(days: number): string {
+    return days === 0 ? 'Birthday today!' : days === 1 ? 'Birthday tomorrow' : `Birthday in ${days} days`;
   }
 
   /** Reloads the current page (after saving, resetting a password, …). */
@@ -208,6 +231,7 @@ export class EmployeesPage implements OnInit {
 
   protected openCreate(): void {
     this.editing.set(null);
+    this.textLink.set(true);
     this.form.reset({
       employeeCode: '',
       firstName: '',
@@ -222,6 +246,7 @@ export class EmployeesPage implements OnInit {
       active: true,
       whatsappOptIn: false,
       emailOptIn: true,
+      birthDate: '',
     });
     this.modalOpen.set(true);
   }
@@ -242,6 +267,7 @@ export class EmployeesPage implements OnInit {
       active: e.active,
       whatsappOptIn: e.whatsappOptIn,
       emailOptIn: e.emailOptIn,
+      birthDate: e.birthDate ?? '',
     });
     this.modalOpen.set(true);
   }
@@ -269,11 +295,12 @@ export class EmployeesPage implements OnInit {
       homeStoreId: v.homeStoreId == null ? null : Number(v.homeStoreId),
       primaryAtStore: v.homeStoreId != null && v.primaryAtStore,
       workDaysPerWeek: Number(v.workDaysPerWeek),
+      birthDate: v.birthDate.trim() || null,
     };
     const current = this.editing();
     const request: Observable<Employee | Credentials> = current
       ? this.api.updateEmployee(current.id, body)
-      : this.api.createEmployee(body);
+      : this.api.createEmployee(body, this.textLink() && !!body.phone);
     this.saving.set(true);
     request.subscribe({
       next: (result) => {
@@ -387,7 +414,10 @@ export class EmployeesPage implements OnInit {
       message: `${e.fullName} will get a new temporary password and must choose their own at next sign-in.`,
       icon: 'bi-key',
       tone: 'warning',
-      notes: ['Their current password stops working immediately.'],
+      notes: [
+        'Their current password stops working immediately.',
+        `We'll email them a link to choose a new one${e.smsOptIn ? ' and text it to them' : ''}.`,
+      ],
       confirmText: 'Reset password',
     });
     if (!ok) {

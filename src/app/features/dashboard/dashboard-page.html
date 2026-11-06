@@ -241,3 +241,41 @@
     </div>
   </div>
 </div>
+
+<!-- Upcoming birthdays -->
+<div class="d-flex align-items-baseline mt-4 mb-2">
+  <h3 class="dash-section-title mb-0">Upcoming birthdays</h3>
+  <span class="small text-muted-2 ms-2">Next 30 days</span>
+  <a class="ms-auto small" routerLink="/employees">Staff list <i class="bi bi-arrow-right"></i></a>
+</div>
+<div class="card mb-4">
+  @if (birthdaysLoaded() && birthdays().length === 0) {
+    <div class="empty-state py-4">
+      <i class="bi bi-cake2"></i>No birthdays in the next 30 days.
+      <div class="small text-muted-2 mt-1">Add birth dates on the Employees page to get reminders.</div>
+    </div>
+  } @else {
+    <ul class="list-group list-group-flush">
+      @for (b of birthdays(); track b.employeeId) {
+        <li class="list-group-item d-flex align-items-center gap-3" [class.bg-danger-subtle]="b.daysUntil === 0">
+          <span class="stat-icon flex-shrink-0" [class]="b.daysUntil <= 7 ? 'bg-danger-subtle text-danger' : 'bg-primary-subtle text-primary'">
+            <i class="bi" [class]="b.daysUntil === 0 ? 'bi-cake2-fill' : 'bi-cake2'"></i>
+          </span>
+          <div class="min-w-0">
+            <div class="fw-semibold text-truncate">{{ b.fullName }}</div>
+            <div class="small text-muted-2 text-truncate">
+              {{ b.homeStoreName || 'No home store' }}@if (auth.isAdmin() && b.areaName) { · {{ b.areaName }} }
+              · turning {{ b.turning }}
+            </div>
+          </div>
+          <div class="ms-auto text-end text-nowrap">
+            <div class="fw-semibold">{{ format(b.nextBirthday, { weekday: 'short', month: 'short', day: 'numeric' }) }}</div>
+            <span class="badge" [class]="b.daysUntil === 0 ? 'text-bg-danger' : b.daysUntil <= 7 ? 'text-bg-warning' : 'text-bg-light border'">
+              {{ whenLabel(b.daysUntil) }}
+            </span>
+          </div>
+        </li>
+      }
+    </ul>
+  }
+</div>

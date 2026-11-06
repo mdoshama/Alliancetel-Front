@@ -2,7 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { Observable, tap } from 'rxjs';
-import { LoginResponse, Me, Role } from './models';
+import { LoginResponse, Me, Role, SetupLinkInfo } from './models';
 
 const STORAGE_KEY = 'alliancetel.session';
 
@@ -56,6 +56,30 @@ export class AuthService {
   changePassword(currentPassword: string, newPassword: string): Observable<LoginResponse> {
     return this.http
       .post<LoginResponse>('/api/auth/change-password', { currentPassword, newPassword })
+      .pipe(tap((res) => this.store(res)));
+  }
+
+  /** Saves your own phone number and birth date (everything else is kept by admins). */
+  updateProfile(phone: string | null, birthDate: string | null): Observable<Me> {
+    return this.http.put<Me>('/api/auth/me/profile', { phone, birthDate }).pipe(
+      tap((user) => {
+        const s = this.session();
+        if (s) {
+          this.save({ ...s, user });
+        }
+      }),
+    );
+  }
+
+  /** Who a set-password link (from the welcome or reset email / text) is for. */
+  checkSetupLink(token: string): Observable<SetupLinkInfo> {
+    return this.http.post<SetupLinkInfo>('/api/auth/setup-password/check', { token });
+  }
+
+  /** Chooses a password from a set-password link, then signs in. */
+  setupPassword(token: string, newPassword: string): Observable<LoginResponse> {
+    return this.http
+      .post<LoginResponse>('/api/auth/setup-password', { token, newPassword })
       .pipe(tap((res) => this.store(res)));
   }
 
