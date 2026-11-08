@@ -83,11 +83,14 @@
             <span class="small text-muted-2">The schedule can be generated once everyone has a day off.</span>
           } @else if (rs.requestsOpen && rs.reserved.length > 0) {
             <span class="small text-muted-2">Requests are still open; people who haven't picked keep their reserved days.</span>
+          } @else if (rs.reserved.length > 0) {
+            <span class="small text-muted-2">Everyone has a day requested or reserved. Reserved days only count once a manager approves them.</span>
           } @else {
-            <span class="small text-muted-2">Everyone has their days off. You can generate the schedule.</span>
+            <span class="small text-muted-2">Everyone has asked for their days. You can generate the schedule.</span>
           }
+          <span class="ms-auto"></span>
           @if (rs.missing.length > 0 || rs.denied.length > 0 || rs.fewer.length > 0) {
-            <button type="button" class="btn btn-sm btn-warning ms-auto" [disabled]="suggesting()" (click)="openSuggestions()">
+            <button type="button" class="btn btn-sm btn-warning" [disabled]="suggesting()" (click)="openSuggestions()">
               @if (suggesting()) { <span class="spinner-border spinner-border-sm me-1"></span> } @else { <i class="bi bi-lightbulb me-1"></i> }
               Suggest days off
             </button>
@@ -161,8 +164,8 @@
       <i class="bi bi-calendar-plus"></i>
       <p class="mb-3">No schedule yet for {{ selectedArea()?.name }} · {{ weekLabel() }}.</p>
       <p class="small mb-3">
-        Everyone's usual days off are reserved when the week opens; requests they make swap with them.<br />
-        Approved requests and reserved days become days off; everyone else works the days the stores are open.
+        Everyone's usual days off are reserved when the week opens (shown as requests, not approved).<br />
+        Only days a manager or admin approves become days off; everyone else works the days the stores are open.
       </p>
       <button type="button" class="btn btn-primary" [disabled]="working() || !!generateBlocked()" (click)="generate()"
               [attr.title]="generateBlocked()">
@@ -271,11 +274,12 @@
               <div class="fw-semibold">
                 {{ r.employeeName }}
                 @if (r.emergency) { <span class="emergency-badge"><i class="bi bi-exclamation-octagon-fill"></i> Emergency</span> }
+                @if (r.reserved) { <span class="badge text-bg-info-subtle border border-info-subtle text-info-emphasis ms-1">Reserved</span> }
               </div>
               <div class="small text-muted-2">
                 <i class="bi bi-calendar3 me-1"></i>{{ requestDay(r) }}
                 @if (requestStore(r); as st) { · works at {{ st }} }
-                @if (r.reason) { · “{{ r.reason }}” }
+                @if (r.reserved) { · held by the system; they didn't pick a day } @else if (r.reason) { · “{{ r.reason }}” }
               </div>
             </div>
             <div class="request-check">

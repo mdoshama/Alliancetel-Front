@@ -417,6 +417,8 @@ export interface WeekRequest {
   reason: string | null;
   /** The signed-in user may approve it (managers can't decide their own). */
   canReview: boolean;
+  /** Reserved by the system rather than asked for; approved like any request. */
+  reserved?: boolean;
 }
 
 /** Result of approving several requests at once. */

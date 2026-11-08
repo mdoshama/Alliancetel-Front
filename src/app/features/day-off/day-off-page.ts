@@ -347,6 +347,8 @@ export class DayOffPage implements OnInit {
   }
 
   protected canWithdraw(r: DayOffRequest): boolean {
+    // A reserved day can't be dropped by the person themselves: they ask for another day instead.
+    if (r.reserved && r.employeeId === this.auth.user()?.id) return false;
     return r.status === 'PENDING' && (this.auth.canManage() || r.employeeId === this.auth.user()?.id);
   }
 
@@ -369,8 +371,11 @@ export class DayOffPage implements OnInit {
           const from = w.openWeeks[0];
           const to = addDays(w.openWeeks[w.openWeeks.length - 1], 6);
           this.api
-            .dayOffRequests({ employeeId: this.auth.user()?.id ?? null, status: 'APPROVED', from, to })
-            .subscribe({ next: (list) => this.myReserved.set(list.filter((r) => r.reserved)), error: () => undefined });
+            .dayOffRequests({ employeeId: this.auth.user()?.id ?? null, from, to })
+            .subscribe({
+              next: (list) => this.myReserved.set(list.filter((r) => r.reserved && r.status !== 'REJECTED')),
+              error: () => undefined,
+            });
         }
       },
       error: () => this.window.set(null),
