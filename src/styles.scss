@@ -2819,3 +2819,43 @@ button.stat-card {
 button.stat-card {
   border: 1px solid var(--bs-border-color);
 }
+
+/* Week capacity strip on the schedule page: people working / shifts needed per day. */
+.capacity .cap-day {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--bs-success-border-subtle);
+  background: var(--bs-success-bg-subtle);
+  color: var(--bs-success-text-emphasis);
+  font-size: 0.78rem;
+}
+.capacity .cap-day.cap-tight {
+  border-color: var(--bs-warning-border-subtle);
+  background: var(--bs-warning-bg-subtle);
+  color: var(--bs-warning-text-emphasis);
+}
+.capacity .cap-day.cap-short {
+  border-color: var(--bs-danger-border-subtle);
+  background: var(--bs-danger-bg-subtle);
+  color: var(--bs-danger-text-emphasis);
+}
+
+/* Manager / admin "Give it now (approved)" switch on the day-off form */
+.override-toggle {
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--at-border);
+  border-radius: 10px;
+
+  &.on {
+    border-color: #a7d7b8;
+    background: #f3fbf6;
+  }
+
+  .form-check-input:checked {
+    background-color: #198754;
+    border-color: #198754;
+  }
+}

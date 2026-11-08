@@ -228,8 +228,13 @@ export class ApiService {
   assignDaysOff(areaId: number, items: { employeeId: number; date: string }[]): Observable<DayOffRequest[]> {
     return this.http.post<DayOffRequest[]>(`${this.base}/schedules/requests/apply`, { areaId, items });
   }
-  generateSchedule(areaId: number, weekStart: string): Observable<Schedule> {
-    return this.http.post<Schedule>(`${this.base}/schedules/generate`, { areaId, weekStart });
+  /** force: a manager or admin generating before everyone's requests are in. */
+  generateSchedule(areaId: number, weekStart: string, force = false): Observable<Schedule> {
+    return this.http.post<Schedule>(`${this.base}/schedules/generate`, { areaId, weekStart, force });
+  }
+  /** Throws the week's schedule away (draft or published) so it can be generated again from scratch. */
+  resetSchedule(scheduleId: number): Observable<void> {
+    return this.http.delete<void>(`${this.base}/schedules/${scheduleId}`);
   }
   updateScheduleEntry(scheduleId: number, entryId: number, type: DayType, storeId: number | null = null): Observable<Schedule> {
     return this.http.patch<Schedule>(`${this.base}/schedules/${scheduleId}/entries/${entryId}`, { type, storeId });

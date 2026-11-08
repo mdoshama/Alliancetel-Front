@@ -625,18 +625,77 @@ export class SchedulePage implements OnInit {
     });
   }
 
-  protected async generate(): Promise<void> {
+  /** Generate before everyone's requests are in (manager / admin decision). */
+  protected async generateAnyway(): Promise<void> {
+    const ok = await this.confirm.ask({
+      title: 'Generate anyway?',
+      message: `${this.generateBlocked() ?? ''} The schedule will be made now.`,
+      icon: 'bi-exclamation-triangle',
+      tone: 'warning',
+      notes: [
+        'People without an approved day off are scheduled to work every day the stores are open.',
+        'You can still approve requests later: the schedule follows.',
+      ],
+      confirmText: 'Generate anyway',
+    });
+    if (ok) {
+      await this.generate(true);
+    }
+  }
+
+  /** Throws the week's schedule away so it can be generated again from scratch. */
+  protected async reset(): Promise<void> {
+    const s = this.schedule();
+    if (!s) {
+      return;
+    }
+    const ok = await this.confirm.ask({
+      title: 'Reset this schedule?',
+      message: `The ${s.areaName} schedule for ${this.weekLabel()} will be deleted so you can generate it again from scratch.`,
+      icon: 'bi-trash3',
+      tone: 'danger',
+      notes: [
+        'Days changed by hand, swaps and store moves are lost.',
+        'Day-off requests, approvals and reserved days are kept.',
+        s.status === 'PUBLISHED'
+          ? 'It is published: staff stop seeing it until you publish a new one (then everyone gets their week again).'
+          : 'It is a draft, so staff never saw it.',
+      ],
+      confirmText: 'Reset schedule',
+    });
+    if (!ok) {
+      return;
+    }
+    this.working.set(true);
+    this.api.resetSchedule(s.id).subscribe({
+      next: () => {
+        this.working.set(false);
+        this.toast.success('Schedule reset. Generate it again when you are ready.');
+        this.load();
+      },
+      error: () => this.working.set(false),
+    });
+  }
+
+  /** Spare shifts this week (team can work − stores need); negative means not enough people. */
+  protected readonly weekSpare = computed(() => {
+    const c = this.requestStatus()?.capacity;
+    return c ? c.shiftsAvailable - c.shiftsNeeded : 0;
+  });
+
+  protected async generate(force = false): Promise<void> {
     const areaId = this.areaId();
     if (areaId == null) {
       return;
     }
-    if (this.generateBlocked()) {
+    if (this.generateBlocked() && !force) {
       this.toast.error(this.generateBlocked()!);
       return;
     }
     const existing = this.schedule();
     if (
       existing &&
+      !force &&
       !(await this.confirm.ask({
         title: 'Rebuild this week?',
         message: `The ${existing.areaName} draft for ${this.weekLabel()} will be built again from scratch.`,
@@ -651,7 +710,7 @@ export class SchedulePage implements OnInit {
     ) {
       return;
     }
-    this.run(this.api.generateSchedule(areaId, this.weekStart()), existing ? 'Schedule regenerated.' : 'Schedule generated.');
+    this.run(this.api.generateSchedule(areaId, this.weekStart(), force), existing ? 'Schedule regenerated.' : 'Schedule generated.');
   }
 
   /** Re-runs automatic store assignment and reports how the gaps changed. */
@@ -893,6 +952,12 @@ export class SchedulePage implements OnInit {
   }
 
   /** "10am–8pm", or "Closed". */
+  /** "Mon 16" for a yyyy-mm-dd date. */
+  protected dayLabel(date: string): string {
+    const d = new Date(date + 'T00:00:00');
+    return d.toLocaleDateString('en-US', { weekday: 'short' }) + ' ' + d.getDate();
+  }
+
   protected hoursLabel(h: DayHours): string {
     return formatHours(h);
   }

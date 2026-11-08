@@ -96,7 +96,12 @@ export class DayOffPage implements OnInit {
   );
   /** Days in the chosen week a colleague at the same store already has off, by date → first name. */
   protected readonly formTaken = signal<Map<string, TakenDay>>(new Map());
-  protected readonly formMaxDays = computed(() => (this.formEmergency() ? 7 : this.maxDaysPerWeek));
+  protected readonly formMaxDays = computed(() => (this.formEmergency() || this.formOverride() ? 7 : this.maxDaysPerWeek));
+  /** Managers and admins, for someone else: give the day(s) off now, approved, skipping the usual checks. */
+  protected readonly formOverride = signal(false);
+  protected readonly canOverride = computed(
+    () => !this.auth.isEmployee() && this.formEmployeeId() != null && this.formEmployeeId() !== this.auth.user()?.id,
+  );
 
   protected readonly formWeekDates = computed(() => weekDates(this.formWeek()));
   protected readonly formWeekLabel = computed(() => formatWeekRange(this.formWeek()));
@@ -383,6 +388,7 @@ export class DayOffPage implements OnInit {
     this.formDays.set(new Set());
     this.formReason = '';
     this.formEmergency.set(false);
+    this.formOverride.set(false);
     this.formSearch.set('');
     this.loadFormEmployees();
     this.loadTaken();
@@ -429,7 +435,7 @@ export class DayOffPage implements OnInit {
     if (this.windowApplies() && !this.window()!.openWeeks.includes(weekStartOf(date))) {
       return true;
     }
-    return !this.formEmergency() && this.takenBy(date) !== null;
+    return !this.formEmergency() && !(this.formOverride() && this.canOverride()) && this.takenBy(date) !== null;
   }
 
   private loadTaken(): void {
@@ -477,15 +483,18 @@ export class DayOffPage implements OnInit {
     }
     this.saving.set(true);
     const emergency = this.formEmergency();
-    this.api.createDayOff({ employeeId, dates, reason: clean(this.formReason), emergency }).subscribe({
+    const override = this.formOverride() && this.canOverride();
+    this.api.createDayOff({ employeeId, dates, reason: clean(this.formReason), emergency, override }).subscribe({
       next: (created) => {
         this.saving.set(false);
         this.modalOpen.set(false);
+        const days = created.length + ' day' + (created.length > 1 ? 's' : '');
         this.toast.success(
-          `${emergency ? 'Emergency request sent' : created.length + ' day' + (created.length > 1 ? 's' : '') + ' requested'}` +
-            ` for ${created[0].employeeName}.`,
+          override
+            ? `${days} off given to ${created[0].employeeName} (approved). They've been told.`
+            : `${emergency ? 'Emergency request sent' : days + ' requested'} for ${created[0].employeeName}.`,
         );
-        this.status.set('PENDING');
+        this.status.set(override ? 'APPROVED' : 'PENDING');
         this.load();
       },
       error: () => this.saving.set(false),

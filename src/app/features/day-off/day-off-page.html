@@ -275,12 +275,16 @@
     @if (myReserved().length && !formEmergency()) {
       <div class="alert alert-light border small py-2 mb-2">
         <i class="bi bi-bookmark-check text-info me-1"></i>
-        Reserved for you:
+        This was reserved for you:
         @for (r of myReserved(); track r.id; let last = $last) {
           <strong>{{ format(r.date, { weekday: 'short', month: 'short', day: 'numeric' }) }}</strong>
-          ({{ r.status === 'APPROVED' ? 'approved' : 'waiting for approval' }}){{ last ? '' : ', ' }}
+          ({{ r.status === 'APPROVED' ? 'approved' : 'waiting for your manager' }}){{ last ? '' : ', ' }}
         }.
-        You can ask for a different day: once your manager approves it, your reserved day goes back to being a work day.
+        <div class="mt-1">
+          Happy with it? Tap the day to keep it as your request. Rather have another day? Pick any day that isn't marked
+          <strong>Taken</strong> or <strong>Full</strong>: those days have room, because the stores can still be covered
+          without you. Once your manager approves it, your reserved day goes back to being a work day.
+        </div>
       </div>
     }
   }
@@ -307,9 +311,22 @@
   } @else {
     <p class="small text-muted-2 mb-3">
       Pick up to {{ maxDaysPerWeek }} days in one week. Only one person per store can be off on a day, so days a colleague
-      already has are marked <strong>Taken</strong>. Days marked <strong>Full</strong> already have as many people off as
-      the stores can spare.
+      already has are marked <strong>Taken</strong>. A day is <strong>Full</strong> when the stores couldn't be covered
+      without this person (primaries stay at their store, and floaters only cover the stores assigned to them).
     </p>
+  }
+  @if (canOverride()) {
+    <div class="override-toggle mb-3" [class.on]="formOverride()">
+      <div class="form-check form-switch mb-0">
+        <input class="form-check-input" type="checkbox" role="switch" id="nOverride"
+               [ngModel]="formOverride()" (ngModelChange)="formOverride.set($event)" />
+        <label class="form-check-label fw-semibold" for="nOverride">Give it now (approved)</label>
+      </div>
+      <div class="small text-muted-2">
+        Your decision: approved straight away, even on Taken or Full days and outside the weekly limit. Their reserved
+        day that week goes back to work, and they're told.
+      </div>
+    </div>
   }
   <div class="emergency-toggle mb-3" [class.on]="formEmergency()">
     <div class="form-check form-switch mb-0">
@@ -335,7 +352,7 @@
     <button type="button" class="btn btn-light" (click)="modalOpen.set(false)">Cancel</button>
     <button type="button" class="btn btn-primary" [disabled]="saving() || !formEmployeeId() || formDays().size === 0 || !!reasonError()" (click)="submit()">
       @if (saving()) { <span class="spinner-border spinner-border-sm me-1"></span> }
-      Submit request
+      {{ formOverride() && canOverride() ? 'Give day off' : 'Submit request' }}
     </button>
   </ng-container>
 </app-modal>

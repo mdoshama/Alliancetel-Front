@@ -182,6 +182,26 @@ export interface WeekRequestStatus {
   others: WeekRequestPerson[];
   /** The week is still taking requests. */
   requestsOpen: boolean;
+  /** Shifts the stores need against the shifts the team can work, and each day with the days off so far. */
+  capacity: WeekCapacity;
+}
+
+export interface WeekCapacity {
+  shiftsNeeded: number;
+  shiftsAvailable: number;
+  /** Days off the team takes in a normal week (7 − work days, for everyone). */
+  daysOffToGive: number;
+  days: DayCapacity[];
+}
+
+/** One day: people working with the days off so far, and shifts the stores still can't fill (with which stores). */
+export interface DayCapacity {
+  date: string;
+  needed: number;
+  working: number;
+  off: number;
+  shortBy: number;
+  shortStores: string[];
 }
 
 /** A suggested day off for someone without a request (or whose request was turned down). */
@@ -361,6 +381,8 @@ export interface CreateDayOffRequest {
   dates: string[];
   reason: string | null;
   emergency?: boolean;
+  /** Managers and admins, for someone else: approved now, skipping the usual checks. */
+  override?: boolean;
 }
 
 /** A day a colleague at the same store already has off, so a normal request can't take it. */
