@@ -25,6 +25,7 @@ export class AuthService {
   readonly isAdmin = computed(() => this.role() === 'ADMIN');
   readonly isManager = computed(() => this.role() === 'MANAGER');
   readonly isEmployee = computed(() => this.role() === 'EMPLOYEE');
+  readonly isBackOffice = computed(() => this.role() === 'BACK_OFFICE');
   /** Admins and managers can build schedules and decide on requests. */
   readonly canManage = computed(() => this.isAdmin() || this.isManager());
 
@@ -44,7 +45,7 @@ export class AuthService {
 
   /** Where someone lands after signing in. */
   homeUrl(): string {
-    return this.isEmployee() ? '/schedules' : '/dashboard';
+    return this.isEmployee() ? '/schedules' : this.isBackOffice() ? '/time-clock' : '/dashboard';
   }
 
   login(email: string, password: string): Observable<LoginResponse> {

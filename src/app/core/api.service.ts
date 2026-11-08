@@ -46,6 +46,9 @@ import {
   StoreRequest,
   UpcomingBirthday,
   RequestWindow,
+  TimeClockDay,
+  TimeClockRow,
+  PortalMode,
   WeekRequestStatus,
   DayOffSuggestion,
 } from './models';
@@ -136,6 +139,10 @@ export class ApiService {
   dayOffWindow(): Observable<RequestWindow> {
     return this.http.get<RequestWindow>(`${this.base}/day-off-requests/window`);
   }
+  /** Admins: open or close day-off requests, or back to the Friday cycle (AUTO). */
+  setRequestPortal(mode: PortalMode): Observable<RequestWindow> {
+    return this.http.put<RequestWindow>(`${this.base}/day-off-requests/portal`, { mode });
+  }
   createDayOff(body: CreateDayOffRequest): Observable<DayOffRequest[]> {
     return this.http.post<DayOffRequest[]>(`${this.base}/day-off-requests`, body);
   }
@@ -192,6 +199,22 @@ export class ApiService {
     return this.http
       .get<Schedule>(`${this.base}/schedules`, { params: toParams({ areaId, weekStart }), observe: 'response' })
       .pipe(map((res) => (res.status === 204 ? null : res.body)));
+  }
+  /** The time-clock sheet for a day (default today). */
+  timeClock(areaId: number | null, date: string | null): Observable<TimeClockDay> {
+    return this.http.get<TimeClockDay>(`${this.base}/time-clock`, { params: toParams({ areaId, date }) });
+  }
+  clockIn(body: { employeeId: number; date: string; time?: string | null; storeId?: number | null; note?: string | null }): Observable<TimeClockRow> {
+    return this.http.post<TimeClockRow>(`${this.base}/time-clock/clock-in`, body);
+  }
+  clockOut(entryId: number, time: string | null): Observable<TimeClockRow> {
+    return this.http.post<TimeClockRow>(`${this.base}/time-clock/${entryId}/clock-out`, { time });
+  }
+  correctTime(entryId: number, body: { clockIn: string; clockOut: string | null; note: string | null }): Observable<TimeClockRow> {
+    return this.http.put<TimeClockRow>(`${this.base}/time-clock/${entryId}`, body);
+  }
+  deleteTime(entryId: number): Observable<void> {
+    return this.http.delete<void>(`${this.base}/time-clock/${entryId}`);
   }
   /** Managers: who has sent their day-off request for the week. */
   weekRequests(areaId: number, weekStart: string): Observable<WeekRequestStatus> {

@@ -39,19 +39,19 @@ export const routes: Routes = [
       {
         path: 'schedules',
         title: 'Weekly Schedule · AllianceTel',
-        data: { heading: 'Weekly Schedule', employeeHeading: 'My Schedule' },
+        data: { heading: 'Weekly Schedule', employeeHeading: 'My Schedule', roles: ['ADMIN', 'MANAGER', 'EMPLOYEE'] },
         loadComponent: () => import('./features/schedule/schedule-page').then((m) => m.SchedulePage),
       },
       {
         path: 'eod',
         title: 'End of Day · AllianceTel',
-        data: { heading: 'End of Day' },
+        data: { heading: 'End of Day', roles: ['ADMIN', 'MANAGER', 'EMPLOYEE'] },
         loadComponent: () => import('./features/eod/eod-page').then((m) => m.EodPage),
       },
       {
         path: 'day-off-requests',
         title: 'Day-off Requests · AllianceTel',
-        data: { heading: 'Day-off Requests', employeeHeading: 'My Days Off' },
+        data: { heading: 'Day-off Requests', employeeHeading: 'My Days Off', roles: ['ADMIN', 'MANAGER', 'EMPLOYEE'] },
         loadComponent: () => import('./features/day-off/day-off-page').then((m) => m.DayOffPage),
       },
       {
@@ -82,7 +82,7 @@ export const routes: Routes = [
       {
         path: 'my-performance',
         title: 'My Performance · AllianceTel',
-        data: { heading: 'My Performance' },
+        data: { heading: 'My Performance', roles: ['ADMIN', 'MANAGER', 'EMPLOYEE'] },
         loadComponent: () =>
           import('./features/performance/employee-performance-page').then((m) => m.EmployeePerformancePage),
       },
@@ -105,6 +105,12 @@ export const routes: Routes = [
         loadComponent: () => import('./features/messages/messages-page').then((m) => m.MessagesPage),
       },
       {
+        path: 'time-clock',
+        title: 'Time Clock · AllianceTel',
+        data: { heading: 'Time Clock', roles: ['ADMIN', 'MANAGER', 'BACK_OFFICE'] },
+        loadComponent: () => import('./features/time-clock/time-clock-page').then((m) => m.TimeClockPage),
+      },
+      {
         path: 'profile',
         title: 'My Profile · AllianceTel',
         data: { heading: 'My Profile' },
@@ -113,7 +119,7 @@ export const routes: Routes = [
       {
         path: 'stores',
         title: 'Stores · AllianceTel',
-        data: { heading: 'Stores' },
+        data: { heading: 'Stores', roles: ['ADMIN', 'MANAGER', 'EMPLOYEE'] },
         loadComponent: () => import('./features/stores/stores-page').then((m) => m.StoresPage),
       },
       {

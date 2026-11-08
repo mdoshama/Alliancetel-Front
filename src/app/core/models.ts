@@ -1,4 +1,4 @@
-export type Role = 'ADMIN' | 'MANAGER' | 'EMPLOYEE';
+export type Role = 'ADMIN' | 'MANAGER' | 'EMPLOYEE' | 'BACK_OFFICE';
 export type DayOffStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 export type DayType = 'WORK' | 'OFF' | 'REQUESTED_OFF';
 export type ScheduleStatus = 'DRAFT' | 'PUBLISHED';
@@ -142,9 +142,19 @@ export interface RequestWindow {
   nextOpens: string;
   oneEmergencyPerMonth: boolean;
   emergencyUsedThisMonth: boolean;
+  /** AUTO = Friday cycle; OPEN / CLOSED = set by an admin. */
+  mode: PortalMode;
+  /** Mondays of the weeks taking requests right now (empty when closed). */
+  openWeeks: string[];
+  changedBy: string | null;
+  changedAt: string | null;
+  /** Days off are reserved for everyone when a week opens. */
+  reservations: boolean;
 }
 
-export type WeekRequestState = 'MISSING' | 'PENDING' | 'APPROVED' | 'DENIED';
+export type PortalMode = 'AUTO' | 'OPEN' | 'CLOSED';
+
+export type WeekRequestState = 'MISSING' | 'PENDING' | 'APPROVED' | 'DENIED' | 'RESERVED';
 
 export interface WeekRequestPerson {
   employeeId: number;
@@ -167,7 +177,11 @@ export interface WeekRequestStatus {
   denied: WeekRequestPerson[];
   /** Asked, but for fewer days than they normally take off. */
   fewer: WeekRequestPerson[];
+  /** Haven't picked yet; have the days the system reserved. */
+  reserved: WeekRequestPerson[];
   others: WeekRequestPerson[];
+  /** The week is still taking requests. */
+  requestsOpen: boolean;
 }
 
 /** A suggested day off for someone without a request (or whose request was turned down). */
@@ -307,6 +321,8 @@ export interface DayOffRequest {
   decisionChangedAt?: string | null;
   /** After approval: how that week's existing schedule was updated. */
   scheduleUpdate?: string | null;
+  /** Reserved by the system when the week opened; asking for another day swaps it automatically. */
+  reserved?: boolean;
 }
 
 export type ImpactLevel = 'OK' | 'TIGHT' | 'SHORT';
@@ -486,6 +502,7 @@ export const ROLE_LABELS: Record<Role, string> = {
   ADMIN: 'Admin',
   MANAGER: 'Manager',
   EMPLOYEE: 'Employee',
+  BACK_OFFICE: 'Back office',
 };
 
 export const DAY_TYPE_LABELS: Record<DayType, string> = {
@@ -1051,4 +1068,44 @@ export interface CommissionMonth {
   statements: CommissionStatement[];
   warnings: string[];
   unapprovedReports: number;
+}
+
+// ---- Time clock ----------------------------------------------------------------------------------------
+
+/** One person on the day's time-clock sheet (times 'HH:mm[:ss]'). */
+export interface TimeClockRow {
+  employeeId: number;
+  name: string;
+  employeeCode: string;
+  areaName: string | null;
+  storeId: number | null;
+  storeName: string | null;
+  storeColor: string | null;
+  /** On the published schedule to work that day. */
+  scheduled: boolean;
+  opensAt: string | null;
+  entryId: number | null;
+  clockIn: string | null;
+  clockOut: string | null;
+  clockedInBy: string | null;
+  clockedOutBy: string | null;
+  note: string | null;
+  minutesLate: number;
+  /** Scheduled, the store is open past the grace period, and nobody clocked them in. */
+  missing: boolean;
+  hoursWorked: number | null;
+}
+
+export interface TimeClockDay {
+  date: string;
+  today: boolean;
+  scheduled: number;
+  clockedIn: number;
+  missing: number;
+  late: number;
+  /** Back office and admins clock people in; managers look. */
+  canEdit: boolean;
+  graceMinutes: number;
+  rows: TimeClockRow[];
+  others: TimeClockRow[];
 }

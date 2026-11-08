@@ -1,0 +1,183 @@
+<div class="page-toolbar">
+  @if (!auth.hasRole('MANAGER')) {
+    <div style="min-width: 180px">
+      <label class="form-label small text-muted-2 mb-1" for="tcArea">Area</label>
+      <select id="tcArea" class="form-select" [(ngModel)]="areaId" (ngModelChange)="load()">
+        <option [ngValue]="null">All areas</option>
+        @for (a of areas(); track a.id) {
+          <option [ngValue]="a.id">{{ a.name }}</option>
+        }
+      </select>
+    </div>
+  }
+  <div>
+    <span class="form-label small text-muted-2 mb-1 d-block">Day</span>
+    <div class="d-flex gap-1">
+      <button type="button" class="btn btn-outline-secondary" aria-label="Previous day" (click)="shiftDay(-1)"><i class="bi bi-chevron-left"></i></button>
+      <input type="date" class="form-control" [max]="todayIso" [ngModel]="date()" (ngModelChange)="setDate($event)" aria-label="Day" />
+      <button type="button" class="btn btn-outline-secondary" aria-label="Next day" [disabled]="date() >= todayIso" (click)="shiftDay(1)"><i class="bi bi-chevron-right"></i></button>
+      @if (date() !== todayIso) {
+        <button type="button" class="btn btn-light border" (click)="setDate(todayIso)">Today</button>
+      }
+    </div>
+  </div>
+  <div class="flex-grow-1" style="min-width: 180px; max-width: 280px">
+    <label class="form-label small text-muted-2 mb-1" for="tcSearch">Find</label>
+    <input id="tcSearch" type="search" class="form-control" placeholder="Name or NTID" [ngModel]="search()" (ngModelChange)="search.set($event)" />
+  </div>
+  <button type="button" class="btn btn-outline-primary ms-auto" (click)="load()" [disabled]="loading()">
+    <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+  </button>
+</div>
+
+@if (day(); as d) {
+  <div class="row g-3 mb-3">
+    <div class="col-6 col-lg-3">
+      <button type="button" class="card stat-card h-100 w-100 text-start" [class.active-filter]="filter() === 'all'" (click)="filter.set('all')">
+        <div class="stat-icon bg-primary-subtle text-primary"><i class="bi bi-people"></i></div>
+        <div><div class="stat-value">{{ d.scheduled }}</div><div class="stat-label">Scheduled {{ d.today ? 'today' : '' }}</div></div>
+      </button>
+    </div>
+    <div class="col-6 col-lg-3">
+      <button type="button" class="card stat-card h-100 w-100 text-start" [class.active-filter]="filter() === 'in'" (click)="filter.set('in')">
+        <div class="stat-icon bg-success-subtle text-success"><i class="bi bi-box-arrow-in-right"></i></div>
+        <div><div class="stat-value">{{ d.clockedIn }}</div><div class="stat-label">Clocked in</div></div>
+      </button>
+    </div>
+    <div class="col-6 col-lg-3">
+      <button type="button" class="card stat-card h-100 w-100 text-start" [class.active-filter]="filter() === 'missing'" (click)="filter.set('missing')">
+        <div class="stat-icon bg-danger-subtle text-danger"><i class="bi bi-exclamation-circle"></i></div>
+        <div><div class="stat-value" [class.text-danger]="d.missing > 0">{{ d.missing }}</div><div class="stat-label">Not clocked in</div></div>
+      </button>
+    </div>
+    <div class="col-6 col-lg-3">
+      <button type="button" class="card stat-card h-100 w-100 text-start" [class.active-filter]="filter() === 'late'" (click)="filter.set('late')">
+        <div class="stat-icon bg-warning-subtle text-warning"><i class="bi bi-alarm"></i></div>
+        <div><div class="stat-value">{{ d.late }}</div><div class="stat-label">Late (over {{ d.graceMinutes }} min)</div></div>
+      </button>
+    </div>
+  </div>
+
+  @if (!d.canEdit) {
+    <div class="alert alert-light border small py-2"><i class="bi bi-info-circle me-1"></i>Back office clocks people in from the store cameras. You can follow it here.</div>
+  }
+
+  @if (d.rows.length === 0) {
+    <div class="card"><div class="empty-state"><i class="bi bi-calendar-x"></i>Nobody is on a published schedule {{ d.today ? 'today' : 'this day' }}.</div></div>
+  }
+
+  @for (g of groups(); track g.store) {
+    <div class="card mb-3 timeclock-store" [style.--store-color]="g.color">
+      <div class="card-header d-flex align-items-center gap-2">
+        <span class="store-dot"></span>
+        <span class="fw-semibold">{{ g.store }}</span>
+        @if (g.opensAt) { <span class="small text-muted-2">opens {{ time(g.opensAt) }}</span> }
+        <span class="ms-auto small text-muted-2">{{ g.rows.length }} scheduled</span>
+      </div>
+      <ul class="list-group list-group-flush">
+        @for (r of g.rows; track r.employeeId) {
+          <li class="list-group-item d-flex flex-wrap align-items-center gap-2 timeclock-row" [class.is-missing]="r.missing">
+            <div class="min-w-0 me-auto">
+              <div class="fw-semibold">{{ r.name }} <span class="small text-muted-2 fw-normal">{{ r.employeeCode }}</span></div>
+              <div class="small text-muted-2">
+                @if (r.clockIn) {
+                  <span class="text-success"><i class="bi bi-box-arrow-in-right"></i> In {{ time(r.clockIn) }}</span>
+                  @if (r.minutesLate > 0) { <span class="badge text-bg-warning ms-1">{{ r.minutesLate }} min late</span> }
+                  @if (r.clockOut) { · <i class="bi bi-box-arrow-right"></i> Out {{ time(r.clockOut) }} · {{ r.hoursWorked }} h }
+                  @if (r.clockedInBy) { · by {{ r.clockedInBy }} }
+                  @if (r.note) { · <em>{{ r.note }}</em> }
+                } @else if (r.missing) {
+                  <span class="text-danger fw-semibold"><i class="bi bi-exclamation-circle"></i> Not clocked in</span>
+                } @else {
+                  Not in yet
+                }
+                @if (!areaId && r.areaName) { · {{ r.areaName }} }
+              </div>
+            </div>
+            @if (d.canEdit) {
+              @if (!r.clockIn) {
+                <button type="button" class="btn btn-success btn-sm" [disabled]="busy() === r.employeeId" (click)="clockInNow(r)">
+                  @if (busy() === r.employeeId) { <span class="spinner-border spinner-border-sm me-1"></span> } @else { <i class="bi bi-box-arrow-in-right me-1"></i> }
+                  Clock in{{ d.today ? '' : '…' }}
+                </button>
+                @if (d.today) {
+                  <button type="button" class="btn btn-light border btn-sm" title="Clock in with a different time" (click)="openEdit(r)"><i class="bi bi-clock"></i></button>
+                }
+              } @else {
+                @if (!r.clockOut) {
+                  <button type="button" class="btn btn-outline-secondary btn-sm" [disabled]="busy() === r.employeeId" (click)="clockOutNow(r)">
+                    <i class="bi bi-box-arrow-right me-1"></i>Clock out <span class="text-muted-2 small">(optional)</span>
+                  </button>
+                }
+                <button type="button" class="btn btn-light border btn-sm" title="Edit times" (click)="openEdit(r)"><i class="bi bi-pencil"></i></button>
+              }
+            }
+          </li>
+        }
+      </ul>
+    </div>
+  }
+
+  <!-- Not on today's schedule: covering, extra help -->
+  <div class="card">
+    <button type="button" class="card-header d-flex align-items-center w-100 border-0 bg-transparent text-start" (click)="showOthers.set(!showOthers())">
+      <span class="fw-semibold">Not on the schedule {{ d.today ? 'today' : 'that day' }}</span>
+      <span class="small text-muted-2 ms-2">({{ otherRows().length }}) — clock in someone who came in anyway</span>
+      <i class="bi ms-auto" [class]="showOthers() ? 'bi-chevron-up' : 'bi-chevron-down'"></i>
+    </button>
+    @if (showOthers()) {
+      <ul class="list-group list-group-flush">
+        @for (r of otherRows(); track r.employeeId) {
+          <li class="list-group-item d-flex flex-wrap align-items-center gap-2">
+            <div class="me-auto">
+              <span class="fw-semibold">{{ r.name }}</span> <span class="small text-muted-2">{{ r.employeeCode }}</span>
+              <div class="small text-muted-2">
+                @if (r.clockIn) { In {{ time(r.clockIn) }}@if (r.clockOut) { · Out {{ time(r.clockOut) }} } @if (r.storeName) { · {{ r.storeName }} } }
+                @else { {{ r.areaName }} }
+              </div>
+            </div>
+            @if (d.canEdit) {
+              @if (!r.clockIn) {
+                <button type="button" class="btn btn-outline-success btn-sm" (click)="openEdit(r)"><i class="bi bi-box-arrow-in-right me-1"></i>Clock in…</button>
+              } @else {
+                <button type="button" class="btn btn-light border btn-sm" (click)="openEdit(r)"><i class="bi bi-pencil"></i></button>
+              }
+            }
+          </li>
+        } @empty {
+          <li class="list-group-item small text-muted-2">Nobody else.</li>
+        }
+      </ul>
+    }
+  </div>
+} @else if (loading()) {
+  <div class="card"><div class="empty-state"><div class="spinner-border text-primary"></div></div></div>
+}
+
+<app-modal [open]="editOpen()" [title]="editRow()?.entryId ? 'Edit times' : 'Clock in'" (closed)="editOpen.set(false)">
+  @if (editRow(); as r) {
+    <p class="mb-3"><strong>{{ r.name }}</strong> · {{ format(date(), { weekday: 'long', month: 'short', day: 'numeric' }) }}
+      @if (r.storeName) { · {{ r.storeName }} }</p>
+    <div class="row g-3">
+      <div class="col-6">
+        <label class="form-label" for="tcIn">Clock in <span class="text-danger">*</span></label>
+        <input id="tcIn" type="time" class="form-control" [(ngModel)]="editIn" required />
+      </div>
+      <div class="col-6">
+        <label class="form-label" for="tcOut">Clock out <span class="text-muted-2 small">(optional)</span></label>
+        <input id="tcOut" type="time" class="form-control" [(ngModel)]="editOut" />
+      </div>
+      <div class="col-12">
+        <label class="form-label" for="tcNote">Note <span class="text-muted-2 small">(optional)</span></label>
+        <input id="tcNote" class="form-control" maxlength="255" [(ngModel)]="editNote" placeholder="e.g. Seen on camera 10:04" />
+      </div>
+    </div>
+  }
+  <ng-container modal-footer>
+    @if (editRow()?.entryId) {
+      <button type="button" class="btn btn-outline-danger me-auto" (click)="remove(editRow()!)">Remove clock-in</button>
+    }
+    <button type="button" class="btn btn-light" (click)="editOpen.set(false)">Cancel</button>
+    <button type="button" class="btn btn-primary" [disabled]="!editIn" (click)="saveEdit()">Save</button>
+  </ng-container>
+</app-modal>

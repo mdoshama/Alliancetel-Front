@@ -25,17 +25,22 @@ describe('Shell', () => {
   it('shows the AllianceTel brand and the full menu to admins', async () => {
     const { el, labels } = await renderAs('ADMIN');
     expect(el.querySelector('.brand-text')?.textContent).toContain('AllianceTel');
-    expect(labels).toEqual(['Dashboard', 'Performance', 'Weekly Schedule', 'Day-off Requests', 'Employees', 'Messages', 'End of Day', 'Commission', 'Areas', 'Stores', 'Devices']);
+    expect(labels).toEqual(['Dashboard', 'Performance', 'Weekly Schedule', 'Day-off Requests', 'Employees', 'Messages', 'Time Clock', 'End of Day', 'Commission', 'Areas', 'Stores', 'Devices']);
   });
 
   it('shows managers their team but not areas', async () => {
     const { labels } = await renderAs('MANAGER');
-    expect(labels).toEqual(['Dashboard', 'Performance', 'Weekly Schedule', 'Day-off Requests', 'My Team', 'Messages', 'End of Day', 'Stores']);
+    expect(labels).toEqual(['Dashboard', 'Performance', 'Weekly Schedule', 'Day-off Requests', 'My Team', 'Messages', 'Time Clock', 'End of Day', 'Stores']);
   });
 
   it('shows employees only their own pages', async () => {
     const { labels } = await renderAs('EMPLOYEE');
     expect(labels).toEqual(['My Schedule', 'My Days Off', 'End of Day', 'My Performance', 'Stores']);
+  });
+
+  it('shows back office only the Time Clock', async () => {
+    const { labels } = await renderAs('BACK_OFFICE');
+    expect(labels).toEqual(['Time Clock']);
   });
 
   it('shows the signed-in user and their area in the top bar', async () => {

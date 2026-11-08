@@ -46,7 +46,7 @@ export class EmployeesPage implements OnInit {
   /** Optional ?store= query param, e.g. when arriving from the Stores page. */
   readonly store = input<string>();
 
-  protected readonly roles: Role[] = ['ADMIN', 'MANAGER', 'EMPLOYEE'];
+  protected readonly roles: Role[] = ['ADMIN', 'MANAGER', 'EMPLOYEE', 'BACK_OFFICE'];
   protected readonly roleLabels = ROLE_LABELS;
 
   protected readonly areas = signal<Area[]>([]);
@@ -277,7 +277,8 @@ export class EmployeesPage implements OnInit {
   }
 
   protected areaRequired(): boolean {
-    return this.form.controls.role.value !== 'ADMIN';
+    const role = this.form.controls.role.value;
+    return role === 'MANAGER' || role === 'EMPLOYEE';
   }
 
   protected save(): void {

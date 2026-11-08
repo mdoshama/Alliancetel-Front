@@ -102,6 +102,19 @@ export class SchedulePage implements OnInit {
   /** Managers: who has sent their day-off request for this week. */
   protected readonly requestStatus = signal<WeekRequestStatus | null>(null);
   protected readonly missingCount = computed(() => this.requestStatus()?.missing.length ?? 0);
+  /** Requests still open and some people haven't picked (they have reserved days): the week waits. */
+  protected readonly waitingCount = computed(() => {
+    const rs = this.requestStatus();
+    return rs?.requestsOpen ? rs.reserved.length : 0;
+  });
+  /** Why Generate is held back, or null. */
+  protected readonly generateBlocked = computed(() =>
+    this.missingCount() > 0
+      ? `Waiting for ${this.missingCount()} day-off request${this.missingCount() === 1 ? '' : 's'} (listed above).`
+      : this.waitingCount() > 0
+        ? `Requests are still open: ${this.waitingCount()} ${this.waitingCount() === 1 ? 'person hasn' + "'" + 't' : 'people haven' + "'" + 't'} picked yet. Generate after Friday, or an admin can close requests.`
+        : null,
+  );
   /** Two days picked for the same person: they must be different days. */
   protected readonly duplicatePick = computed(() => {
     const seen = new Set<string>();
@@ -617,8 +630,8 @@ export class SchedulePage implements OnInit {
     if (areaId == null) {
       return;
     }
-    if (this.missingCount() > 0) {
-      this.toast.error('Everyone needs a day-off request in first. Use "Suggest days off" to give the rest a day.');
+    if (this.generateBlocked()) {
+      this.toast.error(this.generateBlocked()!);
       return;
     }
     const existing = this.schedule();

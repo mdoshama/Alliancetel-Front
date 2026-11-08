@@ -40,7 +40,7 @@
             <i class="bi bi-magic me-1"></i> Auto-fill stores
           </button>
         }
-        <button type="button" class="btn btn-outline-primary" [disabled]="working() || missingCount() > 0" (click)="generate()">
+        <button type="button" class="btn btn-outline-primary" [disabled]="working() || !!generateBlocked()" (click)="generate()" [attr.title]="generateBlocked()">
           <i class="bi bi-arrow-repeat me-1"></i> Regenerate
         </button>
         <button type="button" class="btn btn-outline-success" [disabled]="working()" (click)="saveDraft()"
@@ -71,18 +71,20 @@
 </div>
 
 @if (auth.canManage() && requestStatus(); as rs) {
-  @if (rs.total > 0 && schedule()?.status !== 'PUBLISHED' && (rs.missing.length > 0 || rs.denied.length > 0 || rs.fewer.length > 0 || !schedule())) {
+  @if (rs.total > 0 && schedule()?.status !== 'PUBLISHED' && (rs.missing.length > 0 || rs.denied.length > 0 || rs.fewer.length > 0 || rs.reserved.length > 0 || !schedule())) {
     <div class="card mb-3 request-status" [class.border-warning]="rs.missing.length > 0">
       <div class="card-body py-3">
         <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
           <span class="fw-semibold">
             <i class="bi me-1" [class]="rs.missing.length ? 'bi-hourglass-split text-warning' : 'bi-check2-circle text-success'"></i>
-            Day-off requests for this week: {{ rs.sent }} of {{ rs.total }} sent
+            Day-off requests for this week: {{ rs.sent }} of {{ rs.total }} picked their days
           </span>
-          @if (rs.missing.length === 0) {
-            <span class="small text-muted-2">Everyone is in. You can generate the schedule.</span>
+          @if (rs.missing.length > 0) {
+            <span class="small text-muted-2">The schedule can be generated once everyone has a day off.</span>
+          } @else if (rs.requestsOpen && rs.reserved.length > 0) {
+            <span class="small text-muted-2">Requests are still open; people who haven't picked keep their reserved days.</span>
           } @else {
-            <span class="small text-muted-2">The schedule can be generated once everyone has a request in.</span>
+            <span class="small text-muted-2">Everyone has their days off. You can generate the schedule.</span>
           }
           @if (rs.missing.length > 0 || rs.denied.length > 0 || rs.fewer.length > 0) {
             <button type="button" class="btn btn-sm btn-warning ms-auto" [disabled]="suggesting()" (click)="openSuggestions()">
@@ -106,6 +108,17 @@
           <div class="d-flex flex-wrap gap-1">
             @for (p of rs.denied; track p.employeeId) {
               <span class="badge rounded-pill text-bg-warning-subtle border border-warning-subtle text-warning-emphasis">{{ p.name }}</span>
+            }
+          </div>
+        }
+        @if (rs.reserved.length > 0) {
+          <div class="small mb-1 mt-2"><span class="text-info-emphasis fw-semibold">Haven't picked, using reserved days ({{ rs.reserved.length }}):</span></div>
+          <div class="d-flex flex-wrap gap-1">
+            @for (p of rs.reserved; track p.employeeId) {
+              <span class="badge rounded-pill text-bg-info-subtle border border-info-subtle text-info-emphasis"
+                    [attr.title]="'Reserved: ' + p.dates.join(', ')">
+                {{ p.name }} · {{ p.dates.length }} reserved
+              </span>
             }
           </div>
         }
@@ -148,16 +161,16 @@
       <i class="bi bi-calendar-plus"></i>
       <p class="mb-3">No schedule yet for {{ selectedArea()?.name }} · {{ weekLabel() }}.</p>
       <p class="small mb-3">
-        Everyone needs a day-off request in first (or a day given with "Suggest days off").<br />
-        Approved requests become days off; everyone else works the days the stores are open.
+        Everyone's usual days off are reserved when the week opens; requests they make swap with them.<br />
+        Approved requests and reserved days become days off; everyone else works the days the stores are open.
       </p>
-      <button type="button" class="btn btn-primary" [disabled]="working() || missingCount() > 0" (click)="generate()"
-              [attr.title]="missingCount() > 0 ? 'Waiting for ' + missingCount() + ' day-off request' + (missingCount() === 1 ? '' : 's') : null">
+      <button type="button" class="btn btn-primary" [disabled]="working() || !!generateBlocked()" (click)="generate()"
+              [attr.title]="generateBlocked()">
         @if (working()) { <span class="spinner-border spinner-border-sm me-1"></span> }
         <i class="bi bi-magic me-1"></i> Generate schedule
       </button>
-      @if (missingCount() > 0) {
-        <p class="small text-danger mt-2 mb-0">Waiting for {{ missingCount() }} day-off request{{ missingCount() === 1 ? '' : 's' }} (listed above).</p>
+      @if (generateBlocked(); as why) {
+        <p class="small text-danger mt-2 mb-0">{{ why }}</p>
       }
     </div>
   </div>

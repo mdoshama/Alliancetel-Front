@@ -41,6 +41,7 @@ const SECTIONS: NavSection[] = [
       { label: 'Employees', icon: 'bi-people', path: '/employees', roles: ['ADMIN'] },
       { label: 'My Team', icon: 'bi-people', path: '/employees', roles: ['MANAGER'] },
       { label: 'Messages', icon: 'bi-chat-dots', path: '/messages', roles: ['ADMIN', 'MANAGER'] },
+      { label: 'Time Clock', icon: 'bi-clock-history', path: '/time-clock', roles: ['ADMIN', 'MANAGER', 'BACK_OFFICE'] },
     ],
   },
   {

@@ -5,7 +5,7 @@ import { RouterLink } from '@angular/router';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { addDays, formatDay, formatWeekRange, today, weekDates, weekStartOf } from '../../core/date-utils';
-import { Area, DayOffImpact, DayOffRequest, DayOffStatus, Employee, TakenDay, RequestWindow } from '../../core/models';
+import { Area, DayOffImpact, DayOffRequest, DayOffStatus, Employee, TakenDay, RequestWindow, PortalMode } from '../../core/models';
 import { IMPACT_BADGE, approvalCard } from '../../core/day-off-impact';
 import { ConfirmService } from '../../core/confirm.service';
 import { ToastService } from '../../core/toast.service';
@@ -84,6 +84,12 @@ export class DayOffPage implements OnInit {
   protected readonly selfService = computed(
     () => !this.auth.isAdmin() && this.formEmployeeId() != null && this.formEmployeeId() === this.auth.user()?.id,
   );
+  /** Their days reserved by the system in the open weeks (self-service form). */
+  protected readonly myReserved = signal<DayOffRequest[]>([]);
+  /** Admins: the portal switch. */
+  protected readonly portal = signal<RequestWindow | null>(null);
+  protected readonly portalBusy = signal(false);
+
   /** The week window applies to this request. */
   protected readonly windowApplies = computed(
     () => this.selfService() && !!this.window()?.enabled && !this.formEmergency(),
@@ -100,7 +106,36 @@ export class DayOffPage implements OnInit {
 
   ngOnInit(): void {
     this.api.areas().subscribe((list) => this.areas.set(list));
+    this.api.dayOffWindow().subscribe({ next: (w) => this.portal.set(w), error: () => this.portal.set(null) });
     this.load();
+  }
+
+  /** Admins: opens or closes day-off requests (or back to the Friday cycle). */
+  protected setPortal(mode: PortalMode): void {
+    this.portalBusy.set(true);
+    this.api.setRequestPortal(mode).subscribe({
+      next: (w) => {
+        this.portal.set(w);
+        this.portalBusy.set(false);
+        this.toast.success(
+          mode === 'OPEN' ? 'Day-off requests are open.' : mode === 'CLOSED' ? 'Day-off requests are closed.' : 'Back to the normal Friday cycle.',
+        );
+        this.load();
+      },
+      error: () => this.portalBusy.set(false),
+    });
+  }
+
+  protected readonly addDays = addDays;
+
+  /** A day the system reserved for them (picking it just keeps it). */
+  protected isMyReserved(date: string): boolean {
+    return this.selfService() && this.myReserved().some((r) => r.date === date);
+  }
+
+  /** "Nov 16" style. */
+  protected short(d: string): string {
+    return formatDay(d, { month: 'short', day: 'numeric' });
   }
 
   protected setTab(tab: StatusTab): void {
@@ -325,9 +360,17 @@ export class DayOffPage implements OnInit {
       next: (w) => {
         this.window.set(w);
         // Start on the week they can ask for.
-        if (w.enabled && this.formDays().size === 0) {
-          this.formWeek.set(w.weekStart);
+        if (w.enabled && this.formDays().size === 0 && w.openWeeks.length) {
+          this.formWeek.set(w.openWeeks[0]);
           this.loadTaken();
+        }
+        // Show the days reserved for them, so they know what asking for another day will swap.
+        if (w.reservations && w.openWeeks.length && !this.auth.isAdmin()) {
+          const from = w.openWeeks[0];
+          const to = addDays(w.openWeeks[w.openWeeks.length - 1], 6);
+          this.api
+            .dayOffRequests({ employeeId: this.auth.user()?.id ?? null, status: 'APPROVED', from, to })
+            .subscribe({ next: (list) => this.myReserved.set(list.filter((r) => r.reserved)), error: () => undefined });
         }
       },
       error: () => this.window.set(null),
@@ -378,7 +421,7 @@ export class DayOffPage implements OnInit {
     if (date < this.todayIso || this.formDays().size >= this.formMaxDays()) {
       return true;
     }
-    if (this.windowApplies() && weekStartOf(date) !== this.window()!.weekStart) {
+    if (this.windowApplies() && !this.window()!.openWeeks.includes(weekStartOf(date))) {
       return true;
     }
     return !this.formEmergency() && this.takenBy(date) !== null;
