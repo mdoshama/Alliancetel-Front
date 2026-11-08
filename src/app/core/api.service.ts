@@ -45,6 +45,9 @@ import {
   Store,
   StoreRequest,
   UpcomingBirthday,
+  RequestWindow,
+  WeekRequestStatus,
+  DayOffSuggestion,
 } from './models';
 
 function toParams(filter: object): HttpParams {
@@ -129,6 +132,10 @@ export class ApiService {
   dayOffRequestsPage(filter: DayOffPageFilter = {}): Observable<Page<DayOffRequest>> {
     return this.http.get<Page<DayOffRequest>>(`${this.base}/day-off-requests/page`, { params: toParams(filter) });
   }
+  /** The week people can ask for now and its Friday deadline. */
+  dayOffWindow(): Observable<RequestWindow> {
+    return this.http.get<RequestWindow>(`${this.base}/day-off-requests/window`);
+  }
   createDayOff(body: CreateDayOffRequest): Observable<DayOffRequest[]> {
     return this.http.post<DayOffRequest[]>(`${this.base}/day-off-requests`, body);
   }
@@ -185,6 +192,18 @@ export class ApiService {
     return this.http
       .get<Schedule>(`${this.base}/schedules`, { params: toParams({ areaId, weekStart }), observe: 'response' })
       .pipe(map((res) => (res.status === 204 ? null : res.body)));
+  }
+  /** Managers: who has sent their day-off request for the week. */
+  weekRequests(areaId: number, weekStart: string): Observable<WeekRequestStatus> {
+    return this.http.get<WeekRequestStatus>(`${this.base}/schedules/requests`, { params: { areaId, weekStart } });
+  }
+  /** Managers: a suggested day off for everyone without a request (or turned down). */
+  suggestDaysOff(areaId: number, weekStart: string): Observable<DayOffSuggestion[]> {
+    return this.http.post<DayOffSuggestion[]>(`${this.base}/schedules/requests/suggest`, {}, { params: { areaId, weekStart } });
+  }
+  /** Managers: gives the chosen days off (approved; each person is told). */
+  assignDaysOff(areaId: number, items: { employeeId: number; date: string }[]): Observable<DayOffRequest[]> {
+    return this.http.post<DayOffRequest[]>(`${this.base}/schedules/requests/apply`, { areaId, items });
   }
   generateSchedule(areaId: number, weekStart: string): Observable<Schedule> {
     return this.http.post<Schedule>(`${this.base}/schedules/generate`, { areaId, weekStart });

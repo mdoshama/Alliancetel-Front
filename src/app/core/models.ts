@@ -59,6 +59,8 @@ export interface Store {
   color: string;
   /** Sales tax in percent (e.g. 7.75); commission uses it to take tax off accessories. */
   taxRate: number;
+  /** Most floaters auto-fill sends here on one day; 0 = no limit. */
+  maxFloatersPerDay: number;
 }
 
 export interface StoreRequest {
@@ -74,6 +76,8 @@ export interface StoreRequest {
   color?: string;
   /** Sales tax in percent; leave out to keep the current rate. */
   taxRate?: number;
+  /** Most floaters auto-fill sends here on one day (0 = no limit); leave out to keep the current limit. */
+  maxFloatersPerDay?: number;
 }
 
 export interface Employee {
@@ -103,6 +107,9 @@ export interface Employee {
   smsOptIn: boolean;
   /** Date of birth 'yyyy-MM-dd', or null when not on file. */
   birthDate: string | null;
+  /** Stores auto-fill may send them to when they float or cover (empty = any store in the area). */
+  floatStoreIds: number[];
+  floatStoreNames: string[];
 }
 
 /** A coming birthday, for the dashboard and the staff list (admins: everyone; managers: their area). */
@@ -123,6 +130,61 @@ export interface UpcomingBirthday {
 }
 
 /** Returned once when an account is created or its password is reset. */
+/** The weekly day-off request window ('yyyy-MM-dd' dates). */
+export interface RequestWindow {
+  /** The window applies to people asking for themselves (emergencies are exempt). */
+  enabled: boolean;
+  weekStart: string;
+  weekEnd: string;
+  /** The Friday it closes. */
+  deadline: string;
+  /** The Saturday the following week opens. */
+  nextOpens: string;
+  oneEmergencyPerMonth: boolean;
+  emergencyUsedThisMonth: boolean;
+}
+
+export type WeekRequestState = 'MISSING' | 'PENDING' | 'APPROVED' | 'DENIED';
+
+export interface WeekRequestPerson {
+  employeeId: number;
+  name: string;
+  homeStoreName: string | null;
+  state: WeekRequestState;
+  dates: string[];
+  /** Days off they normally take a week (7 − work days). */
+  daysOffNeeded: number;
+  /** Pending or approved days off this week. */
+  daysOffAsked: number;
+}
+
+/** Who has sent their day-off request for a week (managers). */
+export interface WeekRequestStatus {
+  weekStart: string;
+  total: number;
+  sent: number;
+  missing: WeekRequestPerson[];
+  denied: WeekRequestPerson[];
+  /** Asked, but for fewer days than they normally take off. */
+  fewer: WeekRequestPerson[];
+  others: WeekRequestPerson[];
+}
+
+/** A suggested day off for someone without a request (or whose request was turned down). */
+export interface DayOffSuggestion {
+  employeeId: number;
+  name: string;
+  homeStoreName: string | null;
+  state: WeekRequestState;
+  date: string;
+  /** Every day of the week, most convenient first. */
+  options: string[];
+  reason: string;
+  /** Which of their days off this is (e.g. 2 of 2). */
+  dayNumber: number;
+  daysNeeded: number;
+}
+
 export interface Credentials {
   employee: Employee;
   temporaryPassword: string;
@@ -189,6 +251,8 @@ export interface EmployeeRequest {
   emailOptIn?: boolean;
   /** Date of birth 'yyyy-MM-dd' (optional), for birthday reminders. */
   birthDate?: string | null;
+  /** Stores they may float to (empty = any store in the area). */
+  floatStoreIds?: number[];
 }
 
 export interface EmployeeFilter {
@@ -390,6 +454,8 @@ export interface EmployeeRow {
   expectedWorkDays: number;
   scheduledWorkDays: number;
   days: DayCell[];
+  /** Stores they may float to (empty = any store in the area). */
+  floatStoreIds?: number[];
 }
 
 export interface Schedule {

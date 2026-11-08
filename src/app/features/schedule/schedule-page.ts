@@ -21,6 +21,8 @@ import {
   StoreRef,
   DayOffImpact,
   WeekRequest,
+  DayOffSuggestion,
+  WeekRequestStatus,
 } from '../../core/models';
 import { IMPACT_BADGE, approvalCard } from '../../core/day-off-impact';
 import { formatHours, formatTime } from '../../core/store-hours';
@@ -97,6 +99,22 @@ export class SchedulePage implements OnInit {
   protected readonly areas = signal<Area[]>([]);
   protected readonly areaId = signal<number | null>(null);
   protected readonly weekStart = signal(weekStartOf(today()));
+  /** Managers: who has sent their day-off request for this week. */
+  protected readonly requestStatus = signal<WeekRequestStatus | null>(null);
+  protected readonly missingCount = computed(() => this.requestStatus()?.missing.length ?? 0);
+  /** Two days picked for the same person: they must be different days. */
+  protected readonly duplicatePick = computed(() => {
+    const seen = new Set<string>();
+    for (const x of this.chosenSuggestions()) {
+      const key = x.employeeId + '|' + x.pick;
+      if (seen.has(key)) return x.name;
+      seen.add(key);
+    }
+    return null;
+  });
+  protected readonly suggestOpen = signal(false);
+  protected readonly suggesting = signal(false);
+  protected readonly suggestions = signal<(DayOffSuggestion & { pick: string; include: boolean })[]>([]);
   protected readonly schedule = signal<Schedule | null>(null);
   protected readonly loading = signal(false);
   protected readonly working = signal(false);
@@ -527,6 +545,7 @@ export class SchedulePage implements OnInit {
     this.storeFilter.set(null);
     this.personSearch.set('');
     this.loading.set(true);
+    this.loadRequestStatus();
     this.api.schedule(areaId, this.weekStart()).subscribe({
       next: (s) => {
         this.schedule.set(s);
@@ -536,9 +555,70 @@ export class SchedulePage implements OnInit {
     });
   }
 
+  /** Managers: refreshes who has sent their day-off request for the week shown. */
+  protected loadRequestStatus(): void {
+    const areaId = this.areaId();
+    if (areaId == null || !this.auth.canManage()) {
+      this.requestStatus.set(null);
+      return;
+    }
+    const week = this.weekStart();
+    this.api.weekRequests(areaId, week).subscribe({
+      next: (status) => {
+        if (status.weekStart === this.weekStart()) this.requestStatus.set(status);
+      },
+      error: () => this.requestStatus.set(null),
+    });
+  }
+
+  /** Suggests a day off for everyone who hasn't asked (or was turned down); the manager can change each day. */
+  protected openSuggestions(): void {
+    const areaId = this.areaId();
+    if (areaId == null) return;
+    this.suggesting.set(true);
+    this.api.suggestDaysOff(areaId, this.weekStart()).subscribe({
+      next: (list) => {
+        this.suggesting.set(false);
+        if (list.length === 0) {
+          this.toast.info('Everyone already has a day off this week.');
+          return;
+        }
+        this.suggestions.set(list.map((x) => ({ ...x, pick: x.date, include: true })));
+        this.suggestOpen.set(true);
+      },
+      error: () => this.suggesting.set(false),
+    });
+  }
+
+  protected setSuggestion(i: number, change: Partial<{ pick: string; include: boolean }>): void {
+    this.suggestions.update((list) => list.map((x, k) => (k === i ? { ...x, ...change } : x)));
+  }
+
+  protected readonly chosenSuggestions = computed(() => this.suggestions().filter((x) => x.include));
+
+  protected applySuggestions(): void {
+    const areaId = this.areaId();
+    const items = this.chosenSuggestions().map((x) => ({ employeeId: x.employeeId, date: x.pick }));
+    if (areaId == null || items.length === 0) return;
+    this.suggesting.set(true);
+    this.api.assignDaysOff(areaId, items).subscribe({
+      next: (done) => {
+        this.suggesting.set(false);
+        this.suggestOpen.set(false);
+        this.toast.success(`${done.length} day${done.length === 1 ? '' : 's'} off given. Each person has been told.`);
+        this.load();
+      },
+      error: () => this.suggesting.set(false),
+    });
+  }
+
   protected async generate(): Promise<void> {
     const areaId = this.areaId();
     if (areaId == null) {
+      return;
+    }
+    if (this.missingCount() > 0) {
+      this.toast.error('Everyone needs a day-off request in first. Use "Suggest days off" to give the rest a day.');
       return;
     }
     const existing = this.schedule();
@@ -667,6 +747,8 @@ export class SchedulePage implements OnInit {
       const candidates: FillCandidate[] = s.rows
         .map((row) => ({ row, cell: row.days[dayIndex] }))
         .filter(({ cell }) => cell.type === 'WORK' && cell.storeId !== gap.storeId)
+        // Only people allowed at this store (their home store, or one of the stores they float to).
+        .filter(({ row }) => !row.floatStoreIds?.length || row.homeStoreId === gap.storeId || row.floatStoreIds.includes(gap.storeId))
         .filter(({ cell }) => cell.storeId === null || countAt(cell.storeId) > minAt(cell.storeId))
         .map(({ row, cell }) => ({
           row,

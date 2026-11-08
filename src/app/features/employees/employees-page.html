@@ -47,7 +47,7 @@
     <label class="form-label small text-muted-2 mb-1" for="fSearch">Search</label>
     <div class="input-group">
       <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
-      <input id="fSearch" type="search" class="form-control" placeholder="Name, email or code" [(ngModel)]="search"
+      <input id="fSearch" type="search" class="form-control" placeholder="Name, email or NTID" [(ngModel)]="search"
              (ngModelChange)="onSearch()" (keydown.enter)="applyFilters()" autocomplete="off" />
       @if (search) {
         <button type="button" class="btn btn-outline-secondary" (click)="search = ''; applyFilters()" aria-label="Clear search">
@@ -78,7 +78,7 @@
       <span>Sort by</span>
       <select class="form-select form-select-sm" [(ngModel)]="sort" (ngModelChange)="applyFilters()" aria-label="Sort by">
         <option value="name">Name</option>
-        <option value="code">Employee code</option>
+        <option value="code">NTID</option>
         <option value="role">Role</option>
       </select>
     </label>
@@ -166,6 +166,11 @@
                       <span class="home-chip role-FLOATER" [attr.title]="storeRoleHelp.FLOATER"><i class="bi bi-shuffle"></i> Floater</span>
                     }
                   </div>
+                  @if (e.floatStoreNames?.length) {
+                    <div class="small text-muted-2 mt-1" [attr.title]="'Auto-fill only sends ' + e.firstName + ' to these stores'">
+                      <i class="bi bi-arrow-left-right me-1"></i>{{ e.homeStoreId ? 'Covers' : 'Floats to' }} {{ e.floatStoreNames.join(', ') }}
+                    </div>
+                  }
                 } @else {
                   <span class="home-chip role-{{ e.storeRole }}" [style.--store-color]="storeColor(e.homeStoreId)"
                         [attr.title]="storeRoleHelp[e.storeRole]">
@@ -223,10 +228,10 @@
   <form [formGroup]="form" (ngSubmit)="save()" id="employeeForm">
     <div class="row g-3">
       <div class="col-md-4">
-        <label class="form-label" for="eCode">Employee code</label>
+        <label class="form-label" for="eCode">NTID</label>
         <input id="eCode" class="form-control" formControlName="employeeCode" placeholder="AT-1050" maxlength="20"
-               autocomplete="off" [class.is-invalid]="fieldError(form.controls.employeeCode, 'Employee code')" />
-        <div class="invalid-feedback">{{ fieldError(form.controls.employeeCode, 'Employee code') }}</div>
+               autocomplete="off" [class.is-invalid]="fieldError(form.controls.employeeCode, 'NTID')" />
+        <div class="invalid-feedback">{{ fieldError(form.controls.employeeCode, 'NTID') }}</div>
       </div>
       <div class="col-md-4">
         <label class="form-label" for="eFirst">First name</label>
@@ -298,6 +303,27 @@
           }
         </select>
       </div>
+      @if (storesIn(form.controls.areaId.value).length > 1) {
+        <div class="col-12">
+          <span class="form-label d-block mb-1">
+            {{ form.controls.homeStoreId.value == null ? 'Stores they can float to' : 'Other stores they can cover' }}
+            <span class="text-muted-2 small">(none ticked = any store in the area)</span>
+          </span>
+          <div class="d-flex flex-wrap gap-2">
+            @for (st of storesIn(form.controls.areaId.value); track st.id) {
+              @if (st.id !== form.controls.homeStoreId.value) {
+                <label class="float-store-option" [class.selected]="form.controls.floatStoreIds.value.includes(st.id)"
+                       [style.--store-color]="st.color">
+                  <input type="checkbox" class="form-check-input me-1" [checked]="form.controls.floatStoreIds.value.includes(st.id)"
+                         (change)="toggleFloatStore(st.id, $any($event.target).checked)" />
+                  <span class="store-dot me-1"></span>{{ st.name }}
+                </label>
+              }
+            }
+          </div>
+          <div class="form-text">Auto-fill only sends them to these stores. Managers can still move anyone by hand.</div>
+        </div>
+      }
       <div class="col-md-3">
         <label class="form-label" for="eDays">Days / week</label>
         <input id="eDays" type="number" min="1" max="7" step="1" class="form-control" formControlName="workDaysPerWeek"

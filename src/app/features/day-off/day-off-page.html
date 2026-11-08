@@ -209,6 +209,15 @@
       </button>
     </div>
   </div>
+  @if (windowApplies() && window(); as w) {
+    <div class="alert alert-info small py-2 mb-2">
+      <i class="bi bi-calendar-check me-1"></i>
+      You can ask for days off in the week of <strong>{{ format(w.weekStart, { month: 'short', day: 'numeric' }) }} –
+      {{ format(w.weekEnd, { month: 'short', day: 'numeric' }) }}</strong> until the end of
+      <strong>{{ format(w.deadline, { weekday: 'long', month: 'short', day: 'numeric' }) }}</strong>. The week after opens on
+      {{ format(w.nextOpens, { weekday: 'long', month: 'short', day: 'numeric' }) }}.
+    </div>
+  }
   <div class="day-toggle-group mb-2">
     @for (d of formWeekDates(); track d) {
       <button type="button" class="btn"
@@ -241,7 +250,13 @@
              [ngModel]="formEmergency()" (ngModelChange)="setEmergency($event)" />
       <label class="form-check-label fw-semibold" for="nEmergency">Emergency day off</label>
     </div>
-    <div class="small text-muted-2">For something urgent (illness, family emergency). Skips the usual limits.</div>
+    <div class="small text-muted-2">
+      For something urgent (illness, family emergency). Skips the usual limits.
+      @if (window()?.oneEmergencyPerMonth) { <strong>Only allowed once a month.</strong> }
+    </div>
+    @if (selfService() && window()?.emergencyUsedThisMonth) {
+      <div class="small text-danger mt-1"><i class="bi bi-info-circle me-1"></i>You've already used this month's emergency request.</div>
+    }
   </div>
   <div>
     <label class="form-label" for="nReason">Reason <span class="text-muted-2 small">(optional)</span></label>

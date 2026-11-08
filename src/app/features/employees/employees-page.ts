@@ -122,6 +122,8 @@ export class EmployeesPage implements OnInit {
     emailOptIn: [true],
     /** 'yyyy-MM-dd' from the date picker; empty = not on file. */
     birthDate: ['', [birthDateRule]],
+    /** Stores auto-fill may send them to when they float or cover; none ticked = any store in the area. */
+    floatStoreIds: [[] as number[]],
   });
 
   /** Date picker limits, same as the server's. */
@@ -247,6 +249,7 @@ export class EmployeesPage implements OnInit {
       whatsappOptIn: false,
       emailOptIn: true,
       birthDate: '',
+      floatStoreIds: [],
     });
     this.modalOpen.set(true);
   }
@@ -268,6 +271,7 @@ export class EmployeesPage implements OnInit {
       whatsappOptIn: e.whatsappOptIn,
       emailOptIn: e.emailOptIn,
       birthDate: e.birthDate ?? '',
+      floatStoreIds: [...(e.floatStoreIds ?? [])],
     });
     this.modalOpen.set(true);
   }
@@ -296,6 +300,8 @@ export class EmployeesPage implements OnInit {
       primaryAtStore: v.homeStoreId != null && v.primaryAtStore,
       workDaysPerWeek: Number(v.workDaysPerWeek),
       birthDate: v.birthDate.trim() || null,
+      // The home store is always allowed; only other stores are listed.
+      floatStoreIds: v.floatStoreIds.filter((id) => id !== v.homeStoreId),
     };
     const current = this.editing();
     const request: Observable<Employee | Credentials> = current
@@ -347,9 +353,21 @@ export class EmployeesPage implements OnInit {
     this.applyFilters();
   }
 
+  /** Ticks or unticks a store the person may float to. */
+  protected toggleFloatStore(storeId: number, on: boolean): void {
+    const c = this.form.controls.floatStoreIds;
+    const next = new Set(c.value);
+    if (on) next.add(storeId);
+    else next.delete(storeId);
+    c.setValue([...next]);
+    c.markAsDirty();
+  }
+
   /** The form's store list follows the chosen area; a store from another area is cleared. */
   protected onFormAreaChange(): void {
     const v = this.form.getRawValue();
+    const inArea = new Set(this.storesIn(v.areaId).map((s) => s.id));
+    this.form.controls.floatStoreIds.setValue(v.floatStoreIds.filter((id) => inArea.has(id)));
     if (v.homeStoreId != null && !this.storesIn(v.areaId).some((s) => s.id === v.homeStoreId)) {
       this.form.controls.homeStoreId.setValue(null);
     }

@@ -5,7 +5,7 @@ import { RouterLink } from '@angular/router';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { addDays, formatDay, formatWeekRange, today, weekDates, weekStartOf } from '../../core/date-utils';
-import { Area, DayOffImpact, DayOffRequest, DayOffStatus, Employee, TakenDay } from '../../core/models';
+import { Area, DayOffImpact, DayOffRequest, DayOffStatus, Employee, TakenDay, RequestWindow } from '../../core/models';
 import { IMPACT_BADGE, approvalCard } from '../../core/day-off-impact';
 import { ConfirmService } from '../../core/confirm.service';
 import { ToastService } from '../../core/toast.service';
@@ -78,6 +78,16 @@ export class DayOffPage implements OnInit {
   }
   /** Urgent request: lifts the one-per-store and weekly limits (still needs approval). */
   protected readonly formEmergency = signal(false);
+  /** The weekly request window (people asking for themselves pick from the open week only). */
+  protected readonly window = signal<RequestWindow | null>(null);
+  /** Asking for yourself (admins and managers entering it for someone else can make exceptions). */
+  protected readonly selfService = computed(
+    () => !this.auth.isAdmin() && this.formEmployeeId() != null && this.formEmployeeId() === this.auth.user()?.id,
+  );
+  /** The week window applies to this request. */
+  protected readonly windowApplies = computed(
+    () => this.selfService() && !!this.window()?.enabled && !this.formEmergency(),
+  );
   /** Days in the chosen week a colleague at the same store already has off, by date → first name. */
   protected readonly formTaken = signal<Map<string, TakenDay>>(new Map());
   protected readonly formMaxDays = computed(() => (this.formEmergency() ? 7 : this.maxDaysPerWeek));
@@ -311,6 +321,17 @@ export class DayOffPage implements OnInit {
     this.formArea.set(this.auth.isAdmin() ? this.areaFilter : (me?.areaId ?? null));
     this.formEmployeeId.set(this.auth.isEmployee() ? (me?.id ?? null) : null);
     this.formWeek.set(addDays(weekStartOf(today()), 7));
+    this.api.dayOffWindow().subscribe({
+      next: (w) => {
+        this.window.set(w);
+        // Start on the week they can ask for.
+        if (w.enabled && this.formDays().size === 0) {
+          this.formWeek.set(w.weekStart);
+          this.loadTaken();
+        }
+      },
+      error: () => this.window.set(null),
+    });
     this.formDays.set(new Set());
     this.formReason = '';
     this.formEmergency.set(false);
@@ -355,6 +376,9 @@ export class DayOffPage implements OnInit {
       return false;
     }
     if (date < this.todayIso || this.formDays().size >= this.formMaxDays()) {
+      return true;
+    }
+    if (this.windowApplies() && weekStartOf(date) !== this.window()!.weekStart) {
       return true;
     }
     return !this.formEmergency() && this.takenBy(date) !== null;
