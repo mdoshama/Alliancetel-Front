@@ -5,7 +5,7 @@ import { DatePipe } from '@angular/common';
 import { Observable } from 'rxjs';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
-import { Area, Credentials, Employee, EmployeePageFilter, ROLE_LABELS, Role, Store, STORE_ROLE_HELP, STORE_ROLE_LABELS, StoreRole } from '../../core/models';
+import { Area, Credentials, DayOfWeek, Employee, EmployeePageFilter, ROLE_LABELS, Role, Store, STORE_ROLE_HELP, STORE_ROLE_LABELS, StoreRole } from '../../core/models';
 import { savePageSize, savedPageSize } from '../../core/paging';
 import { ConfirmService } from '../../core/confirm.service';
 import { ToastService } from '../../core/toast.service';
@@ -429,6 +429,69 @@ export class EmployeesPage implements OnInit {
         this.movingId.set(null);
         this.employees.update((list) => [...list]);
       },
+    });
+  }
+
+  protected readonly weekDays: { value: DayOfWeek; short: string; long: string }[] = [
+    { value: 'MONDAY', short: 'M', long: 'Monday' },
+    { value: 'TUESDAY', short: 'T', long: 'Tuesday' },
+    { value: 'WEDNESDAY', short: 'W', long: 'Wednesday' },
+    { value: 'THURSDAY', short: 'T', long: 'Thursday' },
+    { value: 'FRIDAY', short: 'F', long: 'Friday' },
+    { value: 'SATURDAY', short: 'S', long: 'Saturday' },
+    { value: 'SUNDAY', short: 'S', long: 'Sunday' },
+  ];
+  protected readonly regularSavingId = signal<number | null>(null);
+
+  protected isRegular(e: Employee, day: DayOfWeek): boolean {
+    return e.regularDaysOff?.includes(day) ?? false;
+  }
+
+  /** Managers set them for their own team (not for themselves); admins for anyone. */
+  protected canSetRegular(e: Employee): boolean {
+    return this.auth.isAdmin() || (this.auth.canManage() && e.id !== this.auth.user()?.id);
+  }
+
+  protected regularNames(e: Employee): string {
+    return (e.regularDaysOff ?? []).map((d) => this.weekDays.find((x) => x.value === d)?.long ?? d).join(' and ');
+  }
+
+  protected regularTitle(e: Employee, d: { value: DayOfWeek; long: string }): string {
+    if (!this.canSetRegular(e)) return this.isRegular(e, d.value) ? `Off every ${d.long}` : d.long;
+    return this.isRegular(e, d.value)
+      ? `Off every ${d.long}. Click to remove.`
+      : `Make ${d.long} a regular day off: it's reserved for ${e.firstName} each week (a manager still approves it).`;
+  }
+
+  /** Turns a regular day off on or off; saved right away. */
+  protected toggleRegular(e: Employee, day: DayOfWeek): void {
+    if (!this.canSetRegular(e)) return;
+    const current = e.regularDaysOff ?? [];
+    const usual = Math.max(0, 7 - e.workDaysPerWeek);
+    let next: DayOfWeek[];
+    if (current.includes(day)) {
+      next = current.filter((d) => d !== day);
+    } else if (current.length < usual) {
+      next = [...current, day];
+    } else if (usual === 1) {
+      // One day off a week: picking another day moves it.
+      next = [day];
+    } else {
+      this.toast.info(`${e.firstName} works ${e.workDaysPerWeek} days, so they can have ${usual} regular days off. Remove one first.`);
+      return;
+    }
+    this.regularSavingId.set(e.id);
+    this.api.setRegularDaysOff(e.id, next).subscribe({
+      next: (updated) => {
+        this.regularSavingId.set(null);
+        this.employees.update((list) => list.map((x) => (x.id === updated.id ? updated : x)));
+        this.toast.success(
+          updated.regularDaysOff?.length
+            ? `${updated.firstName} is now off every ${this.regularNames(updated)}. It's reserved for them each week, waiting for approval.`
+            : `${updated.firstName} has no regular day off now; the system picks one each week.`,
+        );
+      },
+      error: () => this.regularSavingId.set(null),
     });
   }
 

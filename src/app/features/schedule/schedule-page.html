@@ -334,6 +334,7 @@
         <i class="bi bi-calendar-x text-warning"></i>
         <span class="fw-semibold">Days off waiting this week</span>
         @if (askedRequests().length) { <span class="badge rounded-pill text-bg-warning" title="Asked for by employees">{{ askedRequests().length }} asked</span> }
+        @if (regularRequests().length) { <span class="badge rounded-pill regular-pill" title="Regular days off, the same day every week"><i class="bi bi-arrow-repeat me-1"></i>{{ regularRequests().length }} regular</span> }
         @if (reservedRequests().length) { <span class="badge rounded-pill reserved-pill" title="Held by the system for people who haven't picked"><i class="bi bi-bookmark me-1"></i>{{ reservedRequests().length }} reserved</span> }
         @if (reviewable().length > 1) {
           <button type="button" class="btn btn-success btn-sm ms-auto" [disabled]="deciding() !== null" (click)="approveAllThatFit()">
@@ -351,6 +352,18 @@
         </div>
         <ul class="list-group list-group-flush">
           @for (r of askedRequests(); track r.id) {
+            <ng-container *ngTemplateOutlet="requestRow; context: { $implicit: r }" />
+          }
+        </ul>
+      }
+      @if (regularRequests().length) {
+        <div class="request-group-head is-regular">
+          <span class="req-flag is-regular"><i class="bi bi-arrow-repeat"></i></span>
+          <span class="fw-semibold">Regular days off</span>
+          <span class="small text-muted-2 d-none d-md-inline">The same day every week, set on the Employees page. Reserved even when it's tight; you decide.</span>
+        </div>
+        <ul class="list-group list-group-flush">
+          @for (r of regularRequests(); track r.id) {
             <ng-container *ngTemplateOutlet="requestRow; context: { $implicit: r }" />
           }
         </ul>
@@ -383,7 +396,7 @@
         }
       }
       <ng-template #requestRow let-r>
-        <li class="list-group-item request-item" [class.is-emergency]="r.emergency" [class.is-reserved]="r.reserved">
+        <li class="list-group-item request-item" [class.is-emergency]="r.emergency" [class.is-reserved]="r.reserved && !r.regular" [class.is-regular]="r.regular">
           <div class="request-who">
             <div class="fw-semibold">
               {{ r.employeeName }}
@@ -544,6 +557,7 @@
         <span class="d-flex align-items-center gap-1"><span class="day-chip type-REQUESTED_OFF px-2">Off <i class="bi bi-check-circle-fill approved-check ms-1"></i></span> approved request</span>
         @if (auth.canManage()) {
           @if (askedRequests().length) { <span class="d-flex align-items-center gap-1"><span class="req-flag">Off?</span> asked off</span> }
+          @if (regularRequests().length) { <span class="d-flex align-items-center gap-1"><span class="req-flag is-regular"><i class="bi bi-arrow-repeat"></i></span> regular day off</span> }
           @if (reservedRequests().length) { <span class="d-flex align-items-center gap-1"><span class="req-flag is-reserved"><i class="bi bi-bookmark-fill"></i></span> reserved</span> }
           <span class="d-flex align-items-center gap-1"><span class="day-chip type-WORK has-store auto-moved px-2" style="--store-color: #475569"><i class="bi bi-arrow-left-right"></i></span> auto-moved</span>
           <span class="d-flex align-items-center gap-1"><span class="day-chip type-OFF px-2"><span class="edited-dot"></span>&nbsp;</span> edited</span>
@@ -648,8 +662,8 @@
           <span class="sb-name">{{ shortName(p.row.employeeName) }}</span>
           @if (p.cell.type === 'REQUESTED_OFF') { <i class="bi bi-check-circle-fill approved-check" title="Approved day off"></i> }
           @if (p.cell.request; as rq) {
-            <span class="req-flag" [class.is-emergency]="rq.emergency" [class.is-reserved]="rq.reserved"
-                  [attr.title]="rq.reserved ? 'Day off reserved by the system (waiting for approval)' : 'Asked for this day off'">@if (rq.reserved) {<i class="bi bi-bookmark-fill"></i>} @else {Off?}</span>
+            <span class="req-flag" [class.is-emergency]="rq.emergency" [class.is-reserved]="rq.reserved && !rq.regular" [class.is-regular]="rq.regular"
+                  [attr.title]="rq.regular ? 'Regular day off (waiting for approval)' : rq.reserved ? 'Day off reserved by the system (waiting for approval)' : 'Asked for this day off'">@if (rq.regular) {<i class="bi bi-arrow-repeat"></i>} @else if (rq.reserved) {<i class="bi bi-bookmark-fill"></i>} @else {Off?}</span>
           }
           @if (p.cell.autoAssigned) { <i class="bi bi-arrow-left-right sb-moved" title="Moved automatically"></i> }
           @if (p.cell.manuallyEdited) { <span class="edited-dot"></span> }
@@ -743,7 +757,8 @@
                             [class.auto-moved]="cell.autoAssigned"
                             [class.store-closed]="cell.type === 'WORK' && cell.storeClosed"
                             [class.has-request]="!!cell.request && !cell.request.reserved"
-                            [class.has-reserved]="!!cell.request?.reserved"
+                            [class.has-reserved]="!!cell.request?.reserved && !cell.request?.regular"
+                            [class.has-regular]="!!cell.request?.regular"
                             [disabled]="!canEdit() || working()" (click)="openCell(row, i)"
                             [attr.title]="describe(cell) + (canEdit() ? ' · click to change or swap' : '')">
                       @if (cell.type === 'WORK') {
@@ -761,8 +776,8 @@
                       }
                       @if (cell.manuallyEdited && auth.canManage()) { <span class="edited-dot"></span> }
                       @if (cell.request; as rq) {
-                        <span class="req-flag" [class.is-emergency]="rq.emergency" [class.is-reserved]="rq.reserved"
-                              [attr.title]="rq.reserved ? 'Day off reserved by the system (waiting for approval)' : 'Asked for this day off' + (rq.reason ? ': ' + rq.reason : '')">@if (rq.reserved) {<i class="bi bi-bookmark-fill"></i>} @else {Off?}</span>
+                        <span class="req-flag" [class.is-emergency]="rq.emergency" [class.is-reserved]="rq.reserved && !rq.regular" [class.is-regular]="rq.regular"
+                              [attr.title]="rq.regular ? 'Regular day off (waiting for approval)' : rq.reserved ? 'Day off reserved by the system (waiting for approval)' : 'Asked for this day off' + (rq.reason ? ': ' + rq.reason : '')">@if (rq.regular) {<i class="bi bi-arrow-repeat"></i>} @else if (rq.reserved) {<i class="bi bi-bookmark-fill"></i>} @else {Off?}</span>
                       }
                     </button>
                   </td>
@@ -839,10 +854,13 @@
       </div>
     </div>
     @if (e.cell.request; as rq) {
-      <div class="editor-request" [class.is-emergency]="rq.emergency" [class.is-reserved]="rq.reserved">
-        <i class="bi" [class.bi-calendar-x]="!rq.reserved" [class.bi-bookmark-fill]="rq.reserved"></i>
+      <div class="editor-request" [class.is-emergency]="rq.emergency" [class.is-reserved]="rq.reserved && !rq.regular" [class.is-regular]="rq.regular">
+        <i class="bi" [class.bi-calendar-x]="!rq.reserved" [class.bi-bookmark-fill]="rq.reserved && !rq.regular" [class.bi-arrow-repeat]="rq.regular"></i>
         <div class="flex-grow-1">
-          @if (rq.reserved) {
+          @if (rq.regular) {
+            <strong>{{ e.row.employeeName.split(' ')[0] }}'s regular day off</strong>
+            <div class="small">Reserved because they're off on this day every week. It waits for you to approve or reject.</div>
+          } @else if (rq.reserved) {
             <strong>Reserved for {{ e.row.employeeName.split(' ')[0] }} by the system</strong>
             <div class="small">They didn't pick a day, so this one is held. It stays pending until approved.</div>
           } @else {
@@ -981,7 +999,8 @@
               @if (c.row.storeRole === 'PRIMARY') { <i class="bi bi-star-fill ms-1" style="color: #e0a100" title="Primary at their store"></i> }
               @if (c.row.homeStoreId === g.gap.storeId) { <span class="badge text-bg-light border ms-1">Home store</span> }
               @if (c.pendingRequest) {
-                @if (c.cell.request?.reserved) { <span class="req-flag is-reserved ms-1" title="Day off reserved by the system (waiting)"><i class="bi bi-bookmark-fill"></i></span> }
+                @if (c.cell.request?.regular) { <span class="req-flag is-regular ms-1" title="Their regular day off (waiting)"><i class="bi bi-arrow-repeat"></i></span> }
+                @else if (c.cell.request?.reserved) { <span class="req-flag is-reserved ms-1" title="Day off reserved by the system (waiting)"><i class="bi bi-bookmark-fill"></i></span> }
                 @else { <span class="req-flag ms-1" title="Asked for this day off (waiting)">Off?</span> }
               }
             </div>

@@ -115,6 +115,8 @@ export interface Employee {
   /** The admin who recorded their agreement to texts (null if they turned texts on themselves). */
   smsConsentBy: string | null;
   smsConsentAt: string | null;
+  /** Days of the week they're normally off (reserved for them when a week opens), Monday first. */
+  regularDaysOff?: DayOfWeek[];
 }
 
 /** A coming birthday, for the dashboard and the staff list (admins: everyone; managers: their area). */
@@ -354,6 +356,8 @@ export interface DayOffRequest {
   scheduleUpdate?: string | null;
   /** Reserved by the system when the week opened; asking for another day swaps it automatically. */
   reserved?: boolean;
+  /** Reserved because it is one of their regular days off. */
+  regular?: boolean;
 }
 
 export type ImpactLevel = 'OK' | 'TIGHT' | 'SHORT';
@@ -420,6 +424,8 @@ export interface DayOffPageFilter extends DayOffFilter, PageParams {
   q?: string | null;
   /** true: only days reserved by the system; false: only days people asked for. */
   reserved?: boolean | null;
+  /** true: only regular days off; false: leave them out. */
+  regular?: boolean | null;
 }
 
 export interface DayCell {
@@ -454,6 +460,8 @@ export interface WeekRequest {
   canReview: boolean;
   /** Reserved by the system rather than asked for; approved like any request. */
   reserved?: boolean;
+  /** Reserved because it is one of their regular days off. */
+  regular?: boolean;
 }
 
 /** Result of approving several requests at once. */

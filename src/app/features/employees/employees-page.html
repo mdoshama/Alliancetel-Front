@@ -102,7 +102,7 @@
             <th>Role</th>
             <th>Area</th>
             <th style="min-width: 170px">Home store</th>
-            <th class="text-center">Days / week</th>
+            <th class="text-center" style="min-width: 150px">Days / week · regular off</th>
             <th>Status</th>
             @if (auth.isAdmin()) {
               <th>Sign-in</th>
@@ -185,7 +185,25 @@
               <td data-label="Days / week" class="text-center">
                 @if (e.role === 'MANAGER' && !e.onSchedule) {
                   <span class="badge text-bg-light border" title="Only manages: not on the schedule">Manages only</span>
-                } @else { {{ e.workDaysPerWeek }} }
+                } @else {
+                  {{ e.workDaysPerWeek }}
+                  @if (e.workDaysPerWeek < 7 && e.active && e.role !== 'ADMIN') {
+                    <!-- Regular days off: reserved for them first whenever a week opens (managers decide on them). -->
+                    <div class="regular-days" role="group" [attr.aria-label]="'Regular days off for ' + e.fullName"
+                         [class.is-readonly]="!canSetRegular(e)">
+                      @for (d of weekDays; track d.value) {
+                        <button type="button" class="regular-day" [class.active]="isRegular(e, d.value)"
+                                [disabled]="!canSetRegular(e) || regularSavingId() === e.id"
+                                [attr.aria-pressed]="isRegular(e, d.value)"
+                                [attr.aria-label]="d.long" [attr.title]="regularTitle(e, d)"
+                                (click)="toggleRegular(e, d.value)">{{ d.short }}</button>
+                      }
+                    </div>
+                    @if (e.regularDaysOff?.length) {
+                      <div class="regular-days-note">Off every {{ regularNames(e) }}</div>
+                    }
+                  }
+                }
               </td>
               <td data-label="Status">
                 <span class="badge" [class]="e.active ? 'text-bg-success' : 'text-bg-secondary'">

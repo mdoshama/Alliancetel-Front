@@ -400,8 +400,14 @@ export class SchedulePage implements OnInit {
   protected readonly reviewable = computed(() => this.schedule()?.requests.filter((r) => r.canReview) ?? []);
   /** Days off employees asked for themselves. */
   protected readonly askedRequests = computed(() => this.schedule()?.requests.filter((r) => !r.reserved) ?? []);
+  /** Regular days off (the same day every week, set by a manager), reserved for them and waiting for approval. */
+  protected readonly regularRequests = computed(
+    () => this.schedule()?.requests.filter((r) => r.reserved && r.regular) ?? [],
+  );
   /** Days off the system is holding for people who didn't pick (still waiting for approval). */
-  protected readonly reservedRequests = computed(() => this.schedule()?.requests.filter((r) => r.reserved) ?? []);
+  protected readonly reservedRequests = computed(
+    () => this.schedule()?.requests.filter((r) => r.reserved && !r.regular) ?? [],
+  );
   /** Show each reserved day as its own row; null = automatic (open when there are only a few). */
   protected readonly reservedOpen = signal<boolean | null>(null);
   protected readonly reservedOpenNow = computed(() => this.reservedOpen() ?? this.reservedRequests().length <= 3);

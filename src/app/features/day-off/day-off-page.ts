@@ -49,7 +49,7 @@ export class DayOffPage implements OnInit {
   protected readonly status = signal<StatusTab>('PENDING');
   protected areaFilter: number | null = null;
   /** All, only what people asked for, or only days the system reserved. */
-  protected kindFilter: 'ALL' | 'ASKED' | 'RESERVED' = 'ALL';
+  protected kindFilter: 'ALL' | 'ASKED' | 'REGULAR' | 'RESERVED' = 'ALL';
   protected fromFilter = weekStartOf(today());
   protected toFilter = '';
   /** Employee name or code. */
@@ -196,7 +196,9 @@ export class DayOffPage implements OnInit {
         from: this.fromFilter || null,
         to: this.toFilter || null,
         q: this.search.trim() || null,
-        reserved: this.kindFilter === 'ALL' ? null : this.kindFilter === 'RESERVED',
+        // Asked: not reserved. Regular: regular days off. Reserved: picked by the system (not regular ones).
+        reserved: this.kindFilter === 'ALL' ? null : this.kindFilter !== 'ASKED',
+        regular: this.kindFilter === 'REGULAR' ? true : this.kindFilter === 'RESERVED' ? false : null,
         page: this.page(),
         size: this.pageSize(),
       })

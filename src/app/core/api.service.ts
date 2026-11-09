@@ -35,6 +35,7 @@ import {
   DayOffImpact,
   TakenDay,
   DayOffRequest,
+  DayOfWeek,
   DayType,
   Employee,
   EmployeeFilter,
@@ -112,6 +113,10 @@ export class ApiService {
   /** primary: true = primary, false = secondary, undefined = keep. */
   changeHomeStore(id: number, storeId: number | null, primary?: boolean): Observable<Employee> {
     return this.http.patch<Employee>(`${this.base}/employees/${id}/home-store`, { storeId, primary: primary ?? null });
+  }
+  /** Days of the week someone is normally off (managers of their area, admins). */
+  setRegularDaysOff(id: number, days: DayOfWeek[]): Observable<Employee> {
+    return this.http.put<Employee>(`${this.base}/employees/${id}/regular-days-off`, { days });
   }
   /** New temporary password; also emails (and texts, if they agreed to texts or textLink) a set-password link. */
   resetPassword(id: number, textLink = false): Observable<Credentials> {
