@@ -62,11 +62,14 @@
         <i class="bi bi-arrow-counterclockwise me-1"></i> Reset
       </button>
     }
-    @if (schedule()?.status === 'PUBLISHED') {
-      <button type="button" class="btn btn-outline-primary" [disabled]="pdfBusy() !== null" (click)="downloadPdf()">
+    @if (schedule()?.status === 'PUBLISHED' || (auth.canManage() && schedule()?.status === 'DRAFT')) {
+      <button type="button" class="btn btn-outline-primary" [disabled]="pdfBusy() !== null" (click)="downloadPdf()"
+              [attr.title]="isDraft() ? 'Download this draft as a PDF. It is marked DRAFT, since it can still change.' : null">
         @if (pdfBusy() === 'download') { <span class="spinner-border spinner-border-sm me-1"></span> } @else { <i class="bi bi-file-earmark-pdf me-1"></i> }
-        Download PDF
+        {{ isDraft() ? 'Download draft PDF' : 'Download PDF' }}
       </button>
+    }
+    @if (schedule()?.status === 'PUBLISHED') {
       <button type="button" class="btn btn-outline-primary" [disabled]="pdfBusy() !== null" (click)="sharePdf()"
               title="Share the schedule as a PDF (WhatsApp, email, messages…)">
         @if (pdfBusy() === 'share') { <span class="spinner-border spinner-border-sm me-1"></span> } @else { <i class="bi bi-share me-1"></i> }

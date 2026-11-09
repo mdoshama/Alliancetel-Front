@@ -27,6 +27,12 @@ describe('schedule PDF', () => {
     );
   });
 
+  it('marks a draft in the file name', () => {
+    expect(schedulePdfName({ areaName: 'San Diego', weekStart: '2026-11-02', status: 'DRAFT' } as Schedule)).toBe(
+      'AllianceTel-San-Diego-2026-11-02-DRAFT.pdf',
+    );
+  });
+
   it('shows the store and shift for a work day', () => {
     const text = pdfCellText(cell({}));
     expect(text.startsWith('Oceanside\n')).toBe(true);

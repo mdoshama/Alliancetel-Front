@@ -2,10 +2,10 @@ import { DayCell, DayHours, Schedule } from './models';
 import { formatDay, formatWeekRange } from './date-utils';
 import { formatTime } from './store-hours';
 
-/** File name like "AllianceTel-San-Diego-2026-11-02.pdf". */
+/** File name like "AllianceTel-San-Diego-2026-11-02.pdf" ("...-DRAFT.pdf" for a week not published yet). */
 export function schedulePdfName(s: Schedule): string {
   const area = s.areaName.replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '');
-  return `AllianceTel-${area || 'Schedule'}-${s.weekStart}.pdf`;
+  return `AllianceTel-${area || 'Schedule'}-${s.weekStart}${s.status === 'DRAFT' ? '-DRAFT' : ''}.pdf`;
 }
 
 /** What one day says in the PDF: "Oceanside\n10:00 AM – 8:00 PM", "Off" or "Day off (approved)". */
@@ -23,7 +23,7 @@ export function pdfCellText(cell: DayCell): string {
 }
 
 /**
- * Builds the published week as a landscape PDF: one row per person, one column per day, with each store's color on
+ * Builds the week (published, or a draft clearly marked as one) as a landscape PDF: one row per person, one column per day, with each store's color on
  * its days, then the stores (code, address, each day's hours and who works there). jsPDF is loaded only when someone asks for the PDF, so it doesn't slow down the app.
  */
 export async function buildSchedulePdf(s: Schedule): Promise<Blob> {
@@ -38,8 +38,26 @@ export async function buildSchedulePdf(s: Schedule): Promise<Blob> {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(10);
   doc.setTextColor(90);
-  doc.text(`Weekly schedule · ${formatWeekRange(s.weekStart)}`, margin, margin + 22);
-  if (s.publishedAt) {
+  doc.text(`${s.status === 'DRAFT' ? 'Draft schedule' : 'Weekly schedule'} · ${formatWeekRange(s.weekStart)}`, margin,
+    margin + 22);
+  if (s.status === 'DRAFT') {
+    // A draft can still change: say so plainly so a printed copy is never taken for the final week.
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.setTextColor(220, 53, 69);
+    doc.text('DRAFT · not final, may still change', pageWidth - margin, margin + 6, { align: 'right' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.setTextColor(90);
+    const printed = new Date().toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+    doc.text(`Printed ${printed}`, pageWidth - margin, margin + 22, { align: 'right' });
+  } else if (s.publishedAt) {
     const published = new Date(s.publishedAt).toLocaleString('en-US', {
       month: 'short',
       day: 'numeric',
