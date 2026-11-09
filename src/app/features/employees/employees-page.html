@@ -182,7 +182,11 @@
                   </span>
                 }
               </td>
-              <td data-label="Days / week" class="text-center">{{ e.workDaysPerWeek }}</td>
+              <td data-label="Days / week" class="text-center">
+                @if (e.role === 'MANAGER' && !e.onSchedule) {
+                  <span class="badge text-bg-light border" title="Only manages: not on the schedule">Manages only</span>
+                } @else { {{ e.workDaysPerWeek }} }
+              </td>
               <td data-label="Status">
                 <span class="badge" [class]="e.active ? 'text-bg-success' : 'text-bg-secondary'">
                   {{ e.active ? 'Active' : 'Inactive' }}
@@ -274,6 +278,29 @@
             <i class="bi bi-whatsapp text-success"></i> Agreed to get schedule updates on WhatsApp
           </label>
         </div>
+        <div class="form-check form-switch mt-1">
+          <input class="form-check-input" type="checkbox" id="eSms" formControlName="smsOptIn"
+                 [attr.disabled]="smsSwitchDisabled() ? true : null" />
+          <label class="form-check-label small" for="eSms">
+            <i class="bi bi-chat-text text-info"></i> Agreed to get schedule updates by text message
+          </label>
+        </div>
+        @if (form.controls.smsOptIn.value && phoneChanged() && editing()?.smsOptIn) {
+          <div class="form-text text-warning-emphasis">New number: texts stay off until they agree again for it.</div>
+        } @else if (form.controls.smsOptIn.value && !editing()?.smsOptIn) {
+          <div class="form-text">
+            Only turn on if they agreed to get texts. Your name is recorded with their agreement, and they get a text
+            confirming it (they can reply STOP anytime).
+          </div>
+        } @else if (editing()?.smsOptIn && form.controls.smsOptIn.value) {
+          <div class="form-text">
+            Agreed
+            @if (editing()!.smsConsentAt) { on {{ editing()!.smsConsentAt | date: 'MMM d, y' }} }
+            {{ editing()!.smsConsentBy ? '· recorded by ' + editing()!.smsConsentBy : '· by themselves' }}
+          </div>
+        } @else if (!auth.isAdmin() && !form.controls.smsOptIn.value) {
+          <div class="form-text">They turn this on in their account menu, or an admin can.</div>
+        }
       </div>
       <div class="col-md-4">
         <label class="form-label" for="eRole">Role</label>
@@ -322,6 +349,18 @@
             }
           </div>
           <div class="form-text">Auto-fill only sends them to these stores. Managers can still move anyone by hand.</div>
+        </div>
+      }
+      @if (form.controls.role.value === 'MANAGER') {
+        <div class="col-12">
+          <div class="form-check form-switch mb-0">
+            <input class="form-check-input" type="checkbox" role="switch" id="eOnSchedule" formControlName="onSchedule" />
+            <label class="form-check-label fw-semibold" for="eOnSchedule">Works shifts (on the schedule)</label>
+          </div>
+          <div class="form-text">
+            Turn off for a manager who only manages: they're left out of the weekly schedule, day-off requests,
+            reserved days, store coverage and the time clock. They can still manage everything.
+          </div>
         </div>
       }
       <div class="col-md-3">

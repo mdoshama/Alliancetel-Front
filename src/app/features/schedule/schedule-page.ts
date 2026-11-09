@@ -98,7 +98,8 @@ export class SchedulePage implements OnInit {
 
   protected readonly areas = signal<Area[]>([]);
   protected readonly areaId = signal<number | null>(null);
-  protected readonly weekStart = signal(weekStartOf(today()));
+  /** Managers and admins plan ahead, so they start on next week; employees see the week they're in. */
+  protected readonly weekStart = signal(this.defaultWeek());
   /** Managers: who has sent their day-off request for this week. */
   protected readonly requestStatus = signal<WeekRequestStatus | null>(null);
   protected readonly missingCount = computed(() => this.requestStatus()?.missing.length ?? 0);
@@ -539,6 +540,62 @@ export class SchedulePage implements OnInit {
   protected goToThisWeek(): void {
     this.weekStart.set(weekStartOf(today()));
     this.load();
+  }
+
+  protected goToNextWeek(): void {
+    this.weekStart.set(addDays(weekStartOf(today()), 7));
+    this.load();
+  }
+
+  /** The upcoming week for managers and admins (this week's schedule is already made); this week for employees. */
+  private defaultWeek(): string {
+    const thisWeek = weekStartOf(today());
+    return this.auth.canManage() ? addDays(thisWeek, 7) : thisWeek;
+  }
+
+  protected readonly isThisWeek = computed(() => this.weekStart() === weekStartOf(today()));
+  protected readonly isNextWeek = computed(() => this.weekStart() === addDays(weekStartOf(today()), 7));
+
+  // ---------- Working all 7 days ----------
+
+  /** Who can be set to work all 7 days this week: everyone with a day off to take, not already on a 7-day week. */
+  protected readonly fullWeekChoices = computed(() => {
+    const rs = this.requestStatus();
+    if (!rs) {
+      return [];
+    }
+    return [...rs.missing, ...rs.denied, ...rs.fewer, ...rs.reserved, ...rs.others].sort((a, b) =>
+      a.name.localeCompare(b.name),
+    );
+  });
+  protected fullWeekPick: number | null = null;
+  protected readonly fullWeekBusy = signal(false);
+
+  /** On: they work every day of the week shown (their reserved days are released). Off: back to their usual days. */
+  protected setFullWeek(employeeId: number | null, on: boolean): void {
+    if (employeeId == null || this.fullWeekBusy()) {
+      return;
+    }
+    const name =
+      [...this.fullWeekChoices(), ...(this.requestStatus()?.fullWeek ?? [])].find((p) => p.employeeId === employeeId)
+        ?.name ?? 'They';
+    this.fullWeekBusy.set(true);
+    this.api.setFullWeek(employeeId, this.weekStart(), on).subscribe({
+      next: (status) => {
+        this.fullWeekBusy.set(false);
+        this.fullWeekPick = null;
+        this.requestStatus.set(status);
+        this.toast.success(
+          on
+            ? `${name} works all 7 days the week of ${this.weekLabel()}. Their reserved day off was released.`
+            : `${name} is back to their usual days off that week.`,
+        );
+        if (this.schedule()?.status === 'DRAFT') {
+          this.toast.info('Regenerate the draft to put it on the schedule.');
+        }
+      },
+      error: () => this.fullWeekBusy.set(false),
+    });
   }
 
   protected jumpTo(date: string): void {

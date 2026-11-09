@@ -217,6 +217,10 @@ export class ApiService {
     return this.http.delete<void>(`${this.base}/time-clock/${entryId}`);
   }
   /** Managers: who has sent their day-off request for the week. */
+  /** Managers and admins: someone works all 7 days of that week (on), or back to their usual days (off). */
+  setFullWeek(employeeId: number, weekStart: string, on: boolean): Observable<WeekRequestStatus> {
+    return this.http.post<WeekRequestStatus>(`${this.base}/schedules/requests/full-week`, { employeeId, weekStart, on });
+  }
   weekRequests(areaId: number, weekStart: string): Observable<WeekRequestStatus> {
     return this.http.get<WeekRequestStatus>(`${this.base}/schedules/requests`, { params: { areaId, weekStart } });
   }

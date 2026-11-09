@@ -110,6 +110,11 @@ export interface Employee {
   /** Stores auto-fill may send them to when they float or cover (empty = any store in the area). */
   floatStoreIds: number[];
   floatStoreNames: string[];
+  /** Works shifts and is on the schedule (a manager who only manages is not). */
+  onSchedule: boolean;
+  /** The admin who recorded their agreement to texts (null if they turned texts on themselves). */
+  smsConsentBy: string | null;
+  smsConsentAt: string | null;
 }
 
 /** A coming birthday, for the dashboard and the staff list (admins: everyone; managers: their area). */
@@ -154,7 +159,7 @@ export interface RequestWindow {
 
 export type PortalMode = 'AUTO' | 'OPEN' | 'CLOSED';
 
-export type WeekRequestState = 'MISSING' | 'PENDING' | 'APPROVED' | 'DENIED' | 'RESERVED';
+export type WeekRequestState = 'MISSING' | 'PENDING' | 'APPROVED' | 'DENIED' | 'RESERVED' | 'FULL_WEEK';
 
 export interface WeekRequestPerson {
   employeeId: number;
@@ -184,6 +189,8 @@ export interface WeekRequestStatus {
   requestsOpen: boolean;
   /** Shifts the stores need against the shifts the team can work, and each day with the days off so far. */
   capacity: WeekCapacity;
+  /** Working all 7 days this week (a manager or admin decided). */
+  fullWeek: WeekRequestPerson[];
 }
 
 export interface WeekCapacity {
@@ -287,6 +294,10 @@ export interface EmployeeRequest {
   birthDate?: string | null;
   /** Stores they may float to (empty = any store in the area). */
   floatStoreIds?: number[];
+  /** Managers: works shifts and is on the schedule (false = only manages). */
+  onSchedule?: boolean;
+  /** Text-message updates: only an admin can turn them on for someone (they agreed); null keeps it. */
+  smsOptIn?: boolean;
 }
 
 export interface EmployeeFilter {
@@ -458,6 +469,7 @@ export interface StoreRef {
   /** Seven entries, Monday first. */
   hours: DayHours[];
   color: string;
+  address: string | null;
 }
 
 /** Head count per store per day; storeId null means work days with no store assigned. */

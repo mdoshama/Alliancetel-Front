@@ -26,7 +26,8 @@
       <button type="button" class="btn btn-light border" (click)="shiftWeek(1)" aria-label="Next week">
         <i class="bi bi-chevron-right"></i>
       </button>
-      <button type="button" class="btn btn-light border ms-1" (click)="goToThisWeek()">This week</button>
+      <button type="button" class="btn btn-light border ms-1" [class.active]="isThisWeek()" (click)="goToThisWeek()">This week</button>
+      <button type="button" class="btn btn-light border ms-1" [class.active]="isNextWeek()" (click)="goToNextWeek()">Next week</button>
       <input type="date" class="form-control ms-1" style="width: 150px" aria-label="Jump to date"
              [ngModel]="weekStart()" (ngModelChange)="jumpTo($event)" />
     </div>
@@ -76,7 +77,7 @@
 </div>
 
 @if (auth.canManage() && requestStatus(); as rs) {
-  @if (rs.total > 0 && schedule()?.status !== 'PUBLISHED' && (rs.missing.length > 0 || rs.denied.length > 0 || rs.fewer.length > 0 || rs.reserved.length > 0 || !schedule() || rs.capacity.shiftsAvailable < rs.capacity.shiftsNeeded)) {
+  @if (rs.total > 0 && schedule()?.status !== 'PUBLISHED') {
     <div class="card mb-3 request-status" [class.border-warning]="rs.missing.length > 0">
       <div class="card-body py-3">
         <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
@@ -154,6 +155,35 @@
                 {{ p.name }} · {{ p.dates.length }} reserved
               </span>
             }
+          </div>
+        }
+        @if (rs.fullWeek.length > 0) {
+          <div class="small mb-1 mt-2"><span class="text-success-emphasis fw-semibold">Working all 7 days ({{ rs.fullWeek.length }}):</span></div>
+          <div class="d-flex flex-wrap gap-1">
+            @for (p of rs.fullWeek; track p.employeeId) {
+              <span class="badge rounded-pill text-bg-success-subtle border border-success-subtle text-success-emphasis d-inline-flex align-items-center gap-1">
+                {{ p.name }}
+                <button type="button" class="btn-close btn-close-sm" style="font-size: 0.5rem"
+                        [attr.aria-label]="'Back to usual days off for ' + p.name" title="Back to their usual days off"
+                        [disabled]="fullWeekBusy()" (click)="setFullWeek(p.employeeId, false)"></button>
+              </span>
+            }
+          </div>
+        }
+        @if (fullWeekChoices().length > 0) {
+          <div class="d-flex flex-wrap align-items-center gap-2 mt-2 small">
+            <i class="bi bi-calendar-week text-success"></i>
+            <span>Someone wants to work all 7 days this week?</span>
+            <select class="form-select form-select-sm w-auto" aria-label="Who works all 7 days" [(ngModel)]="fullWeekPick">
+              <option [ngValue]="null">Pick a person…</option>
+              @for (p of fullWeekChoices(); track p.employeeId) {
+                <option [ngValue]="p.employeeId">{{ p.name }}</option>
+              }
+            </select>
+            <button type="button" class="btn btn-sm btn-outline-success" [disabled]="fullWeekPick == null || fullWeekBusy()"
+                    (click)="setFullWeek(fullWeekPick, true)">
+              Works all 7 days
+            </button>
           </div>
         }
         @if (rs.fewer.length > 0) {

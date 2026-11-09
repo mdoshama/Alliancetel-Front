@@ -1,4 +1,4 @@
-import { DayCell, Schedule } from './models';
+import { DayCell, DayHours, Schedule } from './models';
 import { formatDay, formatWeekRange } from './date-utils';
 import { formatTime } from './store-hours';
 
@@ -23,8 +23,8 @@ export function pdfCellText(cell: DayCell): string {
 }
 
 /**
- * Builds the published week as a one-page landscape PDF: one row per person, one column per day, with each store's
- * color on its days. jsPDF is loaded only when someone asks for the PDF, so it doesn't slow down the app.
+ * Builds the published week as a landscape PDF: one row per person, one column per day, with each store's color on
+ * its days, then the stores (code, address, each day's hours and who works there). jsPDF is loaded only when someone asks for the PDF, so it doesn't slow down the app.
  */
 export async function buildSchedulePdf(s: Schedule): Promise<Blob> {
   const [{ jsPDF }, { autoTable }] = await Promise.all([import('jspdf'), import('jspdf-autotable')]);
@@ -82,17 +82,93 @@ export async function buildSchedulePdf(s: Schedule): Promise<Blob> {
     },
   });
 
-  // Footer under the table.
-  const endY = (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? margin + 60;
+  // Legend under the table.
+  const lastY = () => (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? margin + 60;
+  const pageHeight = doc.internal.pageSize.getHeight();
   doc.setFontSize(8);
   doc.setTextColor(108);
   doc.text(
     `${s.rows.length} people · Off = regular day off · Day off = approved request · Generated ${new Date().toLocaleDateString('en-US')}`,
     margin,
-    Math.min(endY + 16, doc.internal.pageSize.getHeight() - 16),
+    Math.min(lastY() + 16, pageHeight - 16),
   );
+  doc.setTextColor(0);
+
+  // Store details: address, hours each day and who works there.
+  if (s.stores.length > 0) {
+    const stores = storeDetails(s);
+    let y = lastY() + 40;
+    if (y > pageHeight - 120) {
+      doc.addPage();
+      y = margin + 6;
+    }
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text('Stores', margin, y);
+    doc.setFont('helvetica', 'normal');
+    autoTable(doc, {
+      head: [['Store', ...s.dates.map((d) => formatDay(d, { weekday: 'short', month: 'short', day: 'numeric' }))]],
+      body: stores.map((st) => [st.title, ...st.days]),
+      startY: y + 8,
+      margin: { left: margin, right: margin },
+      theme: 'grid',
+      styles: { fontSize: 7.5, cellPadding: 4, valign: 'top', lineColor: [222, 226, 230], lineWidth: 0.5 },
+      headStyles: { fillColor: [33, 37, 41], textColor: 255, fontStyle: 'bold', halign: 'center', valign: 'middle' },
+      columnStyles: { 0: { cellWidth: 150 } },
+      didParseCell: (data) => {
+        if (data.section !== 'body') {
+          return;
+        }
+        const st = stores[data.row.index];
+        if (data.column.index === 0) {
+          data.cell.styles.fontStyle = 'bold';
+          data.cell.styles.fillColor = tint(st.color);
+        } else if (st.closed[data.column.index - 1]) {
+          data.cell.styles.fillColor = [241, 243, 245];
+          data.cell.styles.textColor = [108, 117, 125];
+          data.cell.styles.fontStyle = 'italic';
+        }
+      },
+    });
+  }
 
   return doc.output('blob');
+}
+
+/** Each store's line in the PDF: name, code and address, then each day's hours and the people working there. */
+export function storeDetails(s: Schedule): { title: string; color: string; days: string[]; closed: boolean[] }[] {
+  return s.stores.map((st) => {
+    const title = [st.name + (st.code ? ` (${st.code})` : ''), st.address?.trim() || null].filter(Boolean).join('\n');
+    const closed: boolean[] = [];
+    const days = s.dates.map((date, i) => {
+      const h = hoursOn(st.hours, date);
+      if (!h || h.closed) {
+        closed.push(true);
+        return 'Closed';
+      }
+      closed.push(false);
+      const team = s.rows
+        .filter((r) => r.days[i]?.type === 'WORK' && r.days[i]?.storeId === st.id)
+        .map((r) => shortName(r.employeeName));
+      const hours = h.opensAt && h.closesAt ? `${formatTime(h.opensAt)} – ${formatTime(h.closesAt)}` : 'Open';
+      return [hours, team.length ? team.join(', ') : 'Nobody scheduled'].join('\n');
+    });
+    return { title, color: st.color, days, closed };
+  });
+}
+
+/** The store's hours on a date (hours are listed by weekday). */
+function hoursOn(hours: DayHours[], date: string): DayHours | undefined {
+  const day = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'][
+    new Date(date + 'T00:00:00').getDay()
+  ];
+  return hours.find((h) => h.day === day);
+}
+
+/** "Aisha Khan" → "Aisha K." so a day's team fits in its cell. */
+function shortName(full: string): string {
+  const parts = full.trim().split(/\s+/);
+  return parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1][0]}.` : full;
 }
 
 /** A light version of a store color (e.g. "#2563EB") so the text on it stays readable when printed. */

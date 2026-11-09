@@ -124,6 +124,10 @@ export class EmployeesPage implements OnInit {
     birthDate: ['', [birthDateRule]],
     /** Stores auto-fill may send them to when they float or cover; none ticked = any store in the area. */
     floatStoreIds: [[] as number[]],
+    /** Managers only: works shifts and is on the schedule. */
+    onSchedule: [true],
+    /** Text-message updates: an admin turns them on once the person agreed. */
+    smsOptIn: [false],
   });
 
   /** Date picker limits, same as the server's. */
@@ -250,6 +254,8 @@ export class EmployeesPage implements OnInit {
       emailOptIn: true,
       birthDate: '',
       floatStoreIds: [],
+      onSchedule: true,
+      smsOptIn: false,
     });
     this.modalOpen.set(true);
   }
@@ -272,6 +278,8 @@ export class EmployeesPage implements OnInit {
       emailOptIn: e.emailOptIn,
       birthDate: e.birthDate ?? '',
       floatStoreIds: [...(e.floatStoreIds ?? [])],
+      onSchedule: e.onSchedule ?? true,
+      smsOptIn: e.smsOptIn,
     });
     this.modalOpen.set(true);
   }
@@ -303,6 +311,10 @@ export class EmployeesPage implements OnInit {
       birthDate: v.birthDate.trim() || null,
       // The home store is always allowed; only other stores are listed.
       floatStoreIds: v.floatStoreIds.filter((id) => id !== v.homeStoreId),
+      // Only managers can be off the schedule.
+      onSchedule: v.role !== 'MANAGER' || v.onSchedule,
+      // Agreement to texts is for one number: a new number needs it again.
+      smsOptIn: !!v.phone.trim() && v.smsOptIn && !this.phoneChanged(),
     };
     const current = this.editing();
     const request: Observable<Employee | Credentials> = current
@@ -333,6 +345,24 @@ export class EmployeesPage implements OnInit {
   protected readonly formatPhone = formatPhone;
 
   /** Shows a typed phone number in the usual format once the field is left, e.g. (619) 555-0142. */
+  /** The phone number differs from the one saved (texts need agreeing again for a new number). */
+  protected phoneChanged(): boolean {
+    const e = this.editing();
+    return !!e && normalizePhone(this.form.controls.phone.value) !== (e.phone ?? null);
+  }
+
+  /**
+   * The text-message switch: an admin can turn it on (the person agreed) when there's a number; anyone who edits
+   * can turn it off.
+   */
+  protected smsSwitchDisabled(): boolean {
+    const v = this.form.controls;
+    if (!v.phone.value.trim()) {
+      return true;
+    }
+    return !this.auth.isAdmin() && !v.smsOptIn.value;
+  }
+
   protected tidyPhone(): void {
     const c = this.form.controls.phone;
     try {

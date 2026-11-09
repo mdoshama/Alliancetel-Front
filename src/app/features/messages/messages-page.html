@@ -8,10 +8,10 @@
     <span class="channel-pill" [class.on]="s.emailConnected"><i class="bi bi-envelope"></i> Email {{ s.emailConnected ? 'connected' : 'not connected' }}</span>
     <span class="channel-pill" [class.on]="s.connected"><i class="bi bi-whatsapp"></i> WhatsApp {{ s.connected ? 'connected' : 'not connected' }}
       @if (s.whatsappProvider === 'twilio') {
-        <span class="opacity-75">· {{ s.sandboxNumber ? 'Twilio Sandbox' : 'Twilio ' + formatPhone(s.whatsappFrom || '') }}</span>
+        <span class="opacity-75">· {{ s.sandboxNumber ? 'test sandbox' : 'from ' + formatPhone(s.whatsappFrom || '') }}</span>
       }
     </span>
-    <span class="channel-pill" [class.on]="s.smsConnected" [attr.title]="s.smsConnected ? 'From ' + s.smsFrom : 'Set SMS_ENABLED and the Twilio settings to send texts'">
+    <span class="channel-pill" [class.on]="s.smsConnected" [attr.title]="s.smsConnected ? 'From ' + s.smsFrom : 'Texting isn\'t set up yet'">
       <i class="bi bi-chat-text"></i> Text {{ s.smsConnected ? 'connected' : 'not connected' }}
       @if (s.smsConnected && s.smsNotAgreed) { <span class="opacity-75">· {{ s.smsNotAgreed }} haven't agreed</span> }
     </span>
@@ -19,15 +19,15 @@
   @if (s.connected && s.sandboxNumber) {
     <div class="alert alert-info small py-2 mb-3">
       <i class="bi bi-info-circle me-1"></i>
-      WhatsApp is sending from the <strong>Twilio Sandbox</strong> number ({{ formatPhone(s.sandboxNumber) }}), which is for testing.
+      WhatsApp is sending from the <strong>test sandbox</strong> number ({{ formatPhone(s.sandboxNumber) }}), which is for testing.
       @if (s.sandboxJoin) { Each person must first send <strong>{{ s.sandboxJoin }}</strong> to it; they see this in their account menu. }
-      To send from your own registered WhatsApp number, set <code>TWILIO_WHATSAPP_FROM</code> to it in Railway.
+      To send from your own registered WhatsApp number, set it as the WhatsApp sender in the server settings.
     </div>
   } @else if (s.connected && s.whatsappProvider === 'twilio' && !s.whatsappTemplatesReady) {
     <div class="alert alert-warning small py-2 mb-3">
       <i class="bi bi-exclamation-triangle me-1"></i>
       WhatsApp is sending from {{ formatPhone(s.whatsappFrom || '') }}, but the approved message templates aren't all set
-      (<code>TWILIO_WA_CONTENT_…</code>). Until they are, WhatsApp only reaches people who messaged you in the last 24 hours.
+      up yet. Until they are, WhatsApp only reaches people who messaged you in the last 24 hours.
     </div>
   }
 
