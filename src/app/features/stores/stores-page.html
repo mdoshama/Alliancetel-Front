@@ -109,11 +109,11 @@
   </p>
   @for (g of groups(); track g.areaId) {
     <div class="card mb-3">
-      <div class="card-header d-flex align-items-center gap-2">
+      <div class="card-header d-flex flex-wrap align-items-center column-gap-2 row-gap-1">
         <i class="bi bi-geo-alt text-primary"></i>
-        <span class="fw-semibold">{{ g.areaName }}</span>
-        <span class="text-muted-2 small">· {{ g.stores.length }} stores · {{ g.staff }} staff</span>
-        <button type="button" class="btn btn-sm btn-link ms-auto" (click)="openCreate(g.areaId)">
+        <span class="fw-semibold text-nowrap">{{ g.areaName }}</span>
+        <span class="text-muted-2 small text-nowrap">· {{ g.stores.length }} stores · {{ g.staff }} staff</span>
+        <button type="button" class="btn btn-sm btn-link ms-auto px-0 text-nowrap" (click)="openCreate(g.areaId)">
           <i class="bi bi-plus"></i> Add store here
         </button>
       </div>

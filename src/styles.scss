@@ -1475,6 +1475,15 @@ body {
     > div[style*='min-width'] {
       min-width: 0 !important;
     }
+
+    /* Search boxes are capped on wide screens; on a phone they line up with the other filters. */
+    > div[style*='max-width'] {
+      max-width: none !important;
+    }
+
+    .input-group {
+      width: 100%;
+    }
   }
 
   .toolbar-actions {
@@ -2312,17 +2321,75 @@ body {
     background: #dc3545;
     border-color: #dc3545;
   }
+
+  /* Reserved by the system: cool teal and a bookmark, so it never reads as someone asking. */
+  &.is-reserved {
+    color: #0b5560;
+    background: #d7f1f3;
+    border: 1px dashed #2a9aa6;
+    font-size: 0.6rem;
+    padding: 0.05rem 0.3rem;
+  }
+}
+
+.reserved-pill {
+  color: #0b5560;
+  background: #d7f1f3;
+  border: 1px dashed #2a9aa6;
+}
+
+.kind-filter .kind-reserved {
+  color: #0b5560;
+  border-color: #2a9aa6;
+
+  &:hover,
+  &.active {
+    color: #fff;
+    background: #2a9aa6;
+    border-color: #2a9aa6;
+  }
+}
+
+/* Reserved days get a light teal wash: whole row on wide screens, whole card when the table stacks on phones. */
+tr.is-reserved-row {
+  --bs-table-bg: #f6fcfc;
+  background: #f6fcfc;
 }
 
 /* The flag sits in the chip's top-right corner, like the "edited" dot. */
-.day-chip.has-request {
+.day-chip.has-request,
+.day-chip.has-reserved {
   position: relative;
-  box-shadow: 0 0 0 2px #f5c35b;
 
   .req-flag {
     position: absolute;
     top: -8px;
     right: -6px;
+  }
+}
+
+.day-chip.has-request {
+  box-shadow: 0 0 0 2px #f5c35b;
+}
+
+.day-chip.has-reserved {
+  outline: 2px dashed #2a9aa6;
+  outline-offset: 1px;
+}
+
+.request-group-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.5rem;
+  padding: 0.45rem 1rem;
+  font-size: 0.85rem;
+  background: #fffaf0;
+  border-top: 1px solid var(--bs-border-color);
+  border-bottom: 1px solid var(--bs-border-color);
+
+  &.is-reserved {
+    background: #f0fafb;
   }
 }
 
@@ -2346,6 +2413,10 @@ body {
 
   &.is-emergency {
     border-left: 3px solid #dc3545;
+  }
+
+  &.is-reserved {
+    background: #fbfefe;
   }
 
   .request-actions {
@@ -2387,6 +2458,15 @@ body {
 
     > .bi {
       color: #dc3545;
+    }
+  }
+
+  &.is-reserved {
+    background: #f0fafb;
+    border: 1px dashed #2a9aa6;
+
+    > .bi {
+      color: #2a9aa6;
     }
   }
 }
@@ -2857,5 +2937,164 @@ button.stat-card {
   .form-check-input:checked {
     background-color: #198754;
     border-color: #198754;
+  }
+}
+
+/* ---------------------------------------------------------------------------------------------
+   Live updates indicator (schedule and day-off pages)
+   --------------------------------------------------------------------------------------------- */
+.live-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  align-self: flex-end;
+  min-height: 38px;
+  font-size: 0.8rem;
+  color: var(--bs-secondary-color);
+  white-space: nowrap;
+
+  &.is-live {
+    color: #198754;
+  }
+
+  .live-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #198754;
+    box-shadow: 0 0 0 0 rgba(25, 135, 84, 0.5);
+    animation: live-pulse 2s infinite;
+  }
+
+  .live-note {
+    color: var(--bs-secondary-color);
+  }
+}
+
+@keyframes live-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(25, 135, 84, 0.45); }
+  70% { box-shadow: 0 0 0 6px rgba(25, 135, 84, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(25, 135, 84, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .live-status .live-dot {
+    animation: none;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .live-status {
+    min-height: 0;
+    align-self: center;
+  }
+
+  .live-status .live-note {
+    white-space: normal;
+  }
+}
+
+/* ---------------------------------------------------------------------------------------------
+   Weekly grid on phones: narrow name column, Days count folded under the name, so ~3 days fit
+   --------------------------------------------------------------------------------------------- */
+.emp-days-mobile {
+  display: none;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--bs-secondary-color);
+  white-space: nowrap;
+}
+
+@media (max-width: 575.98px) {
+  .schedule-grid {
+    .days-col {
+      display: none;
+    }
+
+    th:first-child,
+    td:first-child {
+      min-width: 108px;
+      max-width: 118px;
+      padding-left: 0.4rem;
+      padding-right: 0.3rem;
+    }
+
+    .day-head {
+      min-width: 74px;
+    }
+
+    td:not(:first-child) {
+      padding-left: 0.2rem;
+      padding-right: 0.2rem;
+    }
+
+    .emp-name {
+      font-size: 0.82rem;
+      line-height: 1.2;
+    }
+  }
+
+  .emp-days-mobile {
+    display: block;
+
+    &.days-over {
+      color: #b45309;
+    }
+  }
+
+  /* Names stay readable: the avatar gives way on the narrowest column. */
+  .schedule-grid .emp-avatar {
+    display: none;
+  }
+}
+
+.reserved-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  padding: 0.6rem 1rem 0.75rem;
+  background: #f6fcfc;
+}
+
+.reserved-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.1rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  color: #0b5560;
+  background: #fff;
+  border: 1px dashed #2a9aa6;
+  white-space: nowrap;
+}
+
+/* A stat tile that holds words rather than a number (dashboard "Weekly schedule"). */
+.stat-value.stat-value-text {
+  font-size: 1.1rem;
+  line-height: 1.25;
+}
+
+@media (max-width: 575.98px) {
+  .stat-value.stat-value-text {
+    font-size: 0.95rem;
+  }
+}
+
+/* Number grids (commission, leaderboard, boxes by rep) scroll sideways on small screens; the name stays put. */
+@media (max-width: 991.98px) {
+  .table-sticky-first {
+    > thead > tr > th:first-child,
+    > tbody > tr > td:first-child,
+    > tfoot > tr > td:first-child {
+      position: sticky;
+      left: 0;
+      z-index: 1;
+      background: var(--bs-body-bg, #fff);
+      box-shadow: 1px 0 0 var(--at-border);
+    }
+
+    > thead > tr > th:first-child {
+      background: #f8f9fc;
+    }
   }
 }

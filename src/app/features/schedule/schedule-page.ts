@@ -1,10 +1,11 @@
-import { Component, OnInit, computed, effect, inject, input, signal } from '@angular/core';
+import { Component, DestroyRef, OnInit, computed, effect, inject, input, signal } from '@angular/core';
 import { DatePipe, NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { ApiService } from '../../core/api.service';
 import { matchesSearch } from '../../core/paging';
 import { AuthService } from '../../core/auth.service';
+import { LiveChange, LiveService } from '../../core/live.service';
 import { addDays, formatDay, formatWeekRange, today, weekStartOf } from '../../core/date-utils';
 import {
   Area,
@@ -84,6 +85,32 @@ export class SchedulePage implements OnInit {
   private readonly router = inject(Router);
   protected readonly auth = inject(AuthService);
   private readonly confirm = inject(ConfirmService);
+  protected readonly live = inject(LiveService);
+  private readonly destroyRef = inject(DestroyRef);
+
+  /** A change from another screen arrived while this one was busy (editing a day, dragging): apply it after. */
+  private readonly pendingRemote = signal<LiveChange | null>(null);
+  /** "Updated just now by Aisha", shown for a few seconds after a live refresh. */
+  protected readonly remoteNote = signal<string | null>(null);
+  private remoteNoteTimer: ReturnType<typeof setTimeout> | undefined;
+
+  /** True while reloading would get in the way of what the person is doing on this screen. */
+  private readonly busy = computed(
+    () =>
+      this.editing() !== null ||
+      this.drag() !== null ||
+      this.working() ||
+      this.deciding() !== null ||
+      this.suggestions().length > 0,
+  );
+
+  private readonly applyPendingRemote = effect(() => {
+    const change = this.pendingRemote();
+    if (change && !this.busy()) {
+      this.pendingRemote.set(null);
+      this.refreshFromRemote(change);
+    }
+  });
 
   /** Query params: ?area=1&week=2026-11-02 */
   readonly area = input<string>();
@@ -371,6 +398,13 @@ export class SchedulePage implements OnInit {
   protected readonly deciding = signal<number | null>(null);
   private impactSeq = 0;
   protected readonly reviewable = computed(() => this.schedule()?.requests.filter((r) => r.canReview) ?? []);
+  /** Days off employees asked for themselves. */
+  protected readonly askedRequests = computed(() => this.schedule()?.requests.filter((r) => !r.reserved) ?? []);
+  /** Days off the system is holding for people who didn't pick (still waiting for approval). */
+  protected readonly reservedRequests = computed(() => this.schedule()?.requests.filter((r) => r.reserved) ?? []);
+  /** Show each reserved day as its own row; null = automatic (open when there are only a few). */
+  protected readonly reservedOpen = signal<boolean | null>(null);
+  protected readonly reservedOpenNow = computed(() => this.reservedOpen() ?? this.reservedRequests().length <= 3);
   /** Reviewable requests whose check says they keep every store covered. */
   protected readonly fitCount = computed(
     () => this.reviewable().filter((r) => this.requestImpacts().get(r.id)?.level !== 'SHORT').length,
@@ -511,6 +545,13 @@ export class SchedulePage implements OnInit {
   );
 
   ngOnInit(): void {
+    this.live.on(['schedule', 'dayoff', 'people'], this.destroyRef, (change) => {
+      if (this.busy()) {
+        this.pendingRemote.set(change);
+      } else {
+        this.refreshFromRemote(change);
+      }
+    });
     const week = this.week();
     if (week && /^\d{4}-\d{2}-\d{2}$/.test(week)) {
       this.weekStart.set(weekStartOf(week));
@@ -603,6 +644,28 @@ export class SchedulePage implements OnInit {
       this.weekStart.set(weekStartOf(date));
       this.load();
     }
+  }
+
+  /**
+   * Someone changed the schedule or a day-off request on another device: reload the week in place, keeping this
+   * screen's filters, view and scroll position.
+   */
+  private refreshFromRemote(change: LiveChange): void {
+    const areaId = this.areaId();
+    if (areaId == null) return;
+    const week = this.weekStart();
+    this.loadRequestStatus();
+    this.api.schedule(areaId, week).subscribe({
+      next: (s) => {
+        if (this.areaId() !== areaId || this.weekStart() !== week) return;
+        this.schedule.set(s);
+        if (change.topic !== 'resync') {
+          this.remoteNote.set(change.byName ? `Updated just now by ${change.byName}` : 'Updated just now');
+          clearTimeout(this.remoteNoteTimer);
+          this.remoteNoteTimer = setTimeout(() => this.remoteNote.set(null), 6000);
+        }
+      },
+    });
   }
 
   protected load(): void {

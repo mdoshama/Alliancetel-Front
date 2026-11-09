@@ -1,7 +1,8 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
+import { LiveService } from '../../core/live.service';
 import { ConfirmService } from '../../core/confirm.service';
 import { addDays, formatDay, today } from '../../core/date-utils';
 import { Area, TimeClockDay, TimeClockRow } from '../../core/models';
@@ -22,6 +23,8 @@ export class TimeClockPage implements OnInit {
   protected readonly auth = inject(AuthService);
   private readonly toast = inject(ToastService);
   private readonly confirm = inject(ConfirmService);
+  private readonly live = inject(LiveService);
+  private readonly destroyRef = inject(DestroyRef);
 
   protected readonly areas = signal<Area[]>([]);
   protected areaId: number | null = null;
@@ -74,6 +77,10 @@ export class TimeClockPage implements OnInit {
       this.api.areas().subscribe((list) => this.areas.set(list.filter((a) => a.active)));
     }
     this.load();
+    // Another back-office screen clocked someone in: show it here too (unless a time is being edited).
+    this.live.on(['timeclock', 'people'], this.destroyRef, () => {
+      if (!this.editOpen()) this.load();
+    });
   }
 
   protected load(): void {

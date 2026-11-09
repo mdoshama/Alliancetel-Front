@@ -1,9 +1,10 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
 import { TitleCasePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
+import { LiveService } from '../../core/live.service';
 import { addDays, formatDay, formatWeekRange, today, weekDates, weekStartOf } from '../../core/date-utils';
 import { Area, DayOffImpact, DayOffRequest, DayOffStatus, Employee, TakenDay, RequestWindow, PortalMode } from '../../core/models';
 import { IMPACT_BADGE, approvalCard } from '../../core/day-off-impact';
@@ -26,6 +27,8 @@ export class DayOffPage implements OnInit {
   private readonly toast = inject(ToastService);
   protected readonly auth = inject(AuthService);
   private readonly confirm = inject(ConfirmService);
+  protected readonly live = inject(LiveService);
+  private readonly destroyRef = inject(DestroyRef);
 
   protected readonly maxDaysPerWeek = 2;
   protected readonly tabs: { value: StatusTab; label: string }[] = [
@@ -45,6 +48,8 @@ export class DayOffPage implements OnInit {
 
   protected readonly status = signal<StatusTab>('PENDING');
   protected areaFilter: number | null = null;
+  /** All, only what people asked for, or only days the system reserved. */
+  protected kindFilter: 'ALL' | 'ASKED' | 'RESERVED' = 'ALL';
   protected fromFilter = weekStartOf(today());
   protected toFilter = '';
   /** Employee name or code. */
@@ -113,6 +118,13 @@ export class DayOffPage implements OnInit {
     this.api.areas().subscribe((list) => this.areas.set(list));
     this.api.dayOffWindow().subscribe({ next: (w) => this.portal.set(w), error: () => this.portal.set(null) });
     this.load();
+    // Requests decided or sent from another device show up here without a manual refresh. The open form is left
+    // alone; the list reloads when it's saved anyway.
+    this.live.on(['dayoff', 'schedule'], this.destroyRef, () => {
+      if (this.modalOpen()) return;
+      this.api.dayOffWindow().subscribe({ next: (w) => this.portal.set(w), error: () => undefined });
+      this.load();
+    });
   }
 
   /** Admins: opens or closes day-off requests (or back to the Friday cycle). */
@@ -184,6 +196,7 @@ export class DayOffPage implements OnInit {
         from: this.fromFilter || null,
         to: this.toFilter || null,
         q: this.search.trim() || null,
+        reserved: this.kindFilter === 'ALL' ? null : this.kindFilter === 'RESERVED',
         page: this.page(),
         size: this.pageSize(),
       })

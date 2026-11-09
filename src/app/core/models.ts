@@ -418,6 +418,8 @@ export interface DayOffFilter {
 export interface DayOffPageFilter extends DayOffFilter, PageParams {
   /** Employee name or code. */
   q?: string | null;
+  /** true: only days reserved by the system; false: only days people asked for. */
+  reserved?: boolean | null;
 }
 
 export interface DayCell {

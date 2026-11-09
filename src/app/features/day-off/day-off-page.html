@@ -26,6 +26,19 @@
     <input id="dTo" type="date" class="form-control" [(ngModel)]="toFilter" (ngModelChange)="applyFilters()" />
   </div>
   @if (!auth.isEmployee()) {
+    <div>
+      <span class="form-label small text-muted-2 mb-1 d-block" id="dKindLabel">Type</span>
+      <div class="btn-group kind-filter" role="group" aria-labelledby="dKindLabel">
+        <button type="button" class="btn" [class.btn-secondary]="kindFilter === 'ALL'" [class.btn-outline-secondary]="kindFilter !== 'ALL'"
+                (click)="kindFilter = 'ALL'; applyFilters()">All</button>
+        <button type="button" class="btn" [class.btn-warning]="kindFilter === 'ASKED'" [class.btn-outline-warning]="kindFilter !== 'ASKED'"
+                (click)="kindFilter = 'ASKED'; applyFilters()" title="Days people asked for">Asked</button>
+        <button type="button" class="btn kind-reserved" [class.active]="kindFilter === 'RESERVED'"
+                (click)="kindFilter = 'RESERVED'; applyFilters()" title="Days the system reserved for people who didn't pick">
+          <i class="bi bi-bookmark me-1"></i>Reserved
+        </button>
+      </div>
+    </div>
     <div class="flex-grow-1" style="min-width: 190px; max-width: 280px">
       <label class="form-label small text-muted-2 mb-1" for="dSearch">Employee</label>
       <div class="input-group">
@@ -95,7 +108,8 @@
     </div>
   } @else {
     <div class="table-responsive" [class.is-refreshing]="loading()">
-      <table class="table table-hover table-stack">
+      <!-- With the Staffing column the table is too wide for tablets: show cards below 1200px instead. -->
+      <table class="table table-hover table-stack" [class.table-stack-lg]="auth.canManage() && status() === 'PENDING'">
         <thead>
           <tr>
             <th>Employee</th>
@@ -109,7 +123,7 @@
         </thead>
         <tbody>
           @for (r of requests(); track r.id) {
-            <tr>
+            <tr [class.is-reserved-row]="r.reserved">
               <td>
                 <div class="fw-semibold">{{ r.employeeName }}</div>
                 <div class="small text-muted-2">{{ r.employeeCode }}</div>
@@ -119,7 +133,7 @@
                 <div class="fw-semibold">
                   {{ format(r.date, { weekday: 'long' }) }}
                   @if (r.emergency) { <span class="emergency-badge"><i class="bi bi-exclamation-octagon-fill"></i> Emergency</span> }
-                  @if (r.reserved) { <span class="badge text-bg-info-subtle border border-info-subtle text-info-emphasis ms-1" title="Reserved by the system (needs a manager's approval like any request); if they ask for another day and it's approved, this one goes back to work">Reserved</span> }
+                  @if (r.reserved) { <span class="badge reserved-pill ms-1" title="Reserved by the system (needs a manager's approval like any request); if they ask for another day and it's approved, this one goes back to work"><i class="bi bi-bookmark-fill me-1"></i>Reserved</span> }
                 </div>
                 <div class="small text-muted-2">{{ format(r.date, { month: 'short', day: 'numeric', year: 'numeric' }) }}</div>
               </td>
@@ -137,7 +151,7 @@
               </td>
               <td data-label="Status">
                 @if (r.reserved && r.status === 'PENDING') {
-                  <span class="badge text-bg-info-subtle border border-info-subtle text-info-emphasis" title="Held by the system; waiting for a manager or admin to approve">Reserved · pending</span>
+                  <span class="badge reserved-pill" title="Held by the system; waiting for a manager or admin to approve">Reserved · pending</span>
                 } @else { <span class="badge status-badge status-{{ r.status }}">{{ r.status | titlecase }}</span> }
               </td>
               @if (auth.canManage() && status() === 'PENDING') {

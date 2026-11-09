@@ -32,6 +32,14 @@
              [ngModel]="weekStart()" (ngModelChange)="jumpTo($event)" />
     </div>
   </div>
+  <div class="live-status" [class.is-live]="live.status() === 'live'" role="status" aria-live="polite">
+    @switch (live.status()) {
+      @case ('live') { <span class="live-dot"></span><span>Live</span> }
+      @case ('retrying') { <span class="spinner-grow spinner-grow-sm"></span><span>Reconnecting…</span> }
+      @case ('connecting') { <span class="spinner-grow spinner-grow-sm"></span><span>Connecting…</span> }
+    }
+    @if (remoteNote(); as note) { <span class="live-note">· {{ note }}</span> }
+  </div>
   <div class="ms-auto d-flex gap-2 toolbar-actions">
     @if (auth.canManage() && schedule(); as s) {
       @if (s.status === 'DRAFT') {
@@ -324,9 +332,9 @@
     <div class="card requests-panel mb-3">
       <div class="card-header list-header">
         <i class="bi bi-calendar-x text-warning"></i>
-        <span class="fw-semibold">Day-off requests this week</span>
-        <span class="badge rounded-pill text-bg-warning">{{ s.requests.length }} waiting</span>
-        <span class="small text-muted-2 d-none d-md-inline">Marked <span class="req-flag">Off?</span> on the schedule below. Approving takes them off that day.</span>
+        <span class="fw-semibold">Days off waiting this week</span>
+        @if (askedRequests().length) { <span class="badge rounded-pill text-bg-warning" title="Asked for by employees">{{ askedRequests().length }} asked</span> }
+        @if (reservedRequests().length) { <span class="badge rounded-pill reserved-pill" title="Held by the system for people who haven't picked"><i class="bi bi-bookmark me-1"></i>{{ reservedRequests().length }} reserved</span> }
         @if (reviewable().length > 1) {
           <button type="button" class="btn btn-success btn-sm ms-auto" [disabled]="deciding() !== null" (click)="approveAllThatFit()">
             @if (deciding() === -1) { <span class="spinner-border spinner-border-sm me-1"></span> } @else { <i class="bi bi-check2-all me-1"></i> }
@@ -335,46 +343,82 @@
           </button>
         }
       </div>
-      <ul class="list-group list-group-flush">
-        @for (r of s.requests; track r.id) {
-          <li class="list-group-item request-item" [class.is-emergency]="r.emergency">
-            <div class="request-who">
-              <div class="fw-semibold">
-                {{ r.employeeName }}
-                @if (r.emergency) { <span class="emergency-badge"><i class="bi bi-exclamation-octagon-fill"></i> Emergency</span> }
-                @if (r.reserved) { <span class="badge text-bg-info-subtle border border-info-subtle text-info-emphasis ms-1">Reserved</span> }
-              </div>
-              <div class="small text-muted-2">
-                <i class="bi bi-calendar3 me-1"></i>{{ requestDay(r) }}
-                @if (requestStore(r); as st) { · works at {{ st }} }
-                @if (r.reserved) { · held by the system; they didn't pick a day } @else if (r.reason) { · “{{ r.reason }}” }
-              </div>
-            </div>
-            <div class="request-check">
-              @if (requestImpacts().get(r.id); as im) {
-                <span class="impact-badge {{ impactBadge[im.level].css }}" [attr.title]="im.summary">
-                  <i class="bi {{ impactBadge[im.level].icon }} me-1"></i>{{ impactBadge[im.level].label }}
-                </span>
-              } @else if (r.canReview) {
-                <span class="small text-muted-2"><span class="spinner-border spinner-border-sm me-1"></span>Checking…</span>
-              }
-            </div>
-            <div class="request-actions">
-              @if (r.canReview) {
-                <button type="button" class="btn btn-sm btn-success" [disabled]="deciding() !== null" (click)="approveRequest(r)">
-                  @if (deciding() === r.id) { <span class="spinner-border spinner-border-sm"></span> } @else { <i class="bi bi-check-lg"></i> }
-                  Approve
-                </button>
-                <button type="button" class="btn btn-sm btn-outline-danger" [disabled]="deciding() !== null" (click)="rejectRequest(r)">
-                  <i class="bi bi-x-lg"></i> Reject
-                </button>
-              } @else {
-                <span class="small text-muted-2">Awaiting admin</span>
-              }
-            </div>
-          </li>
+      @if (askedRequests().length) {
+        <div class="request-group-head">
+          <span class="req-flag">Off?</span>
+          <span class="fw-semibold">Asked by employees</span>
+          <span class="small text-muted-2 d-none d-md-inline">Approving takes them off that day.</span>
+        </div>
+        <ul class="list-group list-group-flush">
+          @for (r of askedRequests(); track r.id) {
+            <ng-container *ngTemplateOutlet="requestRow; context: { $implicit: r }" />
+          }
+        </ul>
+      }
+      @if (reservedRequests().length) {
+        <div class="request-group-head is-reserved">
+          <span class="req-flag is-reserved"><i class="bi bi-bookmark-fill"></i></span>
+          <span class="fw-semibold">Reserved by the system</span>
+          <span class="small text-muted-2 d-none d-md-inline">Held for people who didn't pick a day. They stay pending until approved.</span>
+          <button type="button" class="btn btn-link btn-sm ms-auto p-0 text-decoration-none" (click)="reservedOpen.set(!reservedOpenNow())"
+                  [attr.aria-expanded]="reservedOpenNow()">
+            {{ reservedOpenNow() ? 'Hide' : 'Show all ' + reservedRequests().length }}
+            <i class="bi ms-1" [class.bi-chevron-up]="reservedOpenNow()" [class.bi-chevron-down]="!reservedOpenNow()"></i>
+          </button>
+        </div>
+        @if (reservedOpenNow()) {
+          <ul class="list-group list-group-flush">
+            @for (r of reservedRequests(); track r.id) {
+              <ng-container *ngTemplateOutlet="requestRow; context: { $implicit: r }" />
+            }
+          </ul>
+        } @else {
+          <div class="reserved-summary">
+            @for (r of reservedRequests(); track r.id) {
+              <span class="reserved-chip" [attr.title]="r.employeeName + ' · ' + requestDay(r)">
+                {{ r.employeeName.split(' ')[0] }} · {{ format(r.date, { weekday: 'short' }) }}
+              </span>
+            }
+          </div>
         }
-      </ul>
+      }
+      <ng-template #requestRow let-r>
+        <li class="list-group-item request-item" [class.is-emergency]="r.emergency" [class.is-reserved]="r.reserved">
+          <div class="request-who">
+            <div class="fw-semibold">
+              {{ r.employeeName }}
+              @if (r.emergency) { <span class="emergency-badge"><i class="bi bi-exclamation-octagon-fill"></i> Emergency</span> }
+            </div>
+            <div class="small text-muted-2">
+              <i class="bi bi-calendar3 me-1"></i>{{ requestDay(r) }}
+              @if (requestStore(r); as st) { · works at {{ st }} }
+              @if (!r.reserved && r.reason) { · “{{ r.reason }}” }
+            </div>
+          </div>
+          <div class="request-check">
+            @if (requestImpacts().get(r.id); as im) {
+              <span class="impact-badge {{ impactBadge[im.level].css }}" [attr.title]="im.summary">
+                <i class="bi {{ impactBadge[im.level].icon }} me-1"></i>{{ impactBadge[im.level].label }}
+              </span>
+            } @else if (r.canReview) {
+              <span class="small text-muted-2"><span class="spinner-border spinner-border-sm me-1"></span>Checking…</span>
+            }
+          </div>
+          <div class="request-actions">
+            @if (r.canReview) {
+              <button type="button" class="btn btn-sm btn-success" [disabled]="deciding() !== null" (click)="approveRequest(r)">
+                @if (deciding() === r.id) { <span class="spinner-border spinner-border-sm"></span> } @else { <i class="bi bi-check-lg"></i> }
+                Approve
+              </button>
+              <button type="button" class="btn btn-sm btn-outline-danger" [disabled]="deciding() !== null" (click)="rejectRequest(r)">
+                <i class="bi bi-x-lg"></i> Reject
+              </button>
+            } @else {
+              <span class="small text-muted-2">Awaiting admin</span>
+            }
+          </div>
+        </li>
+      </ng-template>
     </div>
   }
   @if (canEdit()) {
@@ -499,7 +543,8 @@
         <span><span class="day-chip type-OFF">{{ dayTypeLabels['OFF'] }}</span></span>
         <span class="d-flex align-items-center gap-1"><span class="day-chip type-REQUESTED_OFF px-2">Off <i class="bi bi-check-circle-fill approved-check ms-1"></i></span> approved request</span>
         @if (auth.canManage()) {
-          @if (s.requests.length) { <span class="d-flex align-items-center gap-1"><span class="req-flag">Off?</span> asked off</span> }
+          @if (askedRequests().length) { <span class="d-flex align-items-center gap-1"><span class="req-flag">Off?</span> asked off</span> }
+          @if (reservedRequests().length) { <span class="d-flex align-items-center gap-1"><span class="req-flag is-reserved"><i class="bi bi-bookmark-fill"></i></span> reserved</span> }
           <span class="d-flex align-items-center gap-1"><span class="day-chip type-WORK has-store auto-moved px-2" style="--store-color: #475569"><i class="bi bi-arrow-left-right"></i></span> auto-moved</span>
           <span class="d-flex align-items-center gap-1"><span class="day-chip type-OFF px-2"><span class="edited-dot"></span>&nbsp;</span> edited</span>
           @if (canEdit()) {
@@ -602,7 +647,10 @@
           </span>
           <span class="sb-name">{{ shortName(p.row.employeeName) }}</span>
           @if (p.cell.type === 'REQUESTED_OFF') { <i class="bi bi-check-circle-fill approved-check" title="Approved day off"></i> }
-          @if (p.cell.request) { <span class="req-flag" [class.is-emergency]="p.cell.request.emergency" title="Asked for this day off">Off?</span> }
+          @if (p.cell.request; as rq) {
+            <span class="req-flag" [class.is-emergency]="rq.emergency" [class.is-reserved]="rq.reserved"
+                  [attr.title]="rq.reserved ? 'Day off reserved by the system (waiting for approval)' : 'Asked for this day off'">@if (rq.reserved) {<i class="bi bi-bookmark-fill"></i>} @else {Off?}</span>
+          }
           @if (p.cell.autoAssigned) { <i class="bi bi-arrow-left-right sb-moved" title="Moved automatically"></i> }
           @if (p.cell.manuallyEdited) { <span class="edited-dot"></span> }
         </button>
@@ -642,6 +690,12 @@
                         {{ row.employeeName }}
                         @if (row.role === 'MANAGER') { <span class="emp-manager">Manager</span> }
                         @if (row.employeeId === auth.user()?.id) { <span class="you-tag">You</span> }
+                      </div>
+                      <!-- Phones: the Days column is hidden to leave room for the week, so the count goes here. -->
+                      <div class="emp-days-mobile" [class.text-danger]="row.scheduledWorkDays < row.expectedWorkDays"
+                           [class.days-over]="row.scheduledWorkDays > row.expectedWorkDays">
+                        {{ row.scheduledWorkDays }}/{{ row.expectedWorkDays }} days
+                        @if (row.scheduledWorkDays > row.expectedWorkDays && auth.canManage()) { · no day off }
                       </div>
                       <div class="emp-sub" [class.d-none]="auth.isEmployee()">
                         @switch (row.storeRole) {
@@ -688,7 +742,8 @@
                             [style.--store-color]="cell.type === 'WORK' ? cell.storeColor : null"
                             [class.auto-moved]="cell.autoAssigned"
                             [class.store-closed]="cell.type === 'WORK' && cell.storeClosed"
-                            [class.has-request]="!!cell.request"
+                            [class.has-request]="!!cell.request && !cell.request.reserved"
+                            [class.has-reserved]="!!cell.request?.reserved"
                             [disabled]="!canEdit() || working()" (click)="openCell(row, i)"
                             [attr.title]="describe(cell) + (canEdit() ? ' · click to change or swap' : '')">
                       @if (cell.type === 'WORK') {
@@ -705,9 +760,9 @@
                         {{ dayTypeLabels[cell.type] }}
                       }
                       @if (cell.manuallyEdited && auth.canManage()) { <span class="edited-dot"></span> }
-                      @if (cell.request) {
-                        <span class="req-flag" [class.is-emergency]="cell.request.emergency"
-                              [attr.title]="'Asked for this day off' + (cell.request.reason ? ': ' + cell.request.reason : '')">Off?</span>
+                      @if (cell.request; as rq) {
+                        <span class="req-flag" [class.is-emergency]="rq.emergency" [class.is-reserved]="rq.reserved"
+                              [attr.title]="rq.reserved ? 'Day off reserved by the system (waiting for approval)' : 'Asked for this day off' + (rq.reason ? ': ' + rq.reason : '')">@if (rq.reserved) {<i class="bi bi-bookmark-fill"></i>} @else {Off?}</span>
                       }
                     </button>
                   </td>
@@ -784,10 +839,15 @@
       </div>
     </div>
     @if (e.cell.request; as rq) {
-      <div class="editor-request" [class.is-emergency]="rq.emergency">
-        <i class="bi bi-calendar-x"></i>
+      <div class="editor-request" [class.is-emergency]="rq.emergency" [class.is-reserved]="rq.reserved">
+        <i class="bi" [class.bi-calendar-x]="!rq.reserved" [class.bi-bookmark-fill]="rq.reserved"></i>
         <div class="flex-grow-1">
-          <strong>{{ e.row.employeeName.split(' ')[0] }} asked for this day off</strong>
+          @if (rq.reserved) {
+            <strong>Reserved for {{ e.row.employeeName.split(' ')[0] }} by the system</strong>
+            <div class="small">They didn't pick a day, so this one is held. It stays pending until approved.</div>
+          } @else {
+            <strong>{{ e.row.employeeName.split(' ')[0] }} asked for this day off</strong>
+          }
           @if (rq.emergency) { <span class="emergency-badge ms-1">Emergency</span> }
           @if (rq.reason) { <div class="small">“{{ rq.reason }}”</div> }
           @if (requestImpacts().get(rq.id); as im) { <div class="small text-muted-2">{{ im.summary }}</div> }
@@ -920,7 +980,10 @@
               {{ c.row.employeeName }}
               @if (c.row.storeRole === 'PRIMARY') { <i class="bi bi-star-fill ms-1" style="color: #e0a100" title="Primary at their store"></i> }
               @if (c.row.homeStoreId === g.gap.storeId) { <span class="badge text-bg-light border ms-1">Home store</span> }
-              @if (c.pendingRequest) { <span class="req-flag ms-1" title="Asked for this day off (waiting)">Off?</span> }
+              @if (c.pendingRequest) {
+                @if (c.cell.request?.reserved) { <span class="req-flag is-reserved ms-1" title="Day off reserved by the system (waiting)"><i class="bi bi-bookmark-fill"></i></span> }
+                @else { <span class="req-flag ms-1" title="Asked for this day off (waiting)">Off?</span> }
+              }
             </div>
             <div class="text-muted-2" style="font-size: 0.75rem">Now: {{ c.from }}</div>
           </div>
