@@ -251,8 +251,75 @@
         }
       </div>
     </div>
+    @if (notPicked().length > 0) {
+      <!-- People with no regular day and no request: call or message them before the week is made. -->
+      <section class="card mb-3 contact-card">
+        <div class="card-body">
+          <div class="contact-head">
+            <span class="contact-icon"><i class="bi bi-person-exclamation"></i></span>
+            <div class="flex-grow-1">
+              <h2 class="contact-title">Haven't picked a day off · {{ notPicked().length }}</h2>
+              <p class="contact-sub">No regular day off and no request yet. Call or message them; if they don't pick, the
+                system picks a day when the week is generated.</p>
+            </div>
+          </div>
+          <ul class="contact-list">
+            @for (p of shownNotPicked(); track p.employeeId) {
+              <li class="contact-row">
+                <span class="contact-avatar">{{ initials(p.name) }}</span>
+                <div class="contact-main">
+                  <div class="contact-name">{{ p.name }}</div>
+                  <div class="contact-meta">
+                    @if (p.phone) { <i class="bi bi-telephone me-1"></i>{{ formatPhone(p.phone) }} }
+                    @else { <span class="text-warning-emphasis"><i class="bi bi-telephone-x me-1"></i>No phone on file</span> }
+                    @if (p.homeStoreName) { <span class="ms-2">· {{ p.homeStoreName }}</span> }
+                  </div>
+                </div>
+                <div class="contact-actions">
+                  @if (p.phone) {
+                    <a class="btn btn-sm btn-success" [href]="'tel:' + p.phone" [attr.aria-label]="'Call ' + p.name">
+                      <i class="bi bi-telephone-fill me-1"></i>Call
+                    </a>
+                  }
+                  <button type="button" class="btn btn-sm btn-outline-primary" (click)="openMessage(p)" [attr.aria-label]="'Message ' + p.name">
+                    <i class="bi bi-chat-dots me-1"></i>Message
+                  </button>
+                </div>
+              </li>
+            }
+          </ul>
+          @if (notPicked().length > 5) {
+            <button type="button" class="btn btn-link btn-sm px-0 text-decoration-none" (click)="notPickedOpen.set(!notPickedOpen())">
+              <i class="bi me-1" [class.bi-chevron-down]="!notPickedOpen()" [class.bi-chevron-up]="notPickedOpen()"></i>
+              {{ notPickedOpen() ? 'Show fewer' : 'Show all ' + notPicked().length }}
+            </button>
+          }
+        </div>
+      </section>
+    }
   }
 }
+
+<app-modal [open]="messageTo() !== null" [title]="'Message ' + (messageTo()?.name ?? '')" (closed)="messageTo.set(null)">
+  @if (messageTo(); as p) {
+    <p class="small text-muted-2 mb-2">
+      Goes to {{ p.name.split(' ')[0] }} by email, WhatsApp and text: whichever they can get.
+    </p>
+    <label class="form-label" for="dmText">Message</label>
+    <textarea id="dmText" class="form-control" rows="4" maxlength="500" [(ngModel)]="messageText"></textarea>
+    <div class="d-flex justify-content-between small text-muted-2 mt-1">
+      <span>{{ messageError() }}</span>
+      <span>{{ messageText.length }}/500</span>
+    </div>
+  }
+  <ng-container modal-footer>
+    <button type="button" class="btn btn-light" (click)="messageTo.set(null)">Cancel</button>
+    <button type="button" class="btn btn-primary" [disabled]="messageSending() || !messageText.trim() || !!messageError()" (click)="sendMessage()">
+      @if (messageSending()) { <span class="spinner-border spinner-border-sm me-1"></span> } @else { <i class="bi bi-send me-1"></i> }
+      Send
+    </button>
+  </ng-container>
+</app-modal>
 
 @if (areas().length === 0 && !loading()) {
   <div class="card">
@@ -458,25 +525,60 @@
     }
   }
   @if (s.coverageGaps.length > 0 && auth.canManage()) {
-    <div class="alert alert-danger py-2">
-      <div class="mb-1">
-        <i class="bi bi-shop me-1"></i>
-        <strong>{{ s.coverageGaps.length }} store-day{{ s.coverageGaps.length === 1 ? '' : 's' }} below minimum staffing</strong>
-        <div class="small">
-          Not enough people work these days to cover every store. Approve fewer days off, lower a minimum, or click a day
-          to move someone.
+    <section class="gap-card" aria-labelledby="gap-title">
+      <div class="gap-head">
+        <span class="gap-icon"><i class="bi bi-people"></i></span>
+        <div class="flex-grow-1 min-w-0">
+          <h2 id="gap-title" class="gap-title">
+            Short-staffed · {{ s.coverageGaps.length }} store-day{{ s.coverageGaps.length === 1 ? '' : 's' }}
+          </h2>
+          <p class="gap-sub">
+            @if (s.status === 'DRAFT') {
+              Fewer people than the store's minimum. Add someone who can be spared, or click a day on the schedule to move someone.
+            } @else {
+              Fewer people than the store's minimum. Revert to draft to move people.
+            }
+          </p>
         </div>
-      </div>
-      <div class="d-flex flex-wrap gap-1">
-        @for (d of gapsByDay(); track d.date) {
-          @for (g of d.gaps; track g.storeId) {
-            <span class="gap-pill">
-              {{ format(d.date, { weekday: 'short' }) }} · {{ g.storeName }} <strong>{{ g.scheduled }}/{{ g.required }}</strong>
-            </span>
-          }
+        @if (s.status === 'DRAFT') {
+          <button type="button" class="btn btn-danger btn-sm gap-fix" [disabled]="working()" (click)="openFill()">
+            <i class="bi bi-person-plus me-1"></i> Fix staffing
+          </button>
         }
       </div>
-    </div>
+      <div class="gap-list">
+        @for (g of shownGaps(); track g.gap.storeId + g.gap.date) {
+          <button type="button" class="gap-item" [disabled]="s.status !== 'DRAFT' || working()" (click)="openFill()"
+                  [attr.aria-label]="format(g.gap.date, { weekday: 'long' }) + ', ' + g.gap.storeName + ': ' + g.gap.scheduled + ' of ' + g.gap.required + ' scheduled'">
+            <span class="gap-day">
+              <span class="gd-wd">{{ format(g.gap.date, { weekday: 'short' }) }}</span>
+              <span class="gd-num">{{ format(g.gap.date, { day: 'numeric' }) }}</span>
+            </span>
+            <span class="gap-body">
+              <span class="gap-store">
+                <span class="store-dot" [style.--store-color]="storeColor(g.gap.storeId)"></span>{{ g.gap.storeName }}
+              </span>
+              <span class="gap-bar" aria-hidden="true">
+                <span [style.width.%]="(g.gap.scheduled / g.gap.required) * 100"></span>
+              </span>
+              <span class="gap-meta">
+                Needs {{ g.missing }} more
+                @if (s.status === 'DRAFT') {
+                  · {{ g.candidates.length ? g.candidates.length + ' can cover' : 'nobody free' }}
+                }
+              </span>
+            </span>
+            <span class="gap-count">{{ g.gap.scheduled }}<small>/{{ g.gap.required }}</small></span>
+          </button>
+        }
+      </div>
+      @if (fillGaps().length > gapPreview) {
+        <button type="button" class="btn btn-link btn-sm px-0 mt-2 text-decoration-none" (click)="gapsExpanded.set(!gapsExpanded())">
+          <i class="bi me-1" [class.bi-chevron-down]="!gapsExpanded()" [class.bi-chevron-up]="gapsExpanded()"></i>
+          {{ gapsExpanded() ? 'Show fewer' : 'Show all ' + fillGaps().length }}
+        </button>
+      }
+    </section>
   } @else if (s.storeCoverage.length > 0 && auth.canManage()) {
     <div class="alert alert-success py-2 d-flex align-items-center">
       <i class="bi bi-check2-circle me-2"></i> Every store meets its minimum staffing all week.

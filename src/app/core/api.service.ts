@@ -2,6 +2,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable, map } from 'rxjs';
 import {
+  DirectMessageResult,
   AdjustmentType,
   AdjustmentTypeOption,
   CommissionAdjustment,
@@ -172,6 +173,10 @@ export class ApiService {
   }
   whatsappStatus(): Observable<WhatsAppStatus> {
     return this.http.get<WhatsAppStatus>(`${this.base}/notifications/status`);
+  }
+  /** A message to one person, by email, WhatsApp and text (whatever reaches them). */
+  messagePerson(employeeId: number, message: string): Observable<DirectMessageResult> {
+    return this.http.post<DirectMessageResult>(`${this.base}/notifications/direct`, { employeeId, message });
   }
   announce(areaId: number, message: string): Observable<{ recipients: number; reachable: number }> {
     return this.http.post<{ recipients: number; reachable: number }>(`${this.base}/notifications/announce`, { areaId, message });

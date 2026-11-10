@@ -1,221 +1,194 @@
-<div class="page-toolbar">
-  <ul class="nav nav-pills me-2">
+<!-- Header: tabs on the left, the main action on the right. -->
+<div class="do-head">
+  <div class="do-tabs" role="tablist">
     @for (t of tabs; track t.value) {
-      <li class="nav-item">
-        <button type="button" class="nav-link" [class.active]="status() === t.value" (click)="setTab(t.value)">{{ t.label }}</button>
-      </li>
+      <button type="button" role="tab" class="do-tab" [class.active]="status() === t.value" [attr.aria-selected]="status() === t.value"
+              [attr.title]="t.hint" (click)="setTab(t.value)">
+        {{ t.label }}
+        @if (tabCounts()[t.value]; as n) { <span class="tab-count" [class.is-urgent]="t.value === 'PENDING'">{{ n }}</span> }
+      </button>
     }
-  </ul>
-  @if (auth.isAdmin()) {
-    <div style="min-width: 170px">
-      <label class="form-label small text-muted-2 mb-1" for="dArea">Area</label>
-      <select id="dArea" class="form-select" [(ngModel)]="areaFilter" (ngModelChange)="applyFilters()">
-        <option [ngValue]="null">All areas</option>
-        @for (a of areas(); track a.id) {
-          <option [ngValue]="a.id">{{ a.name }}</option>
-        }
-      </select>
-    </div>
-  }
-  <div>
-    <label class="form-label small text-muted-2 mb-1" for="dFrom">From</label>
-    <input id="dFrom" type="date" class="form-control" [(ngModel)]="fromFilter" (ngModelChange)="applyFilters()" />
   </div>
-  <div>
-    <label class="form-label small text-muted-2 mb-1" for="dTo">To</label>
-    <input id="dTo" type="date" class="form-control" [(ngModel)]="toFilter" (ngModelChange)="applyFilters()" />
-  </div>
-  @if (!auth.isEmployee()) {
-    <div>
-      <span class="form-label small text-muted-2 mb-1 d-block" id="dKindLabel">Type</span>
-      <div class="btn-group kind-filter" role="group" aria-labelledby="dKindLabel">
-        <button type="button" class="btn" [class.btn-secondary]="kindFilter === 'ALL'" [class.btn-outline-secondary]="kindFilter !== 'ALL'"
-                (click)="kindFilter = 'ALL'; applyFilters()">All</button>
-        <button type="button" class="btn" [class.btn-warning]="kindFilter === 'ASKED'" [class.btn-outline-warning]="kindFilter !== 'ASKED'"
-                (click)="kindFilter = 'ASKED'; applyFilters()" title="Days people asked for">Asked</button>
-        <button type="button" class="btn kind-regular" [class.active]="kindFilter === 'REGULAR'"
-                (click)="kindFilter = 'REGULAR'; applyFilters()" title="Regular days off: the same day every week">
-          <i class="bi bi-arrow-repeat me-1"></i>Regular
-        </button>
-        <button type="button" class="btn kind-reserved" [class.active]="kindFilter === 'RESERVED'"
-                (click)="kindFilter = 'RESERVED'; applyFilters()" title="Days the system reserved for people who didn't pick">
-          <i class="bi bi-bookmark me-1"></i>Reserved
-        </button>
-      </div>
-    </div>
-    <div class="flex-grow-1" style="min-width: 190px; max-width: 280px">
-      <label class="form-label small text-muted-2 mb-1" for="dSearch">Employee</label>
-      <div class="input-group">
-        <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
-        <input id="dSearch" type="search" class="form-control" placeholder="Name or code" [(ngModel)]="search"
-               (ngModelChange)="onSearch()" (keydown.enter)="applyFilters()" autocomplete="off" />
-        @if (search) {
-          <button type="button" class="btn btn-outline-secondary" (click)="search = ''; applyFilters()" aria-label="Clear search">
-            <i class="bi bi-x-lg"></i>
-          </button>
-        }
-      </div>
-    </div>
-  }
-  <button type="button" class="btn btn-primary ms-auto" (click)="openCreate()">
+  <button type="button" class="btn btn-primary" (click)="openCreate()">
     <i class="bi bi-calendar-plus me-1"></i> {{ auth.isEmployee() ? 'Request days off' : 'New request' }}
   </button>
 </div>
 
 @if (auth.isAdmin() && portal(); as p) {
-  <div class="card mb-3 portal-card" [class.border-danger]="p.mode === 'CLOSED'" [class.border-success]="p.mode === 'OPEN'">
-    <div class="card-body py-3 d-flex flex-wrap align-items-center gap-3">
-      <div class="me-auto">
-        <div class="fw-semibold">
-          @switch (p.mode) {
-            @case ('CLOSED') { <i class="bi bi-lock-fill text-danger me-1"></i>Day-off requests are closed }
-            @case ('OPEN') { <i class="bi bi-unlock-fill text-success me-1"></i>Day-off requests are open }
-            @default { <i class="bi bi-arrow-repeat text-primary me-1"></i>Day-off requests: normal Friday cycle }
-          }
-        </div>
-        <div class="small text-muted-2">
-          @if (p.openWeeks.length) {
-            Taking requests for the week{{ p.openWeeks.length > 1 ? 's' : '' }} of
-            @for (w of p.openWeeks; track w; let last = $last) { {{ short(w) }}{{ last ? '' : ' and ' }} }
-            @if (p.mode === 'AUTO') { until the end of Friday, {{ short(p.deadline) }}. }
-          } @else {
-            Only emergency requests go through until requests are opened again.
-          }
-          @if (p.mode !== 'AUTO' && p.changedBy) { Set by {{ p.changedBy }}. }
-        </div>
-      </div>
-      <div class="btn-group" role="group" aria-label="Day-off requests">
-        <button type="button" class="btn btn-sm" [class]="p.mode === 'OPEN' ? 'btn btn-sm btn-success' : 'btn btn-sm btn-outline-success'"
-                [disabled]="portalBusy() || p.mode === 'OPEN'" (click)="setPortal('OPEN')">
-          <i class="bi bi-unlock me-1"></i>Open
-        </button>
-        <button type="button" class="btn btn-sm" [class]="p.mode === 'AUTO' ? 'btn btn-sm btn-primary' : 'btn btn-sm btn-outline-primary'"
-                [disabled]="portalBusy() || p.mode === 'AUTO'" (click)="setPortal('AUTO')">
-          <i class="bi bi-arrow-repeat me-1"></i>Automatic
-        </button>
-        <button type="button" class="btn btn-sm" [class]="p.mode === 'CLOSED' ? 'btn btn-sm btn-danger' : 'btn btn-sm btn-outline-danger'"
-                [disabled]="portalBusy() || p.mode === 'CLOSED'" (click)="setPortal('CLOSED')">
-          <i class="bi bi-lock me-1"></i>Close
-        </button>
-      </div>
+  <div class="portal-bar" [class.is-open]="p.openWeeks.length > 0">
+    <span class="portal-dot"></span>
+    <div class="me-auto">
+      @if (p.openWeeks.length) {
+        <strong>Requests are open</strong>
+        <span class="portal-sub">
+          for the week{{ p.openWeeks.length > 1 ? 's' : '' }} of
+          @for (w of p.openWeeks; track w; let last = $last) { {{ short(w) }}{{ last ? '' : ' and ' }} }
+        </span>
+      } @else {
+        <strong>Requests are closed</strong>
+        <span class="portal-sub">Only emergency requests can be sent.</span>
+      }
     </div>
+    @if (p.openWeeks.length) {
+      <button type="button" class="btn btn-sm btn-outline-danger" [disabled]="portalBusy()" (click)="setPortal('CLOSED')">
+        <i class="bi bi-lock me-1"></i>Close requests
+      </button>
+    } @else {
+      <button type="button" class="btn btn-sm btn-success" [disabled]="portalBusy()" (click)="setPortal('OPEN')">
+        <i class="bi bi-unlock me-1"></i>Open requests
+      </button>
+    }
   </div>
 }
 
-<div class="card requests-card">
-  @if (loading() && requests().length === 0) {
-    <div class="empty-state"><div class="spinner-border text-primary"></div></div>
-  } @else if (requests().length === 0) {
-    <div class="empty-state">
-      <i class="bi bi-calendar-check"></i>
-      @if (search.trim()) { No requests for “{{ search.trim() }}”. } @else { No requests to show. }
+<!-- Filters: the area (admins) and a search; dates only where looking back matters. -->
+@if (!auth.isEmployee() || status() !== 'PENDING') {
+  <div class="do-filters">
+    @if (auth.isAdmin()) {
+      <select class="form-select form-select-sm" aria-label="Area" [(ngModel)]="areaFilter" (ngModelChange)="applyFilters()">
+        <option [ngValue]="null">All areas</option>
+        @for (a of areas(); track a.id) { <option [ngValue]="a.id">{{ a.name }}</option> }
+      </select>
+    }
+    @if (!auth.isEmployee()) {
+      <div class="input-group input-group-sm do-search">
+        <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+        <input type="search" class="form-control" placeholder="Search employee" aria-label="Search employee" [(ngModel)]="search"
+               (ngModelChange)="onSearch()" (keydown.enter)="applyFilters()" autocomplete="off" />
+      </div>
+    }
+    @if (status() !== 'PENDING') {
+      <div class="do-dates">
+        <input type="date" class="form-control form-control-sm" aria-label="From" [(ngModel)]="fromFilter" (ngModelChange)="applyFilters()" />
+        <span class="text-muted-2 small">to</span>
+        <input type="date" class="form-control form-control-sm" aria-label="To" [(ngModel)]="toFilter" (ngModelChange)="applyFilters()" />
+      </div>
+    }
+  </div>
+}
+
+@if (loading() && requests().length === 0) {
+  <div class="card"><div class="empty-state"><div class="spinner-border text-primary"></div></div></div>
+} @else if (requests().length === 0) {
+  <div class="card">
+    <div class="empty-state do-empty">
+      @if (status() === 'PENDING' && auth.canManage() && !search.trim()) {
+        <span class="do-empty-icon"><i class="bi bi-check2-all"></i></span>
+        <strong>All caught up</strong>
+        <span class="small text-muted-2">No emergency requests are waiting. Everything else is handled by the system.</span>
+      } @else if (search.trim()) {
+        <i class="bi bi-search"></i> No requests for “{{ search.trim() }}”.
+      } @else {
+        <i class="bi bi-calendar-check"></i> Nothing to show here.
+      }
     </div>
-  } @else {
+  </div>
+} @else if (status() === 'PENDING' && auth.canManage()) {
+  <!-- Emergency requests: one card each, with the staffing check and the decision. -->
+  <div class="er-list" [class.is-refreshing]="loading()">
+    @for (r of requests(); track r.id) {
+      <article class="er-card">
+        <div class="er-date">
+          <span class="er-wd">{{ format(r.date, { weekday: 'short' }) }}</span>
+          <span class="er-num">{{ format(r.date, { day: 'numeric' }) }}</span>
+          <span class="er-mon">{{ format(r.date, { month: 'short' }) }}</span>
+        </div>
+        <div class="er-main">
+          <div class="er-name">
+            {{ r.employeeName }}
+            <span class="er-meta">{{ r.employeeCode }}@if (auth.isAdmin()) { · {{ r.areaName }} }</span>
+          </div>
+          <div class="er-reason">
+            <span class="emergency-badge"><i class="bi bi-exclamation-octagon-fill"></i> Emergency</span>
+            {{ r.reason || 'No reason given' }}
+          </div>
+          @if (impacts().get(r.id); as im) {
+            <div class="er-impact {{ impactBadge[im.level].css }}">
+              <i class="bi {{ impactBadge[im.level].icon }}"></i>
+              <span><strong>{{ impactBadge[im.level].label }}.</strong> {{ im.summary }}</span>
+            </div>
+          } @else if (canReview(r)) {
+            <div class="er-impact"><span class="spinner-border spinner-border-sm"></span><span>Checking the stores…</span></div>
+          }
+        </div>
+        <div class="er-actions">
+          @if (canReview(r)) {
+            <button type="button" class="btn btn-success" [disabled]="busyId() === r.id" (click)="approve(r)">
+              <i class="bi bi-check-lg me-1"></i>Approve
+            </button>
+            <button type="button" class="btn btn-outline-danger" [disabled]="busyId() === r.id" (click)="reject(r)">
+              <i class="bi bi-x-lg me-1"></i>Reject
+            </button>
+          } @else {
+            <span class="small text-muted-2">{{ auth.isManager() && r.employeeId === auth.user()?.id ? 'An admin decides' : 'Awaiting manager' }}</span>
+          }
+        </div>
+      </article>
+    }
+  </div>
+} @else {
+  <!-- History (managers) and the employee's own days off. -->
+  <div class="card requests-card">
     <div class="table-responsive" [class.is-refreshing]="loading()">
-      <!-- With the Staffing column the table is too wide for tablets: show cards below 1200px instead. -->
-      <table class="table table-hover table-stack" [class.table-stack-lg]="auth.canManage() && status() === 'PENDING'">
+      <table class="table table-hover table-stack do-table">
         <thead>
           <tr>
-            <th>Employee</th>
-            <th>Area</th>
+            @if (!auth.isEmployee()) { <th>Employee</th> }
             <th>Day off</th>
             <th>Reason</th>
             <th>Status</th>
-            @if (auth.canManage() && status() === 'PENDING') { <th>Staffing</th> }
-            <th class="text-end">Actions</th>
+            <th class="text-end"><span class="visually-hidden">Actions</span></th>
           </tr>
         </thead>
         <tbody>
           @for (r of requests(); track r.id) {
-            <tr [class.is-reserved-row]="r.reserved && !r.regular" [class.is-regular-row]="r.regular">
-              <td>
-                <div class="fw-semibold">{{ r.employeeName }}</div>
-                <div class="small text-muted-2">{{ r.employeeCode }}</div>
-              </td>
-              <td data-label="Area">{{ r.areaName }}</td>
+            <tr>
+              @if (!auth.isEmployee()) {
+                <td>
+                  <div class="fw-semibold">{{ r.employeeName }}</div>
+                  <div class="small text-muted-2">{{ r.employeeCode }}@if (auth.isAdmin()) { · {{ r.areaName }} }</div>
+                </td>
+              }
               <td data-label="Day off">
-                <div class="fw-semibold">
-                  {{ format(r.date, { weekday: 'long' }) }}
+                <div class="fw-semibold">{{ format(r.date, { weekday: 'long', month: 'short', day: 'numeric' }) }}</div>
+                <div class="d-flex flex-wrap gap-1 mt-1">
                   @if (r.emergency) { <span class="emergency-badge"><i class="bi bi-exclamation-octagon-fill"></i> Emergency</span> }
-                  @if (r.regular) { <span class="badge regular-pill ms-1" title="Their regular day off (the same day every week). Reserved for them; a manager or admin still approves it"><i class="bi bi-arrow-repeat me-1"></i>Regular day off</span> }
-                  @else if (r.reserved) { <span class="badge reserved-pill ms-1" title="Reserved by the system (needs a manager's approval like any request); if they ask for another day and it's approved, this one goes back to work"><i class="bi bi-bookmark-fill me-1"></i>Reserved</span> }
+                  @if (r.regular) { <span class="badge regular-pill"><i class="bi bi-arrow-repeat me-1"></i>Regular day off</span> }
                 </div>
-                <div class="small text-muted-2">{{ format(r.date, { month: 'short', day: 'numeric', year: 'numeric' }) }}</div>
               </td>
               <td data-label="Reason" class="text-muted-2">
-                {{ r.reason || '—' }}
-                @if (r.reviewNote) {
-                  <div class="small fst-italic">Manager: {{ r.reviewNote }}</div>
-                }
+                {{ r.reserved ? '—' : (r.reason || '—') }}
+                @if (r.status === 'REJECTED' && r.reviewNote) { <div class="small">{{ r.reviewNote }}</div> }
                 @if (r.decisionChangeReason) {
                   <div class="small fst-italic">
-                    <i class="bi bi-arrow-repeat me-1"></i>Changed from {{ r.previousStatus | titlecase }}
-                    @if (r.decisionChangedBy) { by {{ r.decisionChangedBy }} }: {{ r.decisionChangeReason }}
+                    Changed from {{ r.previousStatus | titlecase }}@if (r.decisionChangedBy) { by {{ r.decisionChangedBy }} }: {{ r.decisionChangeReason }}
                   </div>
                 }
               </td>
               <td data-label="Status">
-                @if (r.regular && r.status === 'PENDING') {
-                  <span class="badge regular-pill" title="Regular day off; waiting for a manager or admin to approve">Regular · pending</span>
-                } @else if (r.reserved && r.status === 'PENDING') {
-                  <span class="badge reserved-pill" title="Held by the system; waiting for a manager or admin to approve">Reserved · pending</span>
-                } @else if (r.status === 'APPROVED') {
+                @if (r.status === 'APPROVED' || (r.reserved && r.status === 'PENDING')) {
                   <span class="badge status-badge status-APPROVED"><i class="bi bi-check-circle-fill me-1"></i>Day off</span>
                 } @else if (r.status === 'PENDING') {
                   <span class="badge status-badge status-PENDING">Waiting for approval</span>
-                } @else { <span class="badge status-badge status-REJECTED">Not given</span> }
+                } @else {
+                  <span class="badge status-badge status-REJECTED">Not given</span>
+                }
               </td>
-              @if (auth.canManage() && status() === 'PENDING') {
-                <td data-label="Staffing" style="max-width: 280px">
-                  @if (impacts().get(r.id); as im) {
-                    <span class="impact-badge {{ impactBadge[im.level].css }}">
-                      <i class="bi {{ impactBadge[im.level].icon }} me-1"></i>{{ impactBadge[im.level].label }}
-                    </span>
-                    <div class="small text-muted-2 mt-1">{{ im.summary }}</div>
-                    @if (im.alreadyOff.length || im.alsoRequested.length) {
-                      <div class="small text-muted-2">
-                        <i class="bi bi-people me-1"></i>
-                        @if (im.alreadyOff.length) { {{ im.alreadyOff.length }} already off }
-                        @if (im.alreadyOff.length && im.alsoRequested.length) { · }
-                        @if (im.alsoRequested.length) { {{ im.alsoRequested.length }} more asked }
-                      </div>
-                    }
-                  } @else if (canReview(r)) {
-                    <span class="small text-muted-2"><span class="spinner-border spinner-border-sm me-1"></span>Checking…</span>
-                  } @else {
-                    <span class="small text-muted-2">—</span>
-                  }
-                </td>
-              }
               <td class="td-actions text-end text-nowrap">
-                @if (r.status === 'PENDING' && canReview(r)) {
-                  <button type="button" class="btn btn-sm btn-success me-1" [disabled]="busyId() === r.id" (click)="approve(r)">
-                    <i class="bi bi-check-lg"></i> Approve
-                  </button>
-                  <button type="button" class="btn btn-sm btn-outline-danger me-1" [disabled]="busyId() === r.id" (click)="reject(r)">
-                    <i class="bi bi-x-lg"></i> Reject
-                  </button>
-                }
-                @if (r.status === 'PENDING' && !canReview(r)) {
-                  <span class="small text-muted-2 me-2">
-                    {{ auth.isManager() && r.employeeId === auth.user()?.id ? 'Awaiting admin' : 'Awaiting manager' }}
-                  </span>
-                }
-                <!-- Revoking an approved day off is done on the schedule (click the day). -->
                 @if (canChangeDecision(r) && r.status === 'REJECTED') {
-                  <button type="button" class="btn btn-sm me-1 btn-outline-success"
-                          [disabled]="busyId() === r.id" (click)="changeDecision(r)" title="Change to approved">
-                    <i class="bi bi-arrow-repeat"></i> Approve instead
+                  <button type="button" class="btn btn-sm btn-outline-success" [disabled]="busyId() === r.id"
+                          (click)="changeDecision(r)" title="Give this day off after all">
+                    <i class="bi bi-arrow-repeat me-1"></i>Give it
                   </button>
                 }
                 @if (canWithdraw(r)) {
                   <button type="button" class="btn btn-sm btn-link text-muted-2" (click)="cancel(r)" title="Withdraw request">
                     <i class="bi bi-trash"></i>
                   </button>
-                } @else if (r.areaId && r.status === 'APPROVED') {
-                  <a class="btn btn-sm btn-outline-secondary" [routerLink]="['/schedules']"
-                     [queryParams]="{ area: r.areaId, week: weekOf(r.date) }">
-                    <i class="bi bi-calendar3-week me-1"></i> Schedule
+                } @else if (r.areaId && r.status === 'APPROVED' && !auth.isEmployee()) {
+                  <a class="btn btn-sm btn-link" [routerLink]="['/schedules']" [queryParams]="{ area: r.areaId, week: weekOf(r.date) }"
+                     title="Open that week's schedule">
+                    <i class="bi bi-calendar3-week"></i>
                   </a>
                 }
               </td>
@@ -224,10 +197,10 @@
         </tbody>
       </table>
     </div>
-  }
-  <app-pagination [page]="page()" [size]="pageSize()" [total]="total()" label="requests"
-                  (pageChange)="goToPage($event)" (sizeChange)="changePageSize($event)" />
-</div>
+  </div>
+}
+<app-pagination [page]="page()" [size]="pageSize()" [total]="total()" label="requests"
+                (pageChange)="goToPage($event)" (sizeChange)="changePageSize($event)" />
 
 <app-modal [open]="modalOpen()" [title]="auth.isEmployee() ? 'Request days off' : 'New day-off request'" (closed)="modalOpen.set(false)">
   @if (auth.isAdmin()) {
@@ -296,14 +269,27 @@
         </div>
       }
     }
-    @if (myRegular().length && !formEmergency()) {
+    @if (myRegularDates().length && !formEmergency()) {
       <div class="alert regular-note small py-2 mb-2">
         <i class="bi bi-arrow-repeat me-1"></i>
-        @for (r of myRegular(); track r.id; let last = $last) {
-          <strong>{{ format(r.date, { weekday: 'long', month: 'short', day: 'numeric' }) }}</strong>{{ last ? '' : ' and ' }}
+        @for (d of myRegularDates(); track d; let last = $last) {
+          <strong>{{ format(d, { weekday: 'long', month: 'short', day: 'numeric' }) }}</strong>{{ last ? '' : ' and ' }}
         }
-        {{ myRegular().length === 1 ? 'is your regular day off. It comes first' : 'are your regular days off. They come first' }};
-        pick another day only if you have one left this week.
+        {{ myRegularDates().length === 1 ? 'is your regular day off' : 'are your regular days off' }}: you don't need to ask for
+        {{ myRegularDates().length === 1 ? 'it' : 'them' }}. Want a different day this week? Pick it, and your regular day
+        becomes a work day this week.
+      </div>
+    }
+    @if (regularReplaced().length) {
+      <div class="alert alert-warning small py-2 mb-2 d-flex align-items-start">
+        <i class="bi bi-arrow-left-right me-2 mt-1"></i>
+        <span>
+          You'll work
+          @for (d of regularReplaced(); track d; let last = $last) {
+            <strong>{{ format(d, { weekday: 'long', month: 'short', day: 'numeric' }) }}</strong>{{ last ? '' : ' and ' }}
+          }
+          this week instead of having it off. Your regular day off stays the same for other weeks.
+        </span>
       </div>
     }
     @if (myReserved().length && !formEmergency() && !auth.isEmployee()) {

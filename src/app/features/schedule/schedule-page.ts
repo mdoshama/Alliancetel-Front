@@ -25,7 +25,9 @@ import {
   WeekRequest,
   DayOffSuggestion,
   WeekRequestStatus,
+  WeekRequestPerson,
 } from '../../core/models';
+import { RULES, formatPhone } from '../../core/validation';
 import { IMPACT_BADGE, approvalCard } from '../../core/day-off-impact';
 import { formatHours, formatTime } from '../../core/store-hours';
 import { ConfirmService } from '../../core/confirm.service';
@@ -181,16 +183,6 @@ export class SchedulePage implements OnInit {
       .map((r) => ({ row: r, cell: r.days[e.dayIndex] }))
       .filter((c) => c.cell.type === 'WORK' && c.cell.storeId !== e.cell.storeId)
       .sort((a, b) => (a.cell.storeLabel ?? '~').localeCompare(b.cell.storeLabel ?? '~'));
-  });
-
-  /** Short-staffed store-days, grouped by date for the warning banner. */
-  protected readonly gapsByDay = computed(() => {
-    const gaps = this.schedule()?.coverageGaps ?? [];
-    const days = new Map<string, typeof gaps>();
-    for (const g of gaps) {
-      days.set(g.date, [...(days.get(g.date) ?? []), g]);
-    }
-    return [...days.entries()].map(([date, list]) => ({ date, gaps: list }));
   });
 
   // ---------- "By store" view ----------
@@ -989,6 +981,62 @@ export class SchedulePage implements OnInit {
       return { gap, dayIndex, missing: gap.required - gap.scheduled, candidates };
     });
   });
+
+  // ---------- People who haven't picked ----------
+
+  /** No regular day off and no request this week (the system would pick for them): managers call or message them. */
+  protected readonly notPicked = computed(() => {
+    const rs = this.requestStatus();
+    return rs ? [...rs.missing, ...rs.reserved].sort((a, b) => a.name.localeCompare(b.name)) : [];
+  });
+  protected readonly notPickedOpen = signal(false);
+  protected readonly shownNotPicked = computed(() =>
+    this.notPickedOpen() ? this.notPicked() : this.notPicked().slice(0, 5),
+  );
+  protected readonly formatPhone = formatPhone;
+
+  /** The message box: who it's for and what it says. */
+  protected readonly messageTo = signal<WeekRequestPerson | null>(null);
+  protected messageText = '';
+  protected readonly messageSending = signal(false);
+  protected messageError(): string {
+    return RULES.safeText.re.test(this.messageText) ? '' : RULES.safeText.msg;
+  }
+
+  protected openMessage(p: WeekRequestPerson): void {
+    const first = p.name.split(' ')[0];
+    this.messageText =
+      `Hi ${first}, please pick your day off for the week of ${this.weekLabel()} in the AllianceTel app. ` +
+      `If you don't, the system will pick one for you.`;
+    this.messageTo.set(p);
+  }
+
+  protected sendMessage(): void {
+    const p = this.messageTo();
+    if (!p || this.messageSending()) {
+      return;
+    }
+    this.messageSending.set(true);
+    this.api.messagePerson(p.employeeId, this.messageText.trim()).subscribe({
+      next: (r) => {
+        this.messageSending.set(false);
+        this.messageTo.set(null);
+        const first = p.name.split(' ')[0];
+        this.toast.success(`Message sent to ${first} by ${r.sentBy.join(', ')}.`);
+        if (r.notSentBy.length) {
+          this.toast.info(`Not sent by: ${r.notSentBy.join('; ')}.`);
+        }
+      },
+      error: () => this.messageSending.set(false),
+    });
+  }
+
+  /** The short-staffed card shows a few store-days until opened up, so a bad week doesn't push the schedule down. */
+  protected readonly gapPreview = 4;
+  protected readonly gapsExpanded = signal(false);
+  protected readonly shownGaps = computed(() =>
+    this.gapsExpanded() ? this.fillGaps() : this.fillGaps().slice(0, this.gapPreview),
+  );
 
   protected openFill(): void {
     this.fillOpen.set(true);

@@ -15,7 +15,13 @@ import { Pagination } from '../../shared/pagination';
 import { RULES, clean } from '../../core/validation';
 import { matchesSearch, savePageSize, savedPageSize } from '../../core/paging';
 
+/** For managers PENDING means the emergency requests waiting for them. */
 type StatusTab = DayOffStatus | 'ALL';
+
+/** 'TUESDAY' for '2026-11-17'. */
+function weekdayOf(date: string): string {
+  return ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'][new Date(date + 'T00:00:00').getDay()];
+}
 
 @Component({
   selector: 'app-day-off-page',
@@ -31,12 +37,22 @@ export class DayOffPage implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
 
   protected readonly maxDaysPerWeek = 2;
-  protected readonly tabs: { value: StatusTab; label: string }[] = [
-    { value: 'PENDING', label: 'Pending' },
-    { value: 'APPROVED', label: 'Approved' },
-    { value: 'REJECTED', label: 'Rejected' },
-    { value: 'ALL', label: 'All' },
-  ];
+  /**
+   * Managers: only emergencies, waiting and past (everything else the system checks and gives when the stores stay
+   * covered, so it isn't listed). Employees: their days off, what's waiting, what wasn't given.
+   */
+  protected readonly tabs: { value: StatusTab; label: string; hint: string }[] = this.auth.canManage()
+    ? [
+        { value: 'PENDING', label: 'Emergency requests', hint: 'Emergency requests waiting for a manager or admin' },
+        { value: 'ALL', label: 'History', hint: 'Emergency requests already decided, and the ones waiting' },
+      ]
+    : [
+        { value: 'ALL', label: 'My days off', hint: 'Every day off you have or asked for' },
+        { value: 'PENDING', label: 'Waiting', hint: 'Emergency requests waiting for your manager' },
+        { value: 'REJECTED', label: 'Not given', hint: 'Requests turned down' },
+      ];
+  /** How many emergency requests wait (managers), for the tab badge. */
+  protected readonly tabCounts = signal<Partial<Record<StatusTab, number>>>({});
 
   protected readonly areas = signal<Area[]>([]);
   protected readonly requests = signal<DayOffRequest[]>([]);
@@ -46,10 +62,8 @@ export class DayOffPage implements OnInit {
   protected readonly impacts = signal<Map<number, DayOffImpact>>(new Map());
   protected readonly impactBadge = IMPACT_BADGE;
 
-  protected readonly status = signal<StatusTab>('PENDING');
+  protected readonly status = signal<StatusTab>(this.auth.canManage() ? 'PENDING' : 'ALL');
   protected areaFilter: number | null = null;
-  /** All, only what people asked for, or only days the system reserved. */
-  protected kindFilter: 'ALL' | 'ASKED' | 'REGULAR' | 'RESERVED' = 'ALL';
   protected fromFilter = weekStartOf(today());
   protected toFilter = '';
   /** Employee name or code. */
@@ -115,12 +129,17 @@ export class DayOffPage implements OnInit {
   protected readonly format = formatDay;
 
   ngOnInit(): void {
+    // Their regular days off and usual days off come with their profile; a manager may have changed them.
+    this.auth.refresh().subscribe({ error: () => undefined });
     this.api.areas().subscribe((list) => this.areas.set(list));
     this.api.dayOffWindow().subscribe({ next: (w) => this.portal.set(w), error: () => this.portal.set(null) });
     this.load();
     // Requests decided or sent from another device show up here without a manual refresh. The open form is left
     // alone; the list reloads when it's saved anyway.
-    this.live.on(['dayoff', 'schedule'], this.destroyRef, () => {
+    this.live.on(['dayoff', 'schedule', 'people'], this.destroyRef, (change) => {
+      if (change.topic === 'people' || change.topic === 'resync') {
+        this.auth.refresh().subscribe({ error: () => undefined });
+      }
       if (this.modalOpen()) return;
       this.api.dayOffWindow().subscribe({ next: (w) => this.portal.set(w), error: () => undefined });
       this.load();
@@ -134,9 +153,7 @@ export class DayOffPage implements OnInit {
       next: (w) => {
         this.portal.set(w);
         this.portalBusy.set(false);
-        this.toast.success(
-          mode === 'OPEN' ? 'Day-off requests are open.' : mode === 'CLOSED' ? 'Day-off requests are closed.' : 'Back to the normal Friday cycle.',
-        );
+        this.toast.success(mode === 'CLOSED' ? 'Day-off requests are closed.' : 'Day-off requests are open.');
         this.load();
       },
       error: () => this.portalBusy.set(false),
@@ -145,12 +162,36 @@ export class DayOffPage implements OnInit {
 
   protected readonly addDays = addDays;
 
-  /** Their regular days off in the week shown (they come first: a request only fills days left after them). */
-  protected readonly myRegular = computed(() => this.myReserved().filter((r) => r.regular));
+  /**
+   * Their regular days off in the week being picked: from their profile (the same weekday every week), or the
+   * regular days already held for them that week.
+   */
+  protected readonly myRegularDates = computed(() => {
+    if (!this.selfService()) return [];
+    const weekdays = new Set(this.auth.user()?.regularDaysOff ?? []);
+    const held = new Set(this.myReserved().filter((r) => r.regular).map((r) => r.date));
+    return this.formWeekDates().filter((d) => weekdays.has(weekdayOf(d)) || held.has(d));
+  });
 
   protected isMyRegular(date: string): boolean {
-    return this.selfService() && this.myRegular().some((r) => r.date === date);
+    return this.myRegularDates().includes(date);
   }
+
+  /** How many days off they normally have a week. */
+  protected readonly usualDaysOff = computed(() => 7 - (this.auth.user()?.workDaysPerWeek ?? 6));
+
+  /**
+   * Regular days that become work days if they send the days picked now: a day they choose replaces their regular
+   * day that week once they'd have more than their usual days off. Emergencies come on top, so they replace nothing.
+   */
+  protected readonly regularReplaced = computed(() => {
+    const regular = this.myRegularDates();
+    if (this.formEmergency() || regular.length === 0) return [];
+    const picked = [...this.formDays()].filter((d) => !regular.includes(d)).length;
+    const keptRegular = regular.filter((d) => !this.formDays().has(d));
+    const extra = picked + regular.length - this.usualDaysOff();
+    return extra > 0 ? keptRegular.slice(-extra) : [];
+  });
 
   /** A day the system reserved for them (picking it just keeps it). */
   protected isMyReserved(date: string): boolean {
@@ -182,7 +223,7 @@ export class DayOffPage implements OnInit {
   protected goToPage(page: number): void {
     this.page.set(page);
     this.load();
-    document.querySelector('.requests-card')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    document.querySelector('.do-head')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
   }
 
   protected changePageSize(size: number): void {
@@ -195,6 +236,7 @@ export class DayOffPage implements OnInit {
   protected load(): void {
     const seq = ++this.loadSeq;
     this.loading.set(true);
+    this.loadCounts();
     const status = this.status();
     this.api
       .dayOffRequestsPage({
@@ -204,8 +246,10 @@ export class DayOffPage implements OnInit {
         to: this.toFilter || null,
         q: this.search.trim() || null,
         // Asked: not reserved. Regular: regular days off. Reserved: picked by the system (not regular ones).
-        reserved: this.kindFilter === 'ALL' ? null : this.kindFilter !== 'ASKED',
-        regular: this.kindFilter === 'REGULAR' ? true : this.kindFilter === 'RESERVED' ? false : null,
+        // Managers only see emergencies: everything else the system checked and gave (it's on the schedule).
+        reserved: null,
+        regular: null,
+        emergency: this.auth.canManage() ? true : null,
         page: this.page(),
         size: this.pageSize(),
       })
@@ -229,11 +273,22 @@ export class DayOffPage implements OnInit {
       });
   }
 
-  /** Checks staffing for every pending request the user may approve, so problems show before deciding. */
+  /** Badge count for the managers' Emergency requests tab. */
+  private loadCounts(): void {
+    if (!this.auth.canManage()) return;
+    const base = { areaId: this.areaFilter, status: 'PENDING' as DayOffStatus, from: this.fromFilter || null, to: null, q: null,
+      page: 0, size: 1 };
+    this.api.dayOffRequestsPage({ ...base, emergency: true }).subscribe({
+      next: (r) => this.tabCounts.update((c) => ({ ...c, PENDING: r.totalElements })), error: () => undefined,
+    });
+  }
+
+  /** Checks staffing for every request waiting for a decision, so problems show before deciding. */
   private loadImpacts(list: DayOffRequest[]): void {
     this.impacts.set(new Map());
     for (const r of list) {
-      if (r.status === 'PENDING' && this.canReview(r)) {
+      // Planned days (regular, reserved) aren't decided by anyone: the system gives them at generate.
+      if (r.status === 'PENDING' && !r.reserved && this.canReview(r)) {
         this.api.dayOffImpact(r.id).subscribe({
           next: (impact) => this.impacts.update((m) => new Map(m).set(r.id, impact)),
           error: () => undefined,
@@ -374,8 +429,8 @@ export class DayOffPage implements OnInit {
   }
 
   protected canWithdraw(r: DayOffRequest): boolean {
-    // A reserved day can't be dropped by the person themselves: they ask for another day instead.
-    if (r.reserved && r.employeeId === this.auth.user()?.id) return false;
+    // Planned days (regular, reserved) aren't requests anyone sent: they change when someone picks another day.
+    if (r.reserved) return false;
     return r.status === 'PENDING' && (this.auth.canManage() || r.employeeId === this.auth.user()?.id);
   }
 

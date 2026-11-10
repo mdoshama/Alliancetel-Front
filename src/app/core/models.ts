@@ -173,6 +173,14 @@ export interface WeekRequestPerson {
   daysOffNeeded: number;
   /** Pending or approved days off this week. */
   daysOffAsked: number;
+  /** Their phone (international form), so a manager can call people who haven't picked. */
+  phone?: string | null;
+}
+
+/** How a direct message went out: the ways it was sent and the ones that couldn't, with why. */
+export interface DirectMessageResult {
+  sentBy: string[];
+  notSentBy: string[];
 }
 
 /** Who has sent their day-off request for a week (managers). */
@@ -270,6 +278,10 @@ export interface Me {
   smsOptIn?: boolean;
   /** Date of birth 'yyyy-MM-dd', or null when not on file. */
   birthDate?: string | null;
+  /** Days they work in a normal week (7 minus their usual days off). */
+  workDaysPerWeek?: number;
+  /** Their regular days off, the same every week (e.g. 'TUESDAY'). A day they ask for replaces it that week. */
+  regularDaysOff?: string[];
 }
 
 export interface LoginResponse {
@@ -428,6 +440,8 @@ export interface DayOffPageFilter extends DayOffFilter, PageParams {
   reserved?: boolean | null;
   /** true: only regular days off; false: leave them out. */
   regular?: boolean | null;
+  /** true: only emergency requests; false: leave them out. */
+  emergency?: boolean | null;
 }
 
 export interface DayCell {
