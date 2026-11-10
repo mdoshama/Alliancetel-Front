@@ -22,135 +22,273 @@ export function pdfCellText(cell: DayCell): string {
     : where;
 }
 
+type Rgb = [number, number, number];
+
+/** Dark, high-contrast palette for print: navy ink, slate lines, strong status colors. */
+const INK: Rgb = [15, 23, 42];
+const INK_SOFT: Rgb = [51, 65, 85];
+const LINE: Rgb = [100, 116, 139];
+const OFF_FILL: Rgb = [226, 232, 240];
+const DAY_OFF_FILL: Rgb = [254, 243, 199];
+const DAY_OFF_INK: Rgb = [146, 64, 14];
+const GREEN: Rgb = [21, 128, 61];
+const RED: Rgb = [185, 28, 28];
+
 /**
- * Builds the week (published, or a draft clearly marked as one) as a landscape PDF: one row per person, one column per day, with each store's color on
- * its days, then the stores (code, address, each day's hours and who works there). jsPDF is loaded only when someone asks for the PDF, so it doesn't slow down the app.
+ * Builds the week as a landscape PDF for printing and sharing.
+ *
+ * Page 1 (and on, if the team is long): a dark header band with the area, week and status, then one row per person
+ * and one column per day in bold type, each work day tinted with its store's color and marked with a store-color bar,
+ * plus a color key. Store details (code, address, each day's hours and who works there) start on a page of their
+ * own. Every page carries a footer with page numbers. jsPDF loads only when someone asks for the PDF.
  */
 export async function buildSchedulePdf(s: Schedule): Promise<Blob> {
   const [{ jsPDF }, { autoTable }] = await Promise.all([import('jspdf'), import('jspdf-autotable')]);
   const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'letter' });
   const pageWidth = doc.internal.pageSize.getWidth();
-  const margin = 32;
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margin = 28;
+  const draft = s.status === 'DRAFT';
+  const lastY = () => (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? margin + 80;
+  const dayHeads = s.dates.map((d) => formatDay(d, { weekday: 'short', month: 'short', day: 'numeric' }).toUpperCase());
 
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(16);
-  doc.text(`AllianceTel · ${s.areaName}`, margin, margin + 6);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(10);
-  doc.setTextColor(90);
-  doc.text(`${s.status === 'DRAFT' ? 'Draft schedule' : 'Weekly schedule'} · ${formatWeekRange(s.weekStart)}`, margin,
-    margin + 22);
-  if (s.status === 'DRAFT') {
-    // A draft can still change: say so plainly so a printed copy is never taken for the final week.
+  /** Dark band across the top of a page with a title, a subtitle and the status badge. */
+  const band = (title: string, subtitle: string): number => {
+    const h = 58;
+    doc.setFillColor(...INK);
+    doc.rect(0, 0, pageWidth, h, 'F');
+    doc.setTextColor(255, 255, 255);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(12);
-    doc.setTextColor(220, 53, 69);
-    doc.text('DRAFT · not final, may still change', pageWidth - margin, margin + 6, { align: 'right' });
+    doc.setFontSize(20);
+    doc.text(title, margin, 27);
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
-    doc.setTextColor(90);
-    const printed = new Date().toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-    });
-    doc.text(`Printed ${printed}`, pageWidth - margin, margin + 22, { align: 'right' });
-  } else if (s.publishedAt) {
-    const published = new Date(s.publishedAt).toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-    });
-    doc.text(`Published ${published}`, pageWidth - margin, margin + 22, { align: 'right' });
+    doc.setFontSize(10.5);
+    doc.setTextColor(203, 213, 225);
+    doc.text(subtitle, margin, 44);
+    // Status badge on the right: green PUBLISHED or red DRAFT.
+    const label = draft ? 'DRAFT · MAY STILL CHANGE' : 'PUBLISHED';
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9.5);
+    const w = doc.getTextWidth(label) + 20;
+    doc.setFillColor(...(draft ? RED : GREEN));
+    doc.roundedRect(pageWidth - margin - w, 14, w, 20, 10, 10, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.text(label, pageWidth - margin - w / 2, 27.5, { align: 'center' });
+    const when = draft ? `Printed ${stamp(new Date())}` : s.publishedAt ? `Published ${stamp(new Date(s.publishedAt))}` : '';
+    if (when) {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8.5);
+      doc.setTextColor(203, 213, 225);
+      doc.text(when, pageWidth - margin, 47, { align: 'right' });
+    }
+    doc.setTextColor(...INK);
+    return h;
+  };
+
+  // ---- Page 1: the week, person by person ------------------------------------------------------------------
+  const top = band(`AllianceTel · ${s.areaName}`, `${draft ? 'Draft schedule' : 'Weekly schedule'} · ${formatWeekRange(s.weekStart)}`);
+
+  // Quick numbers under the band.
+  const shifts = s.rows.reduce((n, r) => n + r.days.filter((d) => d.type === 'WORK').length, 0);
+  const facts = [`${s.rows.length} people`, `${shifts} shifts`, `${s.stores.length} stores`];
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  let fx = margin;
+  for (const f of facts) {
+    const w = doc.getTextWidth(f) + 18;
+    doc.setFillColor(241, 245, 249);
+    doc.setDrawColor(...LINE);
+    doc.setLineWidth(0.6);
+    doc.roundedRect(fx, top + 10, w, 18, 4, 4, 'FD');
+    doc.setTextColor(...INK);
+    doc.text(f, fx + 9, top + 22.5);
+    fx += w + 8;
   }
-  doc.setTextColor(0);
 
-  const head = [['Employee', ...s.dates.map((d) => formatDay(d, { weekday: 'short', month: 'short', day: 'numeric' }))]];
   const body = s.rows.map((r) => [r.employeeName, ...r.days.map(pdfCellText)]);
-
   autoTable(doc, {
-    head,
+    head: [['EMPLOYEE', ...dayHeads]],
     body,
-    startY: margin + 36,
-    margin: { left: margin, right: margin },
+    startY: top + 38,
+    margin: { left: margin, right: margin, top: margin, bottom: 34 },
     theme: 'grid',
-    styles: { fontSize: 8, cellPadding: 4, valign: 'middle', lineColor: [222, 226, 230], lineWidth: 0.5 },
-    headStyles: { fillColor: [33, 37, 41], textColor: 255, fontStyle: 'bold', halign: 'center' },
-    columnStyles: { 0: { cellWidth: 120, fontStyle: 'bold' } },
+    styles: {
+      font: 'helvetica',
+      fontSize: 8.5,
+      fontStyle: 'bold',
+      textColor: INK,
+      cellPadding: { top: 5, bottom: 5, left: 6, right: 4 },
+      valign: 'middle',
+      lineColor: LINE,
+      lineWidth: 0.6,
+    },
+    headStyles: { fillColor: INK, textColor: 255, fontStyle: 'bold', fontSize: 9, halign: 'center', valign: 'middle' },
+    columnStyles: { 0: { cellWidth: 128, fontSize: 9.5, halign: 'left' } },
+    alternateRowStyles: { fillColor: [248, 250, 252] },
     didParseCell: (data) => {
       if (data.section !== 'body' || data.column.index === 0) {
+        if (data.section === 'head' && data.column.index === 0) data.cell.styles.halign = 'left';
         return;
       }
       const cell = s.rows[data.row.index]?.days[data.column.index - 1];
-      if (!cell) {
-        return;
-      }
+      if (!cell) return;
       data.cell.styles.halign = 'center';
-      if (cell.type !== 'WORK') {
-        data.cell.styles.fillColor = [241, 243, 245];
-        data.cell.styles.textColor = [108, 117, 125];
-        data.cell.styles.fontStyle = 'italic';
+      if (cell.type === 'OFF') {
+        data.cell.styles.fillColor = OFF_FILL;
+        data.cell.styles.textColor = INK_SOFT;
+      } else if (cell.type === 'REQUESTED_OFF') {
+        data.cell.styles.fillColor = DAY_OFF_FILL;
+        data.cell.styles.textColor = DAY_OFF_INK;
       } else if (cell.storeColor) {
-        data.cell.styles.fillColor = tint(cell.storeColor);
+        data.cell.styles.fillColor = tint(cell.storeColor, 0.72);
+        data.cell.styles.textColor = shade(cell.storeColor, 0.55);
+      }
+    },
+    didDrawCell: (data) => {
+      // A solid store-color bar on the left of each work day, so stores read at a glance (and in black & white).
+      if (data.section !== 'body' || data.column.index === 0) return;
+      const cell = s.rows[data.row.index]?.days[data.column.index - 1];
+      if (cell?.type === 'WORK' && cell.storeColor) {
+        doc.setFillColor(...rgb(cell.storeColor));
+        doc.rect(data.cell.x, data.cell.y, 4, data.cell.height, 'F');
       }
     },
   });
 
-  // Legend under the table.
-  const lastY = () => (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? margin + 60;
-  const pageHeight = doc.internal.pageSize.getHeight();
-  doc.setFontSize(8);
-  doc.setTextColor(108);
-  doc.text(
-    `${s.rows.length} people · Off = regular day off · Day off = approved request · Generated ${new Date().toLocaleDateString('en-US')}`,
-    margin,
-    Math.min(lastY() + 16, pageHeight - 16),
-  );
-  doc.setTextColor(0);
+  // Color key: each store's color and code, plus what Off and Day off mean.
+  let ky = lastY() + 16;
+  if (ky > pageHeight - 48) {
+    doc.addPage();
+    ky = margin + 10;
+  }
+  doc.setFontSize(8.5);
+  let kx = margin;
+  const key = (fill: Rgb, label: string, bar?: Rgb) => {
+    const w = doc.getTextWidth(label) + 26;
+    if (kx + w > pageWidth - margin) {
+      kx = margin;
+      ky += 18;
+    }
+    doc.setFillColor(...fill);
+    doc.setDrawColor(...LINE);
+    doc.rect(kx, ky - 9, 14, 12, 'FD');
+    if (bar) {
+      doc.setFillColor(...bar);
+      doc.rect(kx, ky - 9, 3.5, 12, 'F');
+    }
+    doc.setTextColor(...INK);
+    doc.text(label, kx + 19, ky);
+    kx += w;
+  };
+  doc.setFont('helvetica', 'bold');
+  doc.text('KEY', kx, ky);
+  kx += doc.getTextWidth('KEY') + 10;
+  for (const st of s.stores) {
+    key(tint(st.color, 0.72), st.code || st.label || st.name, rgb(st.color));
+  }
+  key(OFF_FILL, 'Off = regular day off');
+  key(DAY_OFF_FILL, 'Day off = approved request');
 
-  // Store details: address, hours each day and who works there.
+  // ---- Store details: always on their own page ---------------------------------------------------------------
   if (s.stores.length > 0) {
     const stores = storeDetails(s);
-    let y = lastY() + 40;
-    if (y > pageHeight - 120) {
-      doc.addPage();
-      y = margin + 6;
-    }
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(12);
-    doc.text('Stores', margin, y);
-    doc.setFont('helvetica', 'normal');
+    const boldHours = new Map<object, string[]>();
+    doc.addPage();
+    const t2 = band(`Store details · ${s.areaName}`, `Hours and team for each day · ${formatWeekRange(s.weekStart)}`);
     autoTable(doc, {
-      head: [['Store', ...s.dates.map((d) => formatDay(d, { weekday: 'short', month: 'short', day: 'numeric' }))]],
+      head: [['STORE', ...dayHeads]],
       body: stores.map((st) => [st.title, ...st.days]),
-      startY: y + 8,
-      margin: { left: margin, right: margin },
+      startY: t2 + 14,
+      margin: { left: margin, right: margin, top: margin, bottom: 34 },
       theme: 'grid',
-      styles: { fontSize: 7.5, cellPadding: 4, valign: 'top', lineColor: [222, 226, 230], lineWidth: 0.5 },
-      headStyles: { fillColor: [33, 37, 41], textColor: 255, fontStyle: 'bold', halign: 'center', valign: 'middle' },
-      columnStyles: { 0: { cellWidth: 150 } },
+      styles: {
+        font: 'helvetica',
+        fontSize: 8,
+        textColor: INK,
+        cellPadding: { top: 6, bottom: 6, left: 6, right: 5 },
+        valign: 'top',
+        lineColor: LINE,
+        lineWidth: 0.6,
+      },
+      headStyles: { fillColor: INK, textColor: 255, fontStyle: 'bold', fontSize: 9, halign: 'center', valign: 'middle' },
+      columnStyles: { 0: { cellWidth: 150, fontStyle: 'bold', fontSize: 9.5, cellPadding: { top: 6, bottom: 6, left: 12, right: 5 } } },
       didParseCell: (data) => {
-        if (data.section !== 'body') {
-          return;
-        }
+        if (data.section === 'head' && data.column.index === 0) data.cell.styles.halign = 'left';
+        if (data.section !== 'body') return;
         const st = stores[data.row.index];
         if (data.column.index === 0) {
-          data.cell.styles.fontStyle = 'bold';
-          data.cell.styles.fillColor = tint(st.color);
+          data.cell.styles.fillColor = tint(st.color, 0.72);
+          data.cell.styles.textColor = shade(st.color, 0.55);
         } else if (st.closed[data.column.index - 1]) {
-          data.cell.styles.fillColor = [241, 243, 245];
-          data.cell.styles.textColor = [108, 117, 125];
-          data.cell.styles.fontStyle = 'italic';
+          data.cell.styles.fillColor = OFF_FILL;
+          data.cell.styles.textColor = INK_SOFT;
+          data.cell.styles.fontStyle = 'bold';
+          data.cell.styles.halign = 'center';
+          data.cell.styles.valign = 'middle';
         }
+      },
+      willDrawCell: (data) => {
+        // Open days: the hours line(s) are drawn in bold below (didDrawCell), so the table leaves them blank here.
+        if (data.section !== 'body' || data.column.index === 0) return;
+        if (stores[data.row.index].closed[data.column.index - 1]) return;
+        const n = hoursLineCount(String(data.cell.raw ?? ''), data.cell.text);
+        boldHours.set(data.cell, data.cell.text.slice(0, n));
+        data.cell.text = [...data.cell.text.map((t, i) => (i < n ? '' : t))];
+      },
+      didDrawCell: (data) => {
+        if (data.section !== 'body') return;
+        if (data.column.index === 0) {
+          doc.setFillColor(...rgb(stores[data.row.index].color));
+          doc.rect(data.cell.x, data.cell.y, 6, data.cell.height, 'F');
+          return;
+        }
+        const lines = boldHours.get(data.cell);
+        if (!lines?.length) return;
+        const fontSize = data.cell.styles.fontSize;
+        const lineHeight = (fontSize * doc.getLineHeightFactor());
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(fontSize);
+        doc.setTextColor(...INK);
+        lines.forEach((line, i) => {
+          doc.text(line, data.cell.x + data.cell.padding('left'), data.cell.y + data.cell.padding('top') + i * lineHeight,
+            { baseline: 'top' });
+        });
       },
     });
   }
 
+  // ---- Footer on every page ----------------------------------------------------------------------------------
+  const pages = doc.getNumberOfPages();
+  for (let i = 1; i <= pages; i++) {
+    doc.setPage(i);
+    doc.setDrawColor(...LINE);
+    doc.setLineWidth(0.6);
+    doc.line(margin, pageHeight - 24, pageWidth - margin, pageHeight - 24);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(...INK_SOFT);
+    doc.text(`AllianceTel Enterprise · ${s.areaName} · ${formatWeekRange(s.weekStart)}${draft ? ' · DRAFT' : ''}`,
+      margin, pageHeight - 12);
+    doc.text(`Page ${i} of ${pages}`, pageWidth - margin, pageHeight - 12, { align: 'right' });
+  }
+
   return doc.output('blob');
+}
+
+/** How many of a cell's wrapped lines belong to its first line of text (the hours). */
+export function hoursLineCount(raw: string, lines: string[]): number {
+  const first = raw.split('\n')[0].replace(/\s+/g, '');
+  let joined = '';
+  for (let i = 0; i < lines.length; i++) {
+    joined += lines[i].replace(/\s+/g, '');
+    if (joined.length >= first.length) return i + 1;
+  }
+  return lines.length;
+}
+
+/** "Nov 9, 2026, 6:15 PM". */
+function stamp(d: Date): string {
+  return d.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
 }
 
 /** Each store's line in the PDF: name, code and address, then each day's hours and the people working there. */
@@ -169,7 +307,8 @@ export function storeDetails(s: Schedule): { title: string; color: string; days:
         .filter((r) => r.days[i]?.type === 'WORK' && r.days[i]?.storeId === st.id)
         .map((r) => shortName(r.employeeName));
       const hours = h.opensAt && h.closesAt ? `${formatTime(h.opensAt)} – ${formatTime(h.closesAt)}` : 'Open';
-      return [hours, team.length ? team.join(', ') : 'Nobody scheduled'].join('\n');
+      // One person per line, so a name never breaks across lines.
+      return [hours, ...(team.length ? team : ['Nobody scheduled'])].join('\n');
     });
     return { title, color: st.color, days, closed };
   });
@@ -189,15 +328,32 @@ function shortName(full: string): string {
   return parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1][0]}.` : full;
 }
 
-/** A light version of a store color (e.g. "#2563EB") so the text on it stays readable when printed. */
-function tint(hex: string): [number, number, number] {
-  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+/** A store color (e.g. "#2563EB") as RGB; slate gray if it isn't a valid color. */
+function rgb(hex: string | null | undefined): Rgb {
+  const m = /^#?([0-9a-f]{6})$/i.exec((hex ?? '').trim());
+  if (!m) {
+    return [100, 116, 139];
+  }
+  const n = parseInt(m[1], 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+/** A light version of a store color, so bold dark text on it stays readable when printed. */
+export function tint(hex: string | null | undefined, amount = 0.8): Rgb {
+  const m = /^#?([0-9a-f]{6})$/i.exec((hex ?? '').trim());
   if (!m) {
     return [255, 255, 255];
   }
-  const n = parseInt(m[1], 16);
-  const mix = (c: number) => Math.round(c + (255 - c) * 0.8);
-  return [mix((n >> 16) & 255), mix((n >> 8) & 255), mix(n & 255)];
+  const [r, g, b] = rgb(hex);
+  const mix = (c: number) => Math.round(c + (255 - c) * amount);
+  return [mix(r), mix(g), mix(b)];
+}
+
+/** A dark version of a store color for text on its tint (keeps strong contrast). */
+export function shade(hex: string | null | undefined, amount = 0.55): Rgb {
+  const [r, g, b] = rgb(hex);
+  const mix = (c: number) => Math.round(c * (1 - amount));
+  return [mix(r), mix(g), mix(b)];
 }
 
 /** Saves the PDF to the device. */
