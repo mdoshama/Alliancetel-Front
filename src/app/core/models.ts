@@ -464,18 +464,17 @@ export interface DayCell {
   request: WeekRequest | null;
   /** On an approved day off: the request it comes from, so managers can revoke it from the schedule. */
   approvedRequestId?: number | null;
-  /** On an approved day off, where it came from (employees see ASSIGNED instead of RESERVED). */
+  /** On an approved day off, where it came from. Managers and admins only: employees just see "Day off". */
   offSource?: OffSource | null;
 }
 
-export type OffSource = 'REQUESTED' | 'REGULAR' | 'RESERVED' | 'ASSIGNED' | 'EMERGENCY' | 'MANAGER';
+export type OffSource = 'REQUESTED' | 'REGULAR' | 'RESERVED' | 'EMERGENCY' | 'MANAGER';
 
 /** Label, icon and tooltip for each kind of day off on the schedule (and in the PDF). */
 export const OFF_SOURCES: Record<OffSource, { label: string; icon: string; title: string }> = {
   REQUESTED: { label: 'Requested', icon: 'bi-hand-index-thumb', title: 'Day off they asked for' },
   REGULAR: { label: 'Regular', icon: 'bi-arrow-repeat', title: 'Their regular day off (same day every week)' },
   RESERVED: { label: 'Reserved', icon: 'bi-bookmark-fill', title: 'Given by the system: they didn\'t ask for a day' },
-  ASSIGNED: { label: 'Assigned', icon: 'bi-calendar-check', title: 'Day off assigned for you' },
   EMERGENCY: { label: 'Emergency', icon: 'bi-exclamation-octagon-fill', title: 'Emergency day off, approved by a manager' },
   MANAGER: { label: 'By manager', icon: 'bi-person-check-fill', title: 'Day off given by a manager' },
 };

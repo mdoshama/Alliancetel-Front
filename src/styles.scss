@@ -4111,3 +4111,17 @@ tr.is-regular-row {
     .contact-actions { width: 100%; .btn { flex: 1; } }
   }
 }
+
+/* Schedule grid: a thin header row where each store's group starts. */
+.store-group-row td {
+  background: #f2f4f7 !important;
+  padding: 0.35rem 0.75rem !important;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #344054;
+  border-top: 1px solid #e4e7ec;
+
+  .store-dot { margin-right: 0.4rem; vertical-align: middle; }
+}

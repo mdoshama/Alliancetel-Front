@@ -341,6 +341,21 @@ export class SchedulePage implements OnInit {
     );
   });
 
+  /**
+   * Where a new store group starts in the grid (rows come store by store, primary then secondary, floaters last):
+   * the store's name for a header row, or null. Only when the whole team is listed, not while filtering.
+   */
+  protected groupStarts(i: number): { storeId: number | null; name: string } | null {
+    if (this.storeFilter() != null || this.personSearch().trim()) return null;
+    const rows = this.visibleRows();
+    const row = rows[i];
+    const home = row.storeRole === 'FLOATER' || row.homeStoreId == null ? null : row.homeStoreId;
+    const prev = i > 0 ? rows[i - 1] : null;
+    const prevHome = prev == null ? undefined : prev.storeRole === 'FLOATER' || prev.homeStoreId == null ? null : prev.homeStoreId;
+    if (prev != null && prevHome === home) return null;
+    return home == null ? { storeId: null, name: 'Floaters' } : { storeId: home, name: row.homeStoreName ?? 'Store' };
+  }
+
   /** Finds people on the grid by name or code; in the By store view, others are dimmed. */
   protected readonly personSearch = signal('');
 
@@ -1586,16 +1601,12 @@ export class SchedulePage implements OnInit {
     return OFF_SOURCES[cell.offSource ?? 'REQUESTED'];
   }
 
-  /** Kinds of day off in the legend: the ones a manager or an employee can see. */
-  protected legendSources(): OffSource[] {
-    return this.auth.canManage()
-      ? ['REQUESTED', 'REGULAR', 'RESERVED', 'EMERGENCY', 'MANAGER']
-      : ['REQUESTED', 'REGULAR', 'ASSIGNED', 'EMERGENCY', 'MANAGER'];
-  }
+  /** Kinds of day off in the legend (managers and admins; employees just see "Day off"). */
+  protected readonly legendSources: OffSource[] = ['REQUESTED', 'REGULAR', 'RESERVED', 'EMERGENCY', 'MANAGER'];
 
   protected describe(cell: DayCell): string {
     if (cell.type === 'REQUESTED_OFF') {
-      return `Off · ${this.offSource(cell).title}`;
+      return cell.offSource ? `Off · ${this.offSource(cell).title}` : 'Day off';
     }
     if (cell.type !== 'WORK') {
       return this.dayTypeLabels[cell.type];

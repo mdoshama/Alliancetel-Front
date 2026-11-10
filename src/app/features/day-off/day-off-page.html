@@ -153,7 +153,6 @@
                 <div class="fw-semibold">{{ format(r.date, { weekday: 'long', month: 'short', day: 'numeric' }) }}</div>
                 <div class="d-flex flex-wrap gap-1 mt-1">
                   @if (r.emergency) { <span class="emergency-badge"><i class="bi bi-exclamation-octagon-fill"></i> Emergency</span> }
-                  @if (r.regular) { <span class="badge regular-pill"><i class="bi bi-arrow-repeat me-1"></i>Regular day off</span> }
                 </div>
               </td>
               <td data-label="Reason" class="text-muted-2">

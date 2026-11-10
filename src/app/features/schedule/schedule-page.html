@@ -642,12 +642,16 @@
           <span class="legend-key"><i class="bi bi-star-fill" style="color: #e0a100"></i>Primary</span>
         }
         <span><span class="day-chip type-OFF">{{ dayTypeLabels['OFF'] }}</span></span>
-        <span class="d-flex flex-wrap align-items-center gap-1">
-          <span class="text-muted-2">Day off:</span>
-          @for (k of legendSources(); track k) {
-            <span class="off-source src-{{ k }}" [attr.title]="offSources[k].title"><i class="bi {{ offSources[k].icon }}"></i>{{ offSources[k].label }}</span>
-          }
-        </span>
+        @if (auth.canManage()) {
+          <span class="d-flex flex-wrap align-items-center gap-1">
+            <span class="text-muted-2">Day off:</span>
+            @for (k of legendSources; track k) {
+              <span class="off-source src-{{ k }}" [attr.title]="offSources[k].title"><i class="bi {{ offSources[k].icon }}"></i>{{ offSources[k].label }}</span>
+            }
+          </span>
+        } @else {
+          <span><span class="day-chip type-REQUESTED_OFF"><span class="chip-name">Day off</span></span></span>
+        }
         @if (auth.canManage()) {
           @if (askedRequests().length) { <span class="d-flex align-items-center gap-1"><span class="req-flag">Off?</span> asked off</span> }
           @if (regularRequests().length) { <span class="d-flex align-items-center gap-1"><span class="req-flag is-regular"><i class="bi bi-arrow-repeat"></i></span> regular day off</span> }
@@ -763,8 +767,8 @@
             @if (p.row.storeRole === 'PRIMARY') { <span class="emp-star"><i class="bi bi-star-fill"></i></span> }
           </span>
           <span class="sb-name">{{ shortName(p.row.employeeName) }}</span>
-          @if (p.cell.type === 'REQUESTED_OFF') {
-            <span class="off-source is-icon src-{{ p.cell.offSource ?? 'REQUESTED' }}" [attr.title]="offSource(p.cell).title">
+          @if (p.cell.type === 'REQUESTED_OFF' && p.cell.offSource) {
+            <span class="off-source is-icon src-{{ p.cell.offSource }}" [attr.title]="offSource(p.cell).title">
               <i class="bi {{ offSource(p.cell).icon }}"></i>
             </span>
           }
@@ -795,7 +799,19 @@
             </tr>
           </thead>
           <tbody>
-            @for (row of visibleRows(); track row.employeeId) {
+            @for (row of visibleRows(); track row.employeeId; let i = $index) {
+              @if (groupStarts(i); as g) {
+                <!-- Store by store: its primary, then its secondary; floaters after the stores. -->
+                <tr class="store-group-row">
+                  <td [attr.colspan]="s.dates.length + 2">
+                    @if (g.storeId) {
+                      <span class="store-dot" [style.--store-color]="storeColor(g.storeId)"></span>{{ g.name }}
+                    } @else {
+                      <i class="bi bi-shuffle me-1"></i>{{ g.name }}
+                    }
+                  </td>
+                </tr>
+              }
               <tr [class.is-me]="row.employeeId === auth.user()?.id">
                 <td>
                   <div class="emp-cell" [attr.title]="auth.isEmployee() ? row.employeeName : personTitle(row)">
@@ -876,10 +892,14 @@
                           <span class="chip-hours">{{ shiftHours(cell) }}</span>
                         }
                       } @else if (cell.type === 'REQUESTED_OFF') {
-                        <span class="chip-name">Off</span>
-                        <span class="off-source src-{{ cell.offSource ?? 'REQUESTED' }}">
-                          <i class="bi {{ offSource(cell).icon }}"></i>{{ offSource(cell).label }}
-                        </span>
+                        @if (cell.offSource) {
+                          <span class="chip-name">Off</span>
+                          <span class="off-source src-{{ cell.offSource }}">
+                            <i class="bi {{ offSource(cell).icon }}"></i>{{ offSource(cell).label }}
+                          </span>
+                        } @else {
+                          <span class="chip-name">Day off</span>
+                        }
                       } @else {
                         {{ dayTypeLabels[cell.type] }}
                       }
