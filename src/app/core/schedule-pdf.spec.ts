@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DayCell, Schedule } from './models';
-import { buildSchedulePdf, hoursLineCount, pdfCellText, schedulePdfName, shade, storeDetails, tint } from './schedule-pdf';
+import { buildSchedulePdf, schedulePdfName, shade, storeDetails, tint, workingVsNeeded } from './schedule-pdf';
 
 const cell = (over: Partial<DayCell>): DayCell =>
   ({
@@ -33,22 +33,7 @@ describe('schedule PDF', () => {
     );
   });
 
-  it('shows the store and shift for a work day', () => {
-    const text = pdfCellText(cell({}));
-    expect(text.startsWith('Oceanside\n')).toBe(true);
-    expect(text).toContain('–');
-  });
-
-  it('shows days off plainly', () => {
-    expect(pdfCellText(cell({ type: 'OFF', storeId: null, storeName: null }))).toBe('Off');
-    expect(pdfCellText(cell({ type: 'REQUESTED_OFF', storeId: null, storeName: null }))).toBe('Day off');
-  });
-
-  it('falls back to "Work" when no store is set', () => {
-    expect(pdfCellText(cell({ storeId: null, storeName: null, opensAt: null, closesAt: null }))).toBe('Work');
-  });
-
-  it('lists each store with its address, hours and who works there each day', () => {
+  it('lists each store with its hours and who works there each day', () => {
     const week = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'] as const;
     const s = {
       dates: ['2026-11-02', '2026-11-03', '2026-11-04', '2026-11-05', '2026-11-06', '2026-11-07', '2026-11-08'],
@@ -70,7 +55,7 @@ describe('schedule PDF', () => {
       ],
     } as unknown as Schedule;
     const [st] = storeDetails(s);
-    expect(st.title).toBe('Oceanside (OCN)\n123 Mission Ave, Oceanside');
+    expect(st.title).toBe('Oceanside (OCN)');
     expect(st.days[0]).toContain('Aisha K.\nDaniel K.');
     expect(st.days[1]).toContain('Daniel K.');
     expect(st.days[1]).not.toContain('Aisha');
@@ -79,29 +64,57 @@ describe('schedule PDF', () => {
     expect(st.days[0].split('\n')[0]).toContain('–');
   });
 
-  it('finds the wrapped lines that hold the hours', () => {
-    expect(hoursLineCount('10:00 AM – 8:00 PM\nAisha K.', ['10:00 AM – 8:00 PM', 'Aisha K.'])).toBe(1);
-    expect(hoursLineCount('10:00 AM – 8:00 PM\nAisha K.', ['10:00 AM –', '8:00 PM', 'Aisha K.'])).toBe(2);
-  });
-
   it('keeps store colors readable: light tint behind, dark shade for text', () => {
     expect(tint('#2563EB', 0.72).every((c) => c > 180)).toBe(true);
     expect(shade('#2563EB').every((c) => c < 110)).toBe(true);
     expect(tint('not a color')).toEqual([255, 255, 255]);
   });
 
-  it('builds a schedule page and a separate store page', async () => {
+  it('counts each day: working against what the open stores need', () => {
+    const open = { closed: false } as never;
+    const closed = { closed: true } as never;
+    const s = {
+      dates: ['2026-11-02', '2026-11-03', '2026-11-04'],
+      dailyHeadCount: [9, 10, 4],
+      storeCoverage: [
+        { storeId: 1, minStaffPerDay: 5, dailyHours: [open, open, open] },
+        { storeId: 2, minStaffPerDay: 4, dailyHours: [open, open, closed] },
+        { storeId: null, minStaffPerDay: 0, dailyHours: [] },
+      ],
+    } as unknown as Schedule;
+    expect(workingVsNeeded(s).map((c) => `${c.working}/${c.needed} ${c.label}`)).toEqual([
+      '9/9 Exact',
+      '10/9 +1',
+      '4/5 1 short',
+    ]);
+  });
+
+  it('builds a page by employee and a separate page by store', async () => {
     const s = {
       areaName: 'San Diego', weekStart: '2026-11-02', status: 'PUBLISHED', publishedAt: '2026-10-30T17:00:00Z',
       dates: ['2026-11-02', '2026-11-03', '2026-11-04', '2026-11-05', '2026-11-06', '2026-11-07', '2026-11-08'],
       stores: [{ id: 1, name: 'Oceanside', code: 'OCN', label: 'OCN', color: '#2563EB', address: '1 Main St', minStaffPerDay: 1,
         hours: ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'].map((day) =>
           ({ day, opensAt: '10:00', closesAt: '20:00', closed: false })) }],
-      rows: [{ employeeName: 'Aisha Khan', days: Array.from({ length: 7 }, (_, i) =>
-        cell({ date: `2026-11-0${i + 2}` })) }],
+      rows: [{ employeeName: 'Aisha Khan', homeStoreName: 'Oceanside', scheduledWorkDays: 6,
+        days: Array.from({ length: 7 }, (_, i) => i === 0
+          ? cell({ date: '2026-11-02', type: 'REQUESTED_OFF', storeId: null, offSource: 'RESERVED' })
+          : cell({ date: `2026-11-0${i + 2}` })) }],
     } as unknown as Schedule;
     const blob = await buildSchedulePdf(s);
     const text = new TextDecoder('latin1').decode(new Uint8Array(await blob.arrayBuffer()));
     expect((text.match(/\/Type \/Page\b/g) ?? []).length).toBe(2);
+    expect(text).toContain('Schedule by employee');
+    expect(text).toContain('Schedule by store');
+    expect(text).toContain('Store locations');
+    expect(text).toContain('AllianceTel');
+    expect(text).toContain('ENTERPRISE SUITE');
+    expect(text).not.toContain('Published');
+    expect(text).not.toContain('1 people');
+    expect(text).not.toContain('WORKING');
+    expect(text).not.toContain('Reserved');
+    expect(text).not.toContain('Requested');
+    expect(text).toContain('DAY OFF');
+    expect(text).not.toContain('6 days');
   });
 });

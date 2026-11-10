@@ -259,10 +259,6 @@ export class ApiService {
       storeId: storeId ?? null,
     });
   }
-  /** One person's work day and day off trade places (moves their day off within the week). */
-  swapDays(scheduleId: number, entryIdA: number, entryIdB: number): Observable<Schedule> {
-    return this.http.post<Schedule>(`${this.base}/schedules/${scheduleId}/swap-days`, { entryIdA, entryIdB });
-  }
 
   /** Re-run automatic store assignment on a draft; days set by hand are kept. */
   autoAssignStores(scheduleId: number): Observable<Schedule> {

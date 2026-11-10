@@ -1,7 +1,8 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { DestroyRef, Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { ApiService } from '../../core/api.service';
+import { LiveService } from '../../core/live.service';
 import { Area } from '../../core/models';
 import { ConfirmService } from '../../core/confirm.service';
 import { ToastService } from '../../core/toast.service';
@@ -17,6 +18,8 @@ import { matchesSearch, savePageSize, savedPageSize, slicePage } from '../../cor
 })
 export class AreasPage implements OnInit {
   private readonly api = inject(ApiService);
+  private readonly live = inject(LiveService);
+  private readonly destroyRef = inject(DestroyRef);
   private readonly toast = inject(ToastService);
   private readonly fb = inject(FormBuilder);
   private readonly confirm = inject(ConfirmService);
@@ -56,6 +59,8 @@ export class AreasPage implements OnInit {
 
   ngOnInit(): void {
     this.load();
+    // Changes made on another device show up without a refresh.
+    this.live.on(['people'], this.destroyRef, () => this.load());
   }
 
   protected load(): void {

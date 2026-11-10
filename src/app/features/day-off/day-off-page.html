@@ -159,7 +159,11 @@
                   <span class="badge regular-pill" title="Regular day off; waiting for a manager or admin to approve">Regular · pending</span>
                 } @else if (r.reserved && r.status === 'PENDING') {
                   <span class="badge reserved-pill" title="Held by the system; waiting for a manager or admin to approve">Reserved · pending</span>
-                } @else { <span class="badge status-badge status-{{ r.status }}">{{ r.status | titlecase }}</span> }
+                } @else if (r.status === 'APPROVED') {
+                  <span class="badge status-badge status-APPROVED"><i class="bi bi-check-circle-fill me-1"></i>Day off</span>
+                } @else if (r.status === 'PENDING') {
+                  <span class="badge status-badge status-PENDING">Waiting for approval</span>
+                } @else { <span class="badge status-badge status-REJECTED">Not given</span> }
               </td>
               @if (auth.canManage() && status() === 'PENDING') {
                 <td data-label="Staffing" style="max-width: 280px">
@@ -197,12 +201,11 @@
                     {{ auth.isManager() && r.employeeId === auth.user()?.id ? 'Awaiting admin' : 'Awaiting manager' }}
                   </span>
                 }
-                @if (canChangeDecision(r)) {
-                  <button type="button" class="btn btn-sm me-1"
-                          [class]="r.status === 'APPROVED' ? 'btn btn-sm me-1 btn-outline-warning' : 'btn btn-sm me-1 btn-outline-success'"
-                          [disabled]="busyId() === r.id" (click)="changeDecision(r)"
-                          [title]="r.status === 'APPROVED' ? 'Change to rejected' : 'Change to approved'">
-                    <i class="bi bi-arrow-repeat"></i> {{ r.status === 'APPROVED' ? 'Revoke' : 'Approve instead' }}
+                <!-- Revoking an approved day off is done on the schedule (click the day). -->
+                @if (canChangeDecision(r) && r.status === 'REJECTED') {
+                  <button type="button" class="btn btn-sm me-1 btn-outline-success"
+                          [disabled]="busyId() === r.id" (click)="changeDecision(r)" title="Change to approved">
+                    <i class="bi bi-arrow-repeat"></i> Approve instead
                   </button>
                 }
                 @if (canWithdraw(r)) {
@@ -240,7 +243,7 @@
   }
   @if (auth.isEmployee()) {
     <div class="alert alert-light border small py-2 mb-3">
-      <i class="bi bi-person me-1"></i> Requesting for <strong>{{ auth.user()?.fullName }}</strong>. Your manager will approve or reject it.
+      <i class="bi bi-person me-1"></i> Requesting for <strong>{{ auth.user()?.fullName }}</strong>. Open days are yours straight away.
     </div>
   }
   <div class="mb-3" [class.d-none]="auth.isEmployee()">
@@ -293,7 +296,17 @@
         </div>
       }
     }
-    @if (myReserved().length && !formEmergency()) {
+    @if (myRegular().length && !formEmergency()) {
+      <div class="alert regular-note small py-2 mb-2">
+        <i class="bi bi-arrow-repeat me-1"></i>
+        @for (r of myRegular(); track r.id; let last = $last) {
+          <strong>{{ format(r.date, { weekday: 'long', month: 'short', day: 'numeric' }) }}</strong>{{ last ? '' : ' and ' }}
+        }
+        {{ myRegular().length === 1 ? 'is your regular day off. It comes first' : 'are your regular days off. They come first' }};
+        pick another day only if you have one left this week.
+      </div>
+    }
+    @if (myReserved().length && !formEmergency() && !auth.isEmployee()) {
       <div class="alert alert-light border small py-2 mb-2">
         <i class="bi bi-bookmark-check text-info me-1"></i>
         This was reserved for you:
@@ -301,40 +314,40 @@
           <strong>{{ format(r.date, { weekday: 'short', month: 'short', day: 'numeric' }) }}</strong>
           ({{ r.status === 'APPROVED' ? 'approved' : 'waiting for your manager' }}){{ last ? '' : ', ' }}
         }.
-        <div class="mt-1">
-          Happy with it? Tap the day to keep it as your request. Rather have another day? Pick any day that isn't marked
-          <strong>Taken</strong> or <strong>Full</strong>: those days have room, because the stores can still be covered
-          without you. Once your manager approves it, your reserved day goes back to being a work day.
-        </div>
+
       </div>
     }
   }
   <div class="day-toggle-group mb-2">
     @for (d of formWeekDates(); track d) {
-      <button type="button" class="btn"
-              [class]="formDays().has(d) ? (formEmergency() ? 'btn btn-danger' : 'btn btn-warning') : 'btn btn-outline-secondary'"
-              [class.is-taken]="takenBy(d) && !formDays().has(d)"
+      <button type="button" class="btn day-pick"
+              [class.is-picked]="formDays().has(d)"
+              [class.is-emergency]="formDays().has(d) && formEmergency()"
+              [class.is-full]="!!takenBy(d) && !formDays().has(d)"
+              [class.is-available]="!takenBy(d) && !formDays().has(d) && !dayDisabled(d) && !isMyRegular(d)"
+              [class.is-regular]="isMyRegular(d) && !formDays().has(d)"
               [disabled]="dayDisabled(d)"
               [attr.title]="takenTitle(d)"
               (click)="toggleDay(d)">
         {{ format(d, { weekday: 'short' }) }}
         <small>{{ format(d, { month: 'numeric', day: 'numeric' }) }}</small>
-        @if (takenBy(d); as label) { <small class="taken-by">{{ label }}</small> }
+        @if (formDays().has(d)) { <small class="pick-state"><i class="bi bi-check-lg"></i></small> }
+        @else if (takenBy(d); as label) { <small class="taken-by">{{ label }}</small> }
+        @else if (isMyRegular(d)) { <small class="regular-by"><i class="bi bi-arrow-repeat"></i> Regular</small> }
+        @else if (!dayDisabled(d)) { <small class="pick-state">Open</small> }
         @else if (isMyReserved(d)) { <small class="reserved-by">Reserved</small> }
       </button>
     }
   </div>
   @if (formEmergency()) {
     <p class="small text-danger mb-3">
-      <i class="bi bi-exclamation-octagon me-1"></i>Emergency: any day can be picked, even Taken or Full ones. Your manager
-      still has to approve it.
+      <i class="bi bi-exclamation-octagon me-1"></i>Emergency: any day can be picked. A manager approves it.
     </p>
   } @else {
-    <p class="small text-muted-2 mb-3">
-      Pick up to {{ maxDaysPerWeek }} days in one week. Only one person per store can be off on a day, so days a colleague
-      already has are marked <strong>Taken</strong>. A day is <strong>Full</strong> when the stores couldn't be covered
-      without this person (primaries stay at their store, and floaters only cover the stores assigned to them).
-    </p>
+    <div class="day-pick-key mb-3">
+      <span><i class="bi bi-square-fill text-success"></i> Open</span>
+      <span><i class="bi bi-square-fill" style="color: #7f1d1d"></i> Full</span>
+    </div>
   }
   @if (canOverride()) {
     <div class="override-toggle mb-3" [class.on]="formOverride()">
@@ -373,7 +386,7 @@
     <button type="button" class="btn btn-light" (click)="modalOpen.set(false)">Cancel</button>
     <button type="button" class="btn btn-primary" [disabled]="saving() || !formEmployeeId() || formDays().size === 0 || !!reasonError()" (click)="submit()">
       @if (saving()) { <span class="spinner-border spinner-border-sm me-1"></span> }
-      {{ formOverride() && canOverride() ? 'Give day off' : 'Submit request' }}
+      {{ formOverride() && canOverride() ? 'Give day off' : formEmergency() ? 'Send for approval' : 'Take day off' }}
     </button>
   </ng-container>
 </app-modal>

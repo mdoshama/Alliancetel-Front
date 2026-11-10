@@ -3,7 +3,7 @@ import { Observable, Subject, debounceTime, filter } from 'rxjs';
 import { AuthService } from './auth.service';
 
 /** What kind of data changed on another screen. "resync" means: we may have missed changes, reload anyway. */
-export type LiveTopic = 'schedule' | 'dayoff' | 'people' | 'timeclock' | 'resync';
+export type LiveTopic = 'schedule' | 'dayoff' | 'people' | 'timeclock' | 'eod' | 'resync';
 
 export interface LiveChange {
   topic: LiveTopic;
@@ -174,7 +174,7 @@ export class LiveService {
     try {
       const body = JSON.parse(data) as { topic?: string; byName?: string | null };
       const topic = body.topic as LiveTopic;
-      if (['schedule', 'dayoff', 'people', 'timeclock'].includes(topic)) {
+      if (['schedule', 'dayoff', 'people', 'timeclock', 'eod'].includes(topic)) {
         this.changes$.next({ topic, byName: body.byName ?? null });
       }
     } catch {

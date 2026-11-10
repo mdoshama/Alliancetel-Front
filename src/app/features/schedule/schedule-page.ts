@@ -15,7 +15,8 @@ import {
   DayHours,
   DayType,
   EmployeeRow,
-  ROLE_LABELS,
+  OFF_SOURCES,
+  OffSource,
   Schedule,
   STORE_ROLE_HELP,
   STORE_ROLE_LABELS,
@@ -30,7 +31,7 @@ import { formatHours, formatTime } from '../../core/store-hours';
 import { ConfirmService } from '../../core/confirm.service';
 import { ToastService } from '../../core/toast.service';
 import { Modal } from '../../shared/modal';
-import { buildSchedulePdf, downloadBlob, schedulePdfName, sharePdf } from '../../core/schedule-pdf';
+import { buildSchedulePdf, downloadBlob, schedulePdfName, sharePdf, workingVsNeeded } from '../../core/schedule-pdf';
 
 const SCHEDULE_VIEW_KEY = 'alliancetel.scheduleView';
 
@@ -68,6 +69,8 @@ interface FillGap {
 
 interface StoreBoardRow {
   storeId: number | null;
+  /** Short code for narrow screens. */
+  code: string;
   name: string;
   color: string | null;
   min: number;
@@ -119,7 +122,6 @@ export class SchedulePage implements OnInit {
   /** Days a manager can set by hand. Approved days off only come from approving a request. */
   protected readonly dayTypes: DayType[] = ['WORK', 'OFF'];
   protected readonly dayTypeLabels = DAY_TYPE_LABELS;
-  protected readonly roleLabels = ROLE_LABELS;
   protected readonly todayIso = today();
   protected readonly format = formatDay;
 
@@ -129,20 +131,6 @@ export class SchedulePage implements OnInit {
   protected readonly weekStart = signal(this.defaultWeek());
   /** Managers: who has sent their day-off request for this week. */
   protected readonly requestStatus = signal<WeekRequestStatus | null>(null);
-  protected readonly missingCount = computed(() => this.requestStatus()?.missing.length ?? 0);
-  /** Requests still open and some people haven't picked (they have reserved days): the week waits. */
-  protected readonly waitingCount = computed(() => {
-    const rs = this.requestStatus();
-    return rs?.requestsOpen ? rs.reserved.length : 0;
-  });
-  /** Why Generate is held back, or null. */
-  protected readonly generateBlocked = computed(() =>
-    this.missingCount() > 0
-      ? `Waiting for ${this.missingCount()} day-off request${this.missingCount() === 1 ? '' : 's'} (listed above).`
-      : this.waitingCount() > 0
-        ? `Requests are still open: ${this.waitingCount()} ${this.waitingCount() === 1 ? 'person hasn' + "'" + 't' : 'people haven' + "'" + 't'} picked yet. Generate after Friday, or an admin can close requests.`
-        : null,
-  );
   /** Two days picked for the same person: they must be different days. */
   protected readonly duplicatePick = computed(() => {
     const seen = new Set<string>();
@@ -233,6 +221,8 @@ export class SchedulePage implements OnInit {
       .map((c) => ({
         storeId: c.storeId,
         name: c.storeName,
+        /** Short code (e.g. "OCN") for narrow screens. */
+        code: c.label || this.initialsOf(c.storeName),
         color: c.color,
         min: c.minStaffPerDay,
         cells: s.dates.map((_, i) => {
@@ -397,7 +387,33 @@ export class SchedulePage implements OnInit {
   /** Request being approved or rejected (or -1 for "approve all"). */
   protected readonly deciding = signal<number | null>(null);
   private impactSeq = 0;
-  protected readonly reviewable = computed(() => this.schedule()?.requests.filter((r) => r.canReview) ?? []);
+  /** Waiting for a decision: emergencies (reserved and regular days are handled by the system). */
+  protected readonly reviewable = computed(
+    () => this.schedule()?.requests.filter((r) => r.canReview && !r.reserved) ?? [],
+  );
+  /**
+   * "Days off this week" follows the schedule: whenever the week changes on this page (a day edited, a swap, a day
+   * off given or revoked, auto-fill), the working / needed numbers are fetched again.
+   */
+  private lastScheduleSeen: Schedule | null | undefined = undefined;
+  private statusFetchedAt = 0;
+  private glanceTimer: ReturnType<typeof setTimeout> | undefined;
+  private readonly refreshGlance = effect(() => {
+    const s = this.schedule();
+    const prev = this.lastScheduleSeen;
+    this.lastScheduleSeen = s;
+    // The first load and a change of week already fetch it (load()); only react to edits of the same week.
+    if (prev && s && s !== prev && s.id === prev.id) {
+      clearTimeout(this.glanceTimer);
+      this.glanceTimer = setTimeout(() => {
+        // Skip it if something else (a live update, a reload) just fetched it.
+        if (Date.now() - this.statusFetchedAt > 600) this.loadRequestStatus();
+      }, 250);
+    }
+  });
+
+  /** The names under "Days off this week" (folded away by default to keep the page calm). */
+  protected readonly glancePeople = signal(false);
   /** Days off employees asked for themselves. */
   protected readonly askedRequests = computed(() => this.schedule()?.requests.filter((r) => !r.reserved) ?? []);
   /** Regular days off (the same day every week, set by a manager), reserved for them and waiting for approval. */
@@ -408,9 +424,6 @@ export class SchedulePage implements OnInit {
   protected readonly reservedRequests = computed(
     () => this.schedule()?.requests.filter((r) => r.reserved && !r.regular) ?? [],
   );
-  /** Show each reserved day as its own row; null = automatic (open when there are only a few). */
-  protected readonly reservedOpen = signal<boolean | null>(null);
-  protected readonly reservedOpenNow = computed(() => this.reservedOpen() ?? this.reservedRequests().length <= 3);
   /** Reviewable requests whose check says they keep every store covered. */
   protected readonly fitCount = computed(
     () => this.reviewable().filter((r) => this.requestImpacts().get(r.id)?.level !== 'SHORT').length,
@@ -702,6 +715,7 @@ export class SchedulePage implements OnInit {
       return;
     }
     const week = this.weekStart();
+    this.statusFetchedAt = Date.now();
     this.api.weekRequests(areaId, week).subscribe({
       next: (status) => {
         if (status.weekStart === this.weekStart()) this.requestStatus.set(status);
@@ -751,22 +765,9 @@ export class SchedulePage implements OnInit {
     });
   }
 
-  /** Generate before everyone's requests are in (manager / admin decision). */
-  protected async generateAnyway(): Promise<void> {
-    const ok = await this.confirm.ask({
-      title: 'Generate anyway?',
-      message: `${this.generateBlocked() ?? ''} The schedule will be made now.`,
-      icon: 'bi-exclamation-triangle',
-      tone: 'warning',
-      notes: [
-        'People without an approved day off are scheduled to work every day the stores are open.',
-        'You can still approve requests later: the schedule follows.',
-      ],
-      confirmText: 'Generate anyway',
-    });
-    if (ok) {
-      await this.generate(true);
-    }
+  /** "Tue" or "Tue, Sat" for a list of dates. */
+  protected dayLabels(dates: string[]): string {
+    return dates.map((d) => new Date(d + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short' })).join(', ');
   }
 
   /** Throws the week's schedule away so it can be generated again from scratch. */
@@ -776,8 +777,8 @@ export class SchedulePage implements OnInit {
       return;
     }
     const ok = await this.confirm.ask({
-      title: 'Reset this schedule?',
-      message: `The ${s.areaName} schedule for ${this.weekLabel()} will be deleted so you can generate it again from scratch.`,
+      title: 'Delete this schedule?',
+      message: `The ${s.areaName} schedule for ${this.weekLabel()} will be deleted. You can generate it again any time.`,
       icon: 'bi-trash3',
       tone: 'danger',
       notes: [
@@ -787,7 +788,7 @@ export class SchedulePage implements OnInit {
           ? 'It is published: staff stop seeing it until you publish a new one (then everyone gets their week again).'
           : 'It is a draft, so staff never saw it.',
       ],
-      confirmText: 'Reset schedule',
+      confirmText: 'Delete schedule',
     });
     if (!ok) {
       return;
@@ -796,12 +797,53 @@ export class SchedulePage implements OnInit {
     this.api.resetSchedule(s.id).subscribe({
       next: () => {
         this.working.set(false);
-        this.toast.success('Schedule reset. Generate it again when you are ready.');
+        this.toast.success('Schedule deleted. Generate it again when you are ready.');
         this.load();
       },
       error: () => this.working.set(false),
     });
   }
+
+  /**
+   * Deletes this week's schedule and builds it again straight away, in one step: hand edits, swaps and store moves
+   * are dropped; days off (taken, regular, reserved, emergencies approved) are kept and applied again.
+   */
+  protected async deleteAndRegenerate(): Promise<void> {
+    const s = this.schedule();
+    const areaId = this.areaId();
+    if (!s || areaId == null) {
+      return;
+    }
+    const ok = await this.confirm.ask({
+      title: 'Regenerate this week?',
+      message: `The ${s.areaName} schedule for ${this.weekLabel()} will be deleted and built again from scratch now.`,
+      icon: 'bi-arrow-clockwise',
+      tone: 'danger',
+      notes: [
+        'Days changed by hand, swaps and store moves are lost.',
+        'Everyone keeps their day off: the day they took, their regular day or the day the system reserved.',
+        s.status === 'PUBLISHED'
+          ? 'It is published: the new week is a draft, so staff stop seeing it until you publish again.'
+          : 'It is a draft, so staff never saw it.',
+      ],
+      confirmText: 'Regenerate',
+    });
+    if (!ok) {
+      return;
+    }
+    const week = this.weekStart();
+    this.working.set(true);
+    this.api.resetSchedule(s.id).subscribe({
+      next: () => this.run(this.api.generateSchedule(areaId, week, true), 'Schedule generated again.'),
+      error: () => this.working.set(false),
+    });
+  }
+
+  /** The "Working" row: people working each day against what the open stores need. */
+  protected readonly dayCounts = computed(() => {
+    const s = this.schedule();
+    return s ? workingVsNeeded(s) : [];
+  });
 
   /** Spare shifts this week (team can work − stores need); negative means not enough people. */
   protected readonly weekSpare = computed(() => {
@@ -809,34 +851,13 @@ export class SchedulePage implements OnInit {
     return c ? c.shiftsAvailable - c.shiftsNeeded : 0;
   });
 
-  protected async generate(force = false): Promise<void> {
+  /** Builds the week (only offered while it has no schedule; Regenerate rebuilds an existing one). */
+  protected generate(): void {
     const areaId = this.areaId();
     if (areaId == null) {
       return;
     }
-    if (this.generateBlocked() && !force) {
-      this.toast.error(this.generateBlocked()!);
-      return;
-    }
-    const existing = this.schedule();
-    if (
-      existing &&
-      !force &&
-      !(await this.confirm.ask({
-        title: 'Rebuild this week?',
-        message: `The ${existing.areaName} draft for ${this.weekLabel()} will be built again from scratch.`,
-        icon: 'bi-arrow-repeat',
-        tone: 'warning',
-        notes: [
-          'Days you changed by hand and swaps on this draft will be lost.',
-          'Everyone starts working every day the stores are open; only approved requests are days off.',
-        ],
-        confirmText: 'Rebuild',
-      }))
-    ) {
-      return;
-    }
-    this.run(this.api.generateSchedule(areaId, this.weekStart(), force), existing ? 'Schedule regenerated.' : 'Schedule generated.');
+    this.run(this.api.generateSchedule(areaId, this.weekStart()), 'Schedule generated.');
   }
 
   /** Re-runs automatic store assignment and reports how the gaps changed. */
@@ -1060,6 +1081,11 @@ export class SchedulePage implements OnInit {
     return c.minStaffPerDay > 0 ? `${n}/${c.minStaffPerDay}${n < c.minStaffPerDay ? ' · short' : ''}` : `${n}`;
   }
 
+  /** "Oceanside Mission Ave" → "OMA": a short store code when none is set. */
+  protected initialsOf(name: string): string {
+    return name.split(/\s+/).filter(Boolean).map((w) => w[0]).join('').slice(0, 4).toUpperCase();
+  }
+
   /** "Maria Garcia" → "MG". */
   protected initials(name: string): string {
     const parts = name.trim().split(/\s+/);
@@ -1128,14 +1154,23 @@ export class SchedulePage implements OnInit {
     return cell.type === 'WORK' ? (cell.storeName ?? 'No store') : this.dayTypeLabels[cell.type];
   }
 
+  /** Managers and admins can click an approved day off (draft or published) to revoke it. */
+  protected canRevoke(cell: DayCell): boolean {
+    return this.auth.canManage() && cell.type === 'REQUESTED_OFF' && !!cell.approvedRequestId;
+  }
+
   protected openCell(row: EmployeeRow, dayIndex: number): void {
-    if (!this.canEdit()) {
-      return;
-    }
     const cell = row.days[dayIndex];
     if (cell.type === 'REQUESTED_OFF') {
-      const day = formatDay(cell.date, { weekday: 'long', month: 'short', day: 'numeric' });
-      this.toast.info(`${row.employeeName.split(' ')[0]} has an approved day off on ${day}. It stays off.`);
+      if (this.canRevoke(cell)) {
+        void this.revokeDayOff(row, cell);
+      } else if (this.canEdit()) {
+        const day = formatDay(cell.date, { weekday: 'long', month: 'short', day: 'numeric' });
+        this.toast.info(`${row.employeeName.split(' ')[0]} has an approved day off on ${day}. It stays off.`);
+      }
+      return;
+    }
+    if (!this.canEdit()) {
       return;
     }
     this.editType = cell.type;
@@ -1147,6 +1182,38 @@ export class SchedulePage implements OnInit {
 
   protected closeEditor(): void {
     this.editing.set(null);
+  }
+
+  /**
+   * Revoking a day off happens here, on the schedule (the Day-off Requests page no longer does it): the person
+   * goes back to work that day and is told why.
+   */
+  protected async revokeDayOff(row: EmployeeRow, cell: DayCell): Promise<void> {
+    const id = cell.approvedRequestId;
+    if (!id) return;
+    const first = row.employeeName.split(' ')[0];
+    const day = formatDay(cell.date, { weekday: 'long', month: 'short', day: 'numeric' });
+    const reason = await this.confirm.askWithInput({
+      title: `Revoke ${first}'s day off?`,
+      message: `${first} is off on ${day}. Revoking puts them back to work that day at their home store, and they're told why.`,
+      icon: 'bi-calendar-x',
+      tone: 'danger',
+      input: { label: 'Reason (required, shown to the employee)', placeholder: 'e.g. Store event that day', required: true },
+      confirmText: 'Revoke day off',
+    });
+    if (reason === null || !reason.trim()) {
+      if (reason !== null) this.toast.error('Give a reason for revoking the day off.');
+      return;
+    }
+    this.working.set(true);
+    this.api.changeDayOffDecision(id, 'REJECTED', reason.trim()).subscribe({
+      next: () => {
+        this.working.set(false);
+        this.toast.success(`${first} works on ${day} again.`);
+        this.load();
+      },
+      error: () => this.working.set(false),
+    });
   }
 
   /** The person's home store if it is open on that day; otherwise a store has to be picked. */
@@ -1464,7 +1531,24 @@ export class SchedulePage implements OnInit {
   }
 
   /** Plain-language description of a cell, e.g. "Work at Oceanside". */
+  protected readonly offSources = OFF_SOURCES;
+
+  /** The label for an approved day off (requested, regular, reserved, emergency, by a manager). */
+  protected offSource(cell: DayCell): { label: string; icon: string; title: string } {
+    return OFF_SOURCES[cell.offSource ?? 'REQUESTED'];
+  }
+
+  /** Kinds of day off in the legend: the ones a manager or an employee can see. */
+  protected legendSources(): OffSource[] {
+    return this.auth.canManage()
+      ? ['REQUESTED', 'REGULAR', 'RESERVED', 'EMERGENCY', 'MANAGER']
+      : ['REQUESTED', 'REGULAR', 'ASSIGNED', 'EMERGENCY', 'MANAGER'];
+  }
+
   protected describe(cell: DayCell): string {
+    if (cell.type === 'REQUESTED_OFF') {
+      return `Off · ${this.offSource(cell).title}`;
+    }
     if (cell.type !== 'WORK') {
       return this.dayTypeLabels[cell.type];
     }

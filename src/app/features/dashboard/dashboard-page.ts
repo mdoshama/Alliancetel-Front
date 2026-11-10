@@ -1,9 +1,10 @@
 import { CurrencyPipe, DecimalPipe } from '@angular/common';
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { DestroyRef, Component, OnInit, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { forkJoin, of } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
 import { ApiService } from '../../core/api.service';
+import { LiveService } from '../../core/live.service';
 import { AuthService } from '../../core/auth.service';
 import { formatDay, today, weekStartOf } from '../../core/date-utils';
 import { Area, DayOffRequest, EodStatus, EodStoreDay, PerfLeaderboard, UpcomingBirthday } from '../../core/models';
@@ -26,6 +27,8 @@ interface StoreToday extends EodStoreDay {
 })
 export class DashboardPage implements OnInit {
   private readonly api = inject(ApiService);
+  private readonly live = inject(LiveService);
+  private readonly destroyRef = inject(DestroyRef);
   protected readonly auth = inject(AuthService);
 
   protected readonly areas = signal<Area[]>([]);
@@ -68,6 +71,12 @@ export class DashboardPage implements OnInit {
   });
 
   ngOnInit(): void {
+    this.refresh();
+    // Changes made on another device show up without a refresh.
+    this.live.on(['dayoff', 'schedule', 'eod', 'people'], this.destroyRef, () => this.refresh());
+  }
+
+  private refresh(): void {
     this.api.areas().subscribe((list) => {
       this.areas.set(list);
       this.loaded.set(true);

@@ -145,6 +145,13 @@ export class DayOffPage implements OnInit {
 
   protected readonly addDays = addDays;
 
+  /** Their regular days off in the week shown (they come first: a request only fills days left after them). */
+  protected readonly myRegular = computed(() => this.myReserved().filter((r) => r.regular));
+
+  protected isMyRegular(date: string): boolean {
+    return this.selfService() && this.myRegular().some((r) => r.date === date);
+  }
+
   /** A day the system reserved for them (picking it just keeps it). */
   protected isMyReserved(date: string): boolean {
     return this.selfService() && this.myReserved().some((r) => r.date === date);
@@ -504,12 +511,18 @@ export class DayOffPage implements OnInit {
         this.saving.set(false);
         this.modalOpen.set(false);
         const days = created.length + ' day' + (created.length > 1 ? 's' : '');
+        const when = created.map((c) => formatDay(c.date, { weekday: 'short', month: 'short', day: 'numeric' })).join(' and ');
+        const mine = created[0].employeeId === this.auth.user()?.id;
+        const first = created[0].employeeName.split(' ')[0];
         this.toast.success(
           override
-            ? `${days} off given to ${created[0].employeeName} (approved). They've been told.`
-            : `${emergency ? 'Emergency request sent' : days + ' requested'} for ${created[0].employeeName}.`,
+            ? `${days} off given to ${created[0].employeeName}. They've been told.`
+            : emergency
+              ? `Emergency request sent for ${when}. A manager will decide.`
+              : `${mine ? "You're" : first + ' is'} off on ${when}.`,
         );
-        this.status.set(override ? 'APPROVED' : 'PENDING');
+        // Normal requests are given straight away; only emergencies wait.
+        this.status.set(emergency && !override ? 'PENDING' : 'APPROVED');
         this.load();
       },
       error: () => this.saving.set(false),

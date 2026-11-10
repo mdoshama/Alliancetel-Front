@@ -1,9 +1,10 @@
 import { RouterLink } from '@angular/router';
-import { Component, OnInit, computed, inject, input, signal } from '@angular/core';
+import { DestroyRef, Component, OnInit, computed, inject, input, signal } from '@angular/core';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { DatePipe } from '@angular/common';
 import { Observable } from 'rxjs';
 import { ApiService } from '../../core/api.service';
+import { LiveService } from '../../core/live.service';
 import { AuthService } from '../../core/auth.service';
 import { Area, Credentials, DayOfWeek, Employee, EmployeePageFilter, ROLE_LABELS, Role, Store, STORE_ROLE_HELP, STORE_ROLE_LABELS, StoreRole } from '../../core/models';
 import { savePageSize, savedPageSize } from '../../core/paging';
@@ -36,6 +37,8 @@ import {
 })
 export class EmployeesPage implements OnInit {
   private readonly api = inject(ApiService);
+  private readonly live = inject(LiveService);
+  private readonly destroyRef = inject(DestroyRef);
   private readonly toast = inject(ToastService);
   private readonly fb = inject(FormBuilder);
   protected readonly auth = inject(AuthService);
@@ -152,6 +155,8 @@ export class EmployeesPage implements OnInit {
       error: () => this.birthdaySoon.set(new Map()),
     });
     this.load();
+    // Changes made on another device show up without a refresh.
+    this.live.on(['people'], this.destroyRef, () => this.load());
   }
 
   protected birthdayTitle(days: number): string {

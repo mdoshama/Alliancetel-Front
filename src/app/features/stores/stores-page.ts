@@ -1,7 +1,8 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { DestroyRef, Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { ApiService } from '../../core/api.service';
+import { LiveService } from '../../core/live.service';
 import { AuthService } from '../../core/auth.service';
 import { today } from '../../core/date-utils';
 import { Area, DayHours, Store } from '../../core/models';
@@ -36,6 +37,8 @@ interface AreaGroup {
 })
 export class StoresPage implements OnInit {
   private readonly api = inject(ApiService);
+  private readonly live = inject(LiveService);
+  private readonly destroyRef = inject(DestroyRef);
   private readonly toast = inject(ToastService);
   private readonly fb = inject(FormBuilder);
   private readonly confirm = inject(ConfirmService);
@@ -137,6 +140,8 @@ export class StoresPage implements OnInit {
       this.api.areas().subscribe((list) => this.areas.set(list));
     }
     this.load();
+    // Changes made on another device show up without a refresh.
+    this.live.on(['people'], this.destroyRef, () => this.load());
   }
 
   protected load(): void {

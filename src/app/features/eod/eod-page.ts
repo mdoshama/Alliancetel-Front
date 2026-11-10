@@ -1,8 +1,9 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { DestroyRef, Component, OnInit, computed, inject, signal } from '@angular/core';
 import { CurrencyPipe, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Observable } from 'rxjs';
 import { ApiService } from '../../core/api.service';
+import { LiveService } from '../../core/live.service';
 import { AuthService } from '../../core/auth.service';
 import { ConfirmService } from '../../core/confirm.service';
 import { ToastService } from '../../core/toast.service';
@@ -49,6 +50,8 @@ export const EOD_STATUS_LABELS: Record<EodStatus, string> = {
 })
 export class EodPage implements OnInit {
   private readonly api = inject(ApiService);
+  private readonly liveUpdates = inject(LiveService);
+  private readonly destroyRef = inject(DestroyRef);
   private readonly toast = inject(ToastService);
   private readonly confirm = inject(ConfirmService);
   protected readonly auth = inject(AuthService);
@@ -188,6 +191,11 @@ export class EodPage implements OnInit {
       this.areas.set(active);
       const mine = this.auth.user()?.areaId ?? null;
       this.selectArea(mine ?? active[0]?.id ?? null);
+    });
+    // Changes made on another device show up without a refresh.
+    this.liveUpdates.on(['eod'], this.destroyRef, () => {
+      // Employees keep what they are typing; managers' views reload.
+      if (!this.auth.isEmployee() && this.areaId() != null) this.refresh();
     });
   }
 

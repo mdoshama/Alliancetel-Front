@@ -3204,3 +3204,462 @@ tr.is-regular-row {
   --bs-table-bg: #faf7fe;
   background: #faf7fe;
 }
+
+/* ---------------------------------------------------------------------------------------------
+   Schedule page: "Days off this week" at a glance
+   --------------------------------------------------------------------------------------------- */
+.week-glance {
+  .glance-head {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+  }
+
+  .glance-title {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 700;
+    font-size: 1rem;
+    color: var(--bs-emphasis-color);
+  }
+
+  .glance-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.15rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 600;
+
+    &.is-warn { color: #92400e; background: #fef3c7; }
+    &.is-open { color: #1e40af; background: #dbeafe; }
+    &.is-ready { color: #166534; background: #dcfce7; }
+  }
+
+  .glance-progress {
+    height: 6px;
+    margin: 0.6rem 0 0.4rem;
+    background: #e5e7eb;
+    border-radius: 999px;
+    overflow: hidden;
+
+    > span {
+      display: block;
+      height: 100%;
+      background: linear-gradient(90deg, #2563eb, #16a34a);
+      border-radius: 999px;
+      transition: width 0.3s ease;
+    }
+  }
+
+  .glance-sub {
+    font-size: 0.82rem;
+    color: var(--bs-secondary-color);
+  }
+
+  .glance-stats {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.6rem;
+    margin-top: 0.9rem;
+  }
+
+  .glance-stat {
+    padding: 0.55rem 0.75rem;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+
+    &.is-bad {
+      background: #fef2f2;
+      border-color: #fecaca;
+
+      .glance-num { color: #991b1b; }
+    }
+  }
+
+  .glance-num {
+    font-size: 1.35rem;
+    font-weight: 700;
+    line-height: 1.1;
+    color: #0f172a;
+
+    small {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #64748b;
+    }
+  }
+
+  .glance-label {
+    margin-top: 0.15rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+
+  .glance-days {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 0.4rem;
+    margin-top: 0.75rem;
+  }
+
+  .glance-day {
+    padding: 0.45rem 0.25rem;
+    text-align: center;
+    color: #166534;
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    border-radius: 10px;
+
+    &.is-tight {
+      color: #92400e;
+      background: #fffbeb;
+      border-color: #fde68a;
+    }
+
+    &.is-short {
+      color: #fff;
+      background: #991b1b;
+      border-color: #991b1b;
+
+      .glance-dname, .glance-dnum small, .glance-dstate { color: #fee2e2; }
+    }
+  }
+
+  .glance-dname {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #475569;
+  }
+
+  .glance-dnum {
+    font-size: 1.05rem;
+    font-weight: 700;
+    line-height: 1.2;
+
+    small {
+      font-size: 0.72rem;
+      color: #64748b;
+    }
+  }
+
+  .glance-dstate {
+    font-size: 0.68rem;
+    font-weight: 600;
+  }
+
+  .glance-groups {
+    display: grid;
+    gap: 0.6rem;
+    margin-top: 0.3rem;
+  }
+
+  .glance-gtitle {
+    margin-bottom: 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+
+  .glance-names {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+  }
+
+  .glance-name {
+    padding: 0.15rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 500;
+    border: 1px solid transparent;
+
+    &.is-red { color: #991b1b; background: #fef2f2; border-color: #fecaca; }
+    &.is-teal { color: #0b5560; background: #ecfeff; border-color: #a5f3fc; }
+    &.is-purple { color: #5b21b6; background: #f5f3ff; border-color: #ddd6fe; }
+    &.is-amber { color: #92400e; background: #fffbeb; border-color: #fde68a; }
+    &.is-blue { color: #1e40af; background: #eff6ff; border-color: #bfdbfe; }
+    &.is-green { color: #166534; background: #f0fdf4; border-color: #bbf7d0; }
+  }
+}
+
+@media (max-width: 575.98px) {
+  .week-glance {
+    .glance-head { flex-direction: column; gap: 0.5rem; }
+    .glance-stats { gap: 0.4rem; }
+    .glance-stat { padding: 0.45rem 0.5rem; }
+    .glance-num { font-size: 1.1rem; }
+    .glance-label { font-size: 0.62rem; }
+    .glance-days { gap: 0.2rem; }
+    .glance-day { padding: 0.35rem 0.1rem; border-radius: 8px; }
+    .glance-dname { font-size: 0.6rem; }
+    .glance-dnum { font-size: 0.85rem; }
+    .glance-dnum small { font-size: 0.6rem; }
+    .glance-dstate { font-size: 0.58rem; }
+  }
+}
+
+/* ---------------------------------------------------------------------------------------------
+   Day-off picker: green = open, dark red = full / taken
+   --------------------------------------------------------------------------------------------- */
+.day-toggle-group .btn.day-pick {
+  border-width: 1.5px;
+  font-weight: 600;
+
+  .pick-state {
+    font-size: 0.64rem;
+    font-weight: 700;
+  }
+
+  &.is-available {
+    color: #14532d;
+    background: #f0fdf4;
+    border-color: #22c55e;
+
+    &:hover {
+      color: #fff;
+      background: #16a34a;
+      border-color: #16a34a;
+    }
+  }
+
+  &.is-picked {
+    color: #fff;
+    background: #15803d;
+    border-color: #15803d;
+
+    &.is-emergency {
+      background: #dc2626;
+      border-color: #dc2626;
+    }
+  }
+
+  &.is-full,
+  &.is-full:disabled {
+    color: #fff;
+    background: #7f1d1d;
+    border-color: #7f1d1d;
+    opacity: 1;
+
+    .taken-by {
+      color: #fecaca;
+    }
+  }
+
+  &.is-full:not(:disabled) {
+    /* Emergency / manager override: a full day can still be picked. */
+    border-style: solid;
+  }
+
+  &:disabled:not(.is-full) {
+    color: #94a3b8;
+    background: #f8fafc;
+    border-color: #e2e8f0;
+  }
+}
+
+.day-pick-key {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--bs-secondary-color);
+}
+
+/* ---------------------------------------------------------------------------------------------
+   "By store" on phones: a narrow store column (code in its color) so the week has room
+   --------------------------------------------------------------------------------------------- */
+.store-board .sb-compact {
+  display: none;
+}
+
+@media (max-width: 767.98px) {
+  .store-board {
+    min-width: 0;
+    width: max-content;
+
+    th:first-child,
+    td:first-child {
+      width: 58px;
+      min-width: 58px;
+      max-width: 58px;
+      padding-left: 0.3rem;
+      padding-right: 0.3rem;
+    }
+
+    th:not(:first-child),
+    td:not(:first-child) {
+      width: 112px;
+      min-width: 112px;
+    }
+
+    .sb-full {
+      display: none;
+    }
+
+    .sb-store {
+      padding-top: 0.5rem;
+    }
+
+    .sb-compact {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.2rem;
+
+      .sb-code {
+        display: inline-block;
+        width: 100%;
+        padding: 0.25rem 0;
+        border-radius: 6px;
+        font-size: 0.7rem;
+        font-weight: 800;
+        letter-spacing: 0.02em;
+        text-align: center;
+        color: #fff;
+        background: var(--store-color, #475569);
+        word-break: break-all;
+      }
+
+      .sb-min {
+        font-size: 0.6rem;
+        font-weight: 600;
+        color: var(--bs-secondary-color);
+        white-space: nowrap;
+      }
+
+      &.is-none .sb-code {
+        background: #b45309;
+      }
+    }
+  }
+}
+
+/* ---------------------------------------------------------------------------------------------
+   Where a day off came from: requested / regular / reserved / assigned / emergency / by manager
+   --------------------------------------------------------------------------------------------- */
+.off-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 1.4;
+  white-space: nowrap;
+  color: #fff;
+
+  .bi {
+    font-size: 0.6rem;
+  }
+
+  &.is-icon {
+    padding: 0.05rem 0.25rem;
+    margin-left: auto;
+  }
+
+  &.src-REQUESTED { background: #15803d; }
+  &.src-REGULAR { background: #6f42c1; }
+  &.src-RESERVED { background: #0e7490; }
+  &.src-ASSIGNED { background: #0e7490; }
+  &.src-EMERGENCY { background: #b91c1c; }
+  &.src-MANAGER { background: #1d4ed8; }
+}
+
+/* A day off: "Off" over where it came from, so narrow phone cells never break the word. */
+.day-chip.type-REQUESTED_OFF {
+  flex-direction: column;
+  gap: 0.1rem;
+
+  .chip-name {
+    white-space: nowrap;
+  }
+}
+
+.day-chip.type-REQUESTED_OFF .off-source {
+  margin-top: 0.1rem;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Schedule toolbar: buttons keep their label on one line and wrap to a second row when there are many. */
+.toolbar-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+
+  > .btn {
+    white-space: nowrap;
+  }
+}
+
+.day-toggle-group .regular-by {
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: #59359a;
+}
+
+.regular-note {
+  color: #3f2a78;
+  background: #f6f2fd;
+  border: 1px solid #c9b6ef;
+}
+
+.day-toggle-group .btn.day-pick.is-regular {
+  color: #3f2a78;
+  background: #f6f2fd;
+  border-color: #8b6fd6;
+
+  .regular-by { color: #59359a; }
+}
+
+.week-glance .glance-gtitle .text-none {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 600;
+}
+
+.week-glance .glance-gtitle.text-purple { color: #6d28d9; }
+
+/* Schedule footer: "9/9 Exact" for each day, colored like the week-at-a-glance tiles. */
+.work-need {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 3.4rem;
+  padding: 0.2rem 0.45rem;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  line-height: 1.15;
+
+  .wn-num {
+    font-weight: 800;
+    font-size: 0.95rem;
+
+    small {
+      font-weight: 600;
+      font-size: 0.72rem;
+      opacity: 0.75;
+    }
+  }
+
+  .wn-label {
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+  }
+
+  &.is-spare { background: #ecfdf3; border-color: #abefc6; color: #067647; }
+  &.is-exact { background: #fffaeb; border-color: #fedf89; color: #b54708; }
+  &.is-short { background: #fef3f2; border-color: #fecdca; color: #b42318; }
+}
