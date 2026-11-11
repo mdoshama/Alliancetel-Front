@@ -1,281 +1,281 @@
-<!-- Welcome + quick actions -->
-<div class="dash-hero mb-4">
-  <div>
+<!-- Welcome, the request portal and quick actions -->
+<section class="dash-hero mb-4">
+  <div class="min-w-0">
     <div class="dash-hero-date">{{ format(today, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) }}</div>
     <h2 class="dash-hero-title">{{ greeting() }}</h2>
-    <p class="dash-hero-sub mb-0">
-      Here's how {{ auth.isAdmin() ? 'AllianceTel' : (auth.user()?.areaName || 'your area') }} is doing today.
-    </p>
+    <p class="dash-hero-sub mb-2">Here's the schedule picture for {{ scopeName() }} today.</p>
+    @if (window(); as w) {
+      <a class="portal-chip" [class.is-open]="w.openWeeks.length > 0" routerLink="/day-off-requests">
+        <span class="portal-chip-dot"></span>
+        @if (w.openWeeks.length) {
+          Day-off requests open · week of
+          @for (wk of w.openWeeks; track wk; let last = $last) { {{ short(wk) }}{{ last ? '' : ' & ' }} }
+        } @else {
+          Day-off requests closed · emergencies only
+        }
+      </a>
+    }
   </div>
   <div class="dash-actions">
-    <a class="btn btn-light" routerLink="/eod"><i class="bi bi-receipt me-1"></i>End of Day</a>
-    <a class="btn btn-light" routerLink="/schedules"><i class="bi bi-calendar3-week me-1"></i>Schedule</a>
-    <a class="btn btn-primary" routerLink="/performance"><i class="bi bi-graph-up-arrow me-1"></i>Performance</a>
+    <a class="btn btn-light" routerLink="/day-off-requests"><i class="bi bi-calendar-x me-1"></i>Day-off requests</a>
+    <a class="btn btn-light" routerLink="/employees"><i class="bi bi-people me-1"></i>{{ auth.isAdmin() ? 'Employees' : 'My team' }}</a>
+    <a class="btn btn-primary" routerLink="/schedules"><i class="bi bi-calendar3-week me-1"></i>Weekly schedule</a>
+  </div>
+</section>
+
+<!-- Today at a glance -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-xl-3">
+    <a class="dash-kpi tone-blue" routerLink="/schedules">
+      <span class="dash-kpi-icon"><i class="bi bi-person-check"></i></span>
+      <span class="dash-kpi-body">
+        <span class="dash-kpi-value">{{ hasThisWeek() ? workingToday() : '–' }}</span>
+        <span class="dash-kpi-label">Working today</span>
+        @if (hasThisWeek()) { <span class="dash-kpi-sub">of {{ onSchedule() }} on the schedule</span> }
+        @else if (loaded()) { <span class="dash-kpi-sub">No schedule this week</span> }
+      </span>
+    </a>
+  </div>
+  <div class="col-6 col-xl-3">
+    <a class="dash-kpi tone-violet" routerLink="/schedules">
+      <span class="dash-kpi-icon"><i class="bi bi-moon-stars"></i></span>
+      <span class="dash-kpi-body">
+        <span class="dash-kpi-value">{{ hasThisWeek() ? offToday() : '–' }}</span>
+        <span class="dash-kpi-label">Off today</span>
+        <span class="dash-kpi-sub">Days off and approved requests</span>
+      </span>
+    </a>
+  </div>
+  <div class="col-6 col-xl-3">
+    <a class="dash-kpi" [class.tone-red]="emergencyCount() > 0" [class.tone-green]="emergencyCount() === 0" routerLink="/day-off-requests">
+      <span class="dash-kpi-icon"><i class="bi" [class]="emergencyCount() ? 'bi-exclamation-octagon' : 'bi-check2-circle'"></i></span>
+      <span class="dash-kpi-body">
+        <span class="dash-kpi-value">{{ emergencyCount() }}</span>
+        <span class="dash-kpi-label">Emergency requests</span>
+        <span class="dash-kpi-sub">{{ emergencyCount() ? 'Waiting for a decision' : 'All caught up' }}</span>
+      </span>
+    </a>
+  </div>
+  <div class="col-6 col-xl-3">
+    <a class="dash-kpi" [class.tone-amber]="gapsThisWeek() > 0" [class.tone-green]="gapsThisWeek() === 0" routerLink="/schedules">
+      <span class="dash-kpi-icon"><i class="bi" [class]="gapsThisWeek() ? 'bi-shop-window' : 'bi-shield-check'"></i></span>
+      <span class="dash-kpi-body">
+        <span class="dash-kpi-value">{{ gapsThisWeek() }}</span>
+        <span class="dash-kpi-label">Short-staffed days</span>
+        <span class="dash-kpi-sub">{{ gapsThisWeek() ? 'Stores below their minimum this week' : 'Every store covered this week' }}</span>
+      </span>
+    </a>
   </div>
 </div>
 
-<!-- Sales this month -->
+<!-- This week and next, per area -->
 <div class="d-flex align-items-baseline mb-2">
-  <h3 class="dash-section-title mb-0">Sales this month</h3>
-  <span class="small text-muted-2 ms-2">{{ format(monthRange.from, { month: 'short', day: 'numeric' }) }} – {{ format(monthRange.to, { month: 'short', day: 'numeric' }) }}</span>
-  <a class="ms-auto small" routerLink="/performance">Full report <i class="bi bi-arrow-right"></i></a>
+  <h3 class="dash-section-title mb-0">Schedules</h3>
+  <span class="small text-muted-2 ms-2">This week and next</span>
+  <a class="ms-auto small" routerLink="/schedules">Open schedule <i class="bi bi-arrow-right"></i></a>
 </div>
-<div class="row g-3 mb-4">
-  <div class="col-6 col-xl-3">
-    <a class="card stat-card h-100 text-decoration-none text-body" routerLink="/performance">
-      <div class="stat-icon bg-primary-subtle text-primary"><i class="bi bi-box-seam"></i></div>
-      <div>
-        <div class="stat-value">{{ salesLoaded() ? (month()?.totals?.boxes ?? 0) : '–' }}</div>
-        <div class="stat-label">Boxes sold</div>
-      </div>
-    </a>
-  </div>
-  <div class="col-6 col-xl-3">
-    <a class="card stat-card h-100 text-decoration-none text-body" routerLink="/performance">
-      <div class="stat-icon bg-success-subtle text-success"><i class="bi bi-headphones"></i></div>
-      <div>
-        <div class="stat-value">{{ salesLoaded() ? ((month()?.totals?.accessories ?? 0) | currency: 'USD' : 'symbol' : '1.0-0') : '–' }}</div>
-        <div class="stat-label">Accessories</div>
-      </div>
-    </a>
-  </div>
-  <div class="col-6 col-xl-3">
-    <a class="card stat-card h-100 text-decoration-none text-body" routerLink="/performance">
-      <div class="stat-icon bg-info-subtle text-info"><i class="bi bi-bag-check"></i></div>
-      <div>
-        <div class="stat-value">{{ salesLoaded() ? ((month()?.totals?.sales ?? 0) | number) : '–' }}</div>
-        <div class="stat-label">Sales logged</div>
-      </div>
-    </a>
-  </div>
-  <div class="col-6 col-xl-3">
-    <a class="card stat-card h-100 text-decoration-none text-body" routerLink="/eod">
-      <div class="stat-icon bg-warning-subtle text-warning"><i class="bi bi-patch-check"></i></div>
-      <div>
-        <div class="stat-value">{{ month()?.totals?.approvedReports ?? 0 }}<span class="fs-6 text-muted-2">/{{ month()?.totals?.reports ?? 0 }}</span></div>
-        <div class="stat-label">EODs approved</div>
-      </div>
-    </a>
-  </div>
-</div>
-
-<div class="row g-3 mb-4">
-  <!-- Today's close-out -->
-  <div class="col-lg-7">
-    <div class="card h-100">
-      <div class="card-header d-flex align-items-center flex-wrap gap-2">
-        <span class="fw-semibold"><i class="bi bi-safe me-1 text-primary"></i>Today's close-out</span>
-        @if (stores().length) {
-          <span class="badge rounded-pill text-bg-light border">{{ closedToday() }} of {{ stores().length }} submitted</span>
-        }
-        <a class="ms-auto small" routerLink="/eod">Open End of Day</a>
-      </div>
-      @if (stores().length) {
-        <div class="dash-progress" role="progressbar" [attr.aria-valuenow]="closedToday()" aria-valuemin="0" [attr.aria-valuemax]="stores().length">
-          <div [style.width.%]="(closedToday() / stores().length) * 100"></div>
-        </div>
-        <ul class="list-group list-group-flush dash-store-list">
-          @for (s of stores(); track s.storeId) {
-            <li class="list-group-item d-flex align-items-center gap-2">
-              <div class="min-w-0">
-                <div class="fw-semibold text-truncate">{{ s.storeName }}</div>
-                <div class="small text-muted-2 text-truncate">
-                  @if (auth.isAdmin()) { {{ s.areaName }} · }
-                  {{ s.sales }} sale{{ s.sales === 1 ? '' : 's' }}
-                  @if (s.submittedBy) { · by {{ s.submittedBy }} }
-                </div>
-              </div>
-              <div class="ms-auto text-end">
-                <div class="fw-semibold">{{ s.totalSale | currency }}</div>
-                <span class="badge {{ statusClass(s.status) }}">{{ s.status ? statusLabels[s.status] : 'Nothing logged' }}</span>
-              </div>
-            </li>
-          }
-        </ul>
-        <div class="card-footer small d-flex">
-          <span class="text-muted-2">Total sale today</span>
-          <span class="ms-auto fw-semibold">{{ salesToday() | currency }}</span>
-        </div>
-      } @else {
-        <div class="empty-state py-4"><i class="bi bi-shop"></i>No active stores yet.</div>
-      }
+@if (!loaded()) {
+  <div class="card mb-4"><div class="empty-state py-4"><div class="spinner-border text-primary"></div></div></div>
+} @else if (weeks().length === 0) {
+  <div class="card mb-4">
+    <div class="empty-state py-4">
+      <i class="bi bi-geo-alt"></i>No active areas yet.@if (auth.isAdmin()) { <a routerLink="/areas">Add one</a> }
     </div>
   </div>
+} @else {
+  <div class="row g-3 mb-4">
+    @for (w of weeks(); track w.area.id) {
+      <div class="col-md-6 col-xxl-4">
+        <article class="week-card">
+          <header class="week-card-head">
+            <span class="week-card-icon"><i class="bi bi-geo-alt-fill"></i></span>
+            <div class="min-w-0">
+              <div class="week-card-title text-truncate">{{ w.area.name }}</div>
+              <div class="small text-muted-2">{{ w.area.employeeCount }} on the team</div>
+            </div>
+          </header>
 
-  <!-- Top performers -->
-  <div class="col-lg-5">
-    <div class="card h-100">
-      <div class="card-header d-flex align-items-center">
-        <span class="fw-semibold"><i class="bi bi-trophy me-1 text-warning"></i>Top performers this month</span>
-        <a class="ms-auto small" routerLink="/performance">See all</a>
-      </div>
-      @if (topPerformers().length === 0) {
-        <div class="empty-state py-4"><i class="bi bi-bar-chart"></i>No sales logged this month yet.</div>
-      } @else {
-        <ol class="list-unstyled mb-0 p-3 dash-leaders">
-          @for (e of topPerformers(); track e.employeeId; let i = $index) {
-            <li>
-              <a class="dash-leader" [routerLink]="['/performance/employees', e.employeeId]">
-                <span class="dash-rank" [class.gold]="i === 0">{{ i + 1 }}</span>
-                <span class="flex-grow-1 min-w-0">
-                  <span class="d-flex">
-                    <span class="fw-semibold text-truncate">{{ e.name }}</span>
-                    <span class="ms-auto small text-nowrap"><strong>{{ e.boxes }}</strong> box{{ e.boxes === 1 ? '' : 'es' }} · {{ e.accessories | currency: 'USD' : 'symbol' : '1.0-0' }}</span>
-                  </span>
-                  <span class="dash-bar"><span [style.width.%]="(e.boxes / topBoxes()) * 100"></span></span>
-                </span>
-              </a>
-            </li>
+          <a class="week-line" [routerLink]="['/schedules']" [queryParams]="{ area: w.area.id, week: thisMonday }">
+            <div class="week-line-when">
+              <span class="week-line-tag">This week</span>
+              <span class="week-line-dates">{{ thisWeekLabel }}</span>
+            </div>
+            <div class="week-line-state">
+              <span class="sched-badge {{ weekState(w.thisWeek).css }}"><i class="bi {{ weekState(w.thisWeek).icon }}"></i>{{ weekState(w.thisWeek).label }}</span>
+              @if (w.thisWeek) {
+                @if (upcomingGaps(w.thisWeek); as g) {
+                  <span class="gap-pill"><i class="bi bi-exclamation-triangle-fill"></i>{{ g }} short</span>
+                } @else {
+                  <span class="ok-pill"><i class="bi bi-check2"></i>Covered</span>
+                }
+              }
+            </div>
+          </a>
+
+          <a class="week-line" [routerLink]="['/schedules']" [queryParams]="{ area: w.area.id, week: nextMonday }">
+            <div class="week-line-when">
+              <span class="week-line-tag is-next">Next week</span>
+              <span class="week-line-dates">{{ nextWeekLabel }}</span>
+            </div>
+            <div class="week-line-state">
+              <span class="sched-badge {{ weekState(w.nextWeek).css }}"><i class="bi {{ weekState(w.nextWeek).icon }}"></i>{{ weekState(w.nextWeek).label }}</span>
+              @if (w.nextWeek && upcomingGaps(w.nextWeek); as g) {
+                <span class="gap-pill"><i class="bi bi-exclamation-triangle-fill"></i>{{ g }} short</span>
+              }
+            </div>
+          </a>
+
+          @if (w.requests; as rq) {
+            <div class="week-picks">
+              <div class="d-flex small mb-1">
+                <span class="fw-semibold">Days off picked for next week</span>
+                <span class="ms-auto"><strong>{{ rq.sent }}</strong><span class="text-muted-2">/{{ rq.total }}</span></span>
+              </div>
+              <div class="week-picks-bar" role="progressbar" [attr.aria-valuenow]="rq.sent" aria-valuemin="0" [attr.aria-valuemax]="rq.total">
+                <span [style.width.%]="percent(rq.sent, rq.total)"></span>
+              </div>
+              @if (rq.missing.length) {
+                <div class="small text-muted-2 mt-1">{{ rq.missing.length }} still to pick</div>
+              }
+            </div>
           }
-        </ol>
-      }
-      @if (trend().length > 1) {
-        <div class="card-footer">
-          <div class="small text-muted-2 mb-1">Boxes per day</div>
-          <div class="dash-trend" aria-hidden="true">
-            @for (d of trend(); track d.date) {
-              <span [style.height.%]="(d.boxes / trendMax()) * 100 || 2" [attr.title]="format(d.date, { month: 'short', day: 'numeric' }) + ': ' + d.boxes"></span>
+        </article>
+      </div>
+    }
+  </div>
+}
+
+<div class="row g-3 mb-4">
+  <!-- On the floor today -->
+  <div class="col-lg-7">
+    <section class="card h-100 floor-card">
+      <div class="card-header d-flex align-items-center flex-wrap gap-2">
+        <span class="fw-semibold"><i class="bi bi-shop me-1 text-primary"></i>On the floor today</span>
+        @if (weeks().length > 1) {
+          <div class="area-chips ms-auto" role="tablist" aria-label="Area">
+            @for (w of weeks(); track w.area.id) {
+              <button type="button" class="area-chip" role="tab" [class.active]="floorWeek()?.area?.id === w.area.id"
+                      [attr.aria-selected]="floorWeek()?.area?.id === w.area.id" (click)="floorAreaId.set(w.area.id)">
+                {{ w.area.name }}
+              </button>
             }
           </div>
+        }
+      </div>
+      @if (!loaded()) {
+        <div class="empty-state py-4"><div class="spinner-border text-primary"></div></div>
+      } @else if (!floorWeek()?.thisWeek) {
+        <div class="empty-state py-4 do-empty">
+          <span class="do-empty-icon"><i class="bi bi-calendar-plus"></i></span>
+          <strong>No schedule for this week yet</strong>
+          @if (floorWeek(); as fw) {
+            <a class="small" [routerLink]="['/schedules']" [queryParams]="{ area: fw.area.id, week: thisMonday }">Make it now</a>
+          }
         </div>
+      } @else if (floor().length === 0) {
+        <div class="empty-state py-4"><i class="bi bi-shop"></i>No stores in this area yet.</div>
+      } @else {
+        <ul class="floor-list">
+          @for (st of floor(); track st.storeId) {
+            <li class="floor-store" [class.is-short]="st.short" [class.is-closed]="st.closed" [style.--store-color]="st.color">
+              <div class="floor-store-head">
+                <span class="floor-store-name">{{ st.name }}</span>
+                <span class="floor-store-hours">{{ st.closed ? 'Closed today' : hoursLabel(st.hours) }}</span>
+                @if (!st.closed) {
+                  <span class="floor-count" [class.is-short]="st.short"
+                        [attr.title]="st.short ? (st.min - st.people.length) + ' more needed' : null">
+                    {{ st.people.length }}@if (st.min > 0) {<small>/{{ st.min }}</small>}
+                  </span>
+                }
+              </div>
+              @if (st.people.length) {
+                <div class="floor-people">
+                  @for (p of st.people; track p.id) {
+                    <span class="floor-person" [attr.title]="p.name">
+                      <span class="floor-avatar">{{ initials(p.name) }}</span>{{ shortName(p.name) }}
+                    </span>
+                  }
+                </div>
+              } @else if (!st.closed) {
+                <div class="small text-danger"><i class="bi bi-exclamation-circle me-1"></i>Nobody scheduled</div>
+              }
+            </li>
+          }
+        </ul>
+        @if (floorOff().length) {
+          <div class="card-footer floor-off">
+            <i class="bi bi-moon me-1"></i><span class="fw-semibold">Off today:</span>
+            @for (n of floorOff(); track n; let last = $last) { {{ shortName(n) }}{{ last ? '' : ', ' }} }
+          </div>
+        }
       }
-    </div>
+    </section>
   </div>
-</div>
 
-<!-- Workforce -->
-<div class="d-flex align-items-baseline mb-2">
-  <h3 class="dash-section-title mb-0">Workforce</h3>
-</div>
-<div class="row g-3 mb-3">
-  <div class="col-6 col-xl-3">
-    <div class="card stat-card h-100">
-      <div class="stat-icon bg-primary-subtle text-primary"><i class="bi bi-geo-alt"></i></div>
-      <div>
-        <div class="stat-value">{{ activeAreas().length }}</div>
-        <div class="stat-label">Active areas</div>
-      </div>
-    </div>
-  </div>
-  <div class="col-6 col-xl-3">
-    <div class="card stat-card h-100">
-      <div class="stat-icon bg-success-subtle text-success"><i class="bi bi-people"></i></div>
-      <div>
-        <div class="stat-value">{{ totalStaff() }}</div>
-        <div class="stat-label">Active staff</div>
-      </div>
-    </div>
-  </div>
-  <div class="col-6 col-xl-3">
-    <a class="card stat-card h-100 text-decoration-none text-body" routerLink="/day-off-requests">
-      <div class="stat-icon bg-warning-subtle text-warning"><i class="bi bi-hourglass-split"></i></div>
-      <div>
-        <div class="stat-value">{{ pending().length }}</div>
-        <div class="stat-label">Pending day-off requests</div>
-      </div>
-    </a>
-  </div>
-  <div class="col-6 col-xl-3">
-    <a class="card stat-card h-100 text-decoration-none text-body" routerLink="/schedules">
-      <div class="stat-icon bg-info-subtle text-info"><i class="bi bi-calendar3-week"></i></div>
-      <div>
-        <div class="stat-value stat-value-text">Weekly schedule</div>
-        <div class="stat-label">Generate &amp; publish →</div>
-      </div>
-    </a>
-  </div>
-</div>
-
-<div class="row g-3">
-  <div class="col-lg-5">
-    <div class="card h-100">
-      <div class="card-header fw-semibold">Staff by area</div>
-      <div class="card-body">
-        @if (loaded() && activeAreas().length === 0) {
-          <div class="empty-state py-4">
-            <i class="bi bi-geo-alt"></i>No areas yet.@if (auth.isAdmin()) { <a routerLink="/areas">Add one</a> }
-          </div>
-        }
-        @for (a of activeAreas(); track a.id) {
-          <div class="mb-3">
-            <div class="d-flex justify-content-between small mb-1">
-              <a [routerLink]="['/schedules']" [queryParams]="{ area: a.id }" class="fw-semibold text-body text-decoration-none">
-                {{ a.name }}
-              </a>
-              <span class="text-muted-2">{{ a.employeeCount }}</span>
-            </div>
-            <div class="progress" style="height: 8px">
-              <div class="progress-bar" [style.width.%]="(a.employeeCount / largestArea()) * 100"></div>
-            </div>
-          </div>
-        }
-      </div>
-    </div>
-  </div>
-  <div class="col-lg-7">
-    <div class="card h-100">
+  <div class="col-lg-5 d-flex flex-column gap-3">
+    <!-- Emergency requests -->
+    <section class="card">
       <div class="card-header d-flex align-items-center">
-        <span class="fw-semibold">Waiting for approval</span>
+        <span class="fw-semibold"><i class="bi bi-exclamation-octagon me-1 text-danger"></i>Emergency requests</span>
         <a class="ms-auto small" routerLink="/day-off-requests">View all</a>
       </div>
-      @if (pending().length === 0) {
-        <div class="empty-state py-4"><i class="bi bi-check2-circle"></i>No pending requests.</div>
+      @if (emergencies().length === 0) {
+        <div class="empty-state py-4"><i class="bi bi-check2-circle"></i>Nothing waiting for a decision.</div>
       } @else {
         <ul class="list-group list-group-flush">
-          @for (r of pending().slice(0, 6); track r.id) {
-            <li class="list-group-item d-flex align-items-center">
-              <div>
-                <div class="fw-semibold">
-                  {{ r.employeeName }}
-                  @if (r.emergency) { <span class="emergency-badge"><i class="bi bi-exclamation-octagon-fill"></i> Emergency</span> }
-                </div>
-                <div class="small text-muted-2">{{ r.areaName }} · {{ r.reason || 'No reason given' }}</div>
-              </div>
-              <span class="ms-auto badge status-badge status-PENDING">
-                {{ format(r.date, { weekday: 'short', month: 'short', day: 'numeric' }) }}
+          @for (r of emergencies(); track r.id) {
+            <li class="list-group-item d-flex align-items-center gap-3">
+              <span class="mini-date">
+                <span>{{ format(r.date, { weekday: 'short' }) }}</span>
+                <strong>{{ format(r.date, { day: 'numeric' }) }}</strong>
               </span>
+              <div class="min-w-0">
+                <div class="fw-semibold text-truncate">{{ r.employeeName }}</div>
+                <div class="small text-muted-2 text-truncate">
+                  @if (auth.isAdmin()) { {{ r.areaName }} · } {{ r.reason || 'No reason given' }}
+                </div>
+              </div>
+              <span class="ms-auto badge status-badge status-PENDING">Waiting</span>
+            </li>
+          }
+        </ul>
+        @if (emergencyCount() > emergencies().length) {
+          <div class="card-footer small text-center"><a routerLink="/day-off-requests">{{ emergencyCount() - emergencies().length }} more</a></div>
+        }
+      }
+    </section>
+
+    <!-- Upcoming birthdays -->
+    <section class="card flex-grow-1">
+      <div class="card-header d-flex align-items-center">
+        <span class="fw-semibold"><i class="bi bi-cake2 me-1 text-danger"></i>Birthdays</span>
+        <span class="small text-muted-2 ms-2">Next 30 days</span>
+      </div>
+      @if (birthdaysLoaded() && birthdays().length === 0) {
+        <div class="empty-state py-4">
+          <i class="bi bi-cake2"></i>No birthdays in the next 30 days.
+        </div>
+      } @else {
+        <ul class="list-group list-group-flush">
+          @for (b of birthdays(); track b.employeeId) {
+            <li class="list-group-item d-flex align-items-center gap-3" [class.bday-today]="b.daysUntil === 0">
+              <span class="floor-avatar is-lg" [class.is-hot]="b.daysUntil <= 7">{{ initials(b.fullName) }}</span>
+              <div class="min-w-0">
+                <div class="fw-semibold text-truncate">{{ b.fullName }}</div>
+                <div class="small text-muted-2 text-truncate">
+                  {{ b.homeStoreName || 'No home store' }}@if (auth.isAdmin() && b.areaName) { · {{ b.areaName }} } · turning {{ b.turning }}
+                </div>
+              </div>
+              <div class="ms-auto text-end text-nowrap">
+                <div class="small fw-semibold">{{ format(b.nextBirthday, { month: 'short', day: 'numeric' }) }}</div>
+                <span class="badge" [class]="b.daysUntil === 0 ? 'text-bg-danger' : b.daysUntil <= 7 ? 'text-bg-warning' : 'text-bg-light border'">
+                  {{ whenLabel(b.daysUntil) }}
+                </span>
+              </div>
             </li>
           }
         </ul>
       }
-    </div>
+    </section>
   </div>
-</div>
-
-<!-- Upcoming birthdays -->
-<div class="d-flex align-items-baseline mt-4 mb-2">
-  <h3 class="dash-section-title mb-0">Upcoming birthdays</h3>
-  <span class="small text-muted-2 ms-2">Next 30 days</span>
-  <a class="ms-auto small" routerLink="/employees">Staff list <i class="bi bi-arrow-right"></i></a>
-</div>
-<div class="card mb-4">
-  @if (birthdaysLoaded() && birthdays().length === 0) {
-    <div class="empty-state py-4">
-      <i class="bi bi-cake2"></i>No birthdays in the next 30 days.
-      <div class="small text-muted-2 mt-1">Add birth dates on the Employees page to get reminders.</div>
-    </div>
-  } @else {
-    <ul class="list-group list-group-flush">
-      @for (b of birthdays(); track b.employeeId) {
-        <li class="list-group-item d-flex align-items-center gap-3" [class.bg-danger-subtle]="b.daysUntil === 0">
-          <span class="stat-icon flex-shrink-0" [class]="b.daysUntil <= 7 ? 'bg-danger-subtle text-danger' : 'bg-primary-subtle text-primary'">
-            <i class="bi" [class]="b.daysUntil === 0 ? 'bi-cake2-fill' : 'bi-cake2'"></i>
-          </span>
-          <div class="min-w-0">
-            <div class="fw-semibold text-truncate">{{ b.fullName }}</div>
-            <div class="small text-muted-2 text-truncate">
-              {{ b.homeStoreName || 'No home store' }}@if (auth.isAdmin() && b.areaName) { · {{ b.areaName }} }
-              · turning {{ b.turning }}
-            </div>
-          </div>
-          <div class="ms-auto text-end text-nowrap">
-            <div class="fw-semibold">{{ format(b.nextBirthday, { weekday: 'short', month: 'short', day: 'numeric' }) }}</div>
-            <span class="badge" [class]="b.daysUntil === 0 ? 'text-bg-danger' : b.daysUntil <= 7 ? 'text-bg-warning' : 'text-bg-light border'">
-              {{ whenLabel(b.daysUntil) }}
-            </span>
-          </div>
-        </li>
-      }
-    </ul>
-  }
 </div>

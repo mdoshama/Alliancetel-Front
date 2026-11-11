@@ -48,6 +48,8 @@ const GRID: Rgb = [203, 213, 225];
  * store. Every page has a footer with page numbers. jsPDF loads only when someone asks for the PDF.
  */
 export async function buildSchedulePdf(s: Schedule): Promise<Blob> {
+  // Team members A to Z, the same order as the schedule page.
+  s = { ...s, rows: [...s.rows].sort((a, b) => a.employeeName.localeCompare(b.employeeName, undefined, { sensitivity: 'base' })) };
   const [{ jsPDF }, { autoTable }] = await Promise.all([import('jspdf'), import('jspdf-autotable')]);
   const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'letter' });
   const pageWidth = doc.internal.pageSize.getWidth();

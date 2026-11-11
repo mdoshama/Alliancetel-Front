@@ -623,7 +623,7 @@
                 [ngModel]="storeFilter()" (ngModelChange)="storeFilter.set($event)">
           <option [ngValue]="null">All stores</option>
           @for (st of s.stores; track st.id) {
-            <option [ngValue]="st.id">{{ st.name }} ({{ st.label }})</option>
+            <option [ngValue]="st.id">{{ st.name }}</option>
           }
         </select>
       }
@@ -690,9 +690,9 @@
                       <div class="fw-semibold"><span class="store-dot me-1" [style.--store-color]="st.color"></span>{{ st.name }}</div>
                       <div class="small text-muted-2">{{ st.min > 0 ? 'Needs ' + st.min + ' a day' : 'No minimum' }}</div>
                     </div>
-                    <!-- Phones: just the store's code in its color, so the week gets the room. -->
+                    <!-- Phones: the store's name in its color, in a narrow column so the week gets the room. -->
                     <div class="sb-compact" [style.--store-color]="st.color" [attr.title]="st.name">
-                      <span class="sb-code">{{ st.code }}</span>
+                      <span class="sb-code">{{ st.name }}</span>
                       @if (st.min > 0) { <span class="sb-min">min {{ st.min }}</span> }
                     </div>
                   } @else {
@@ -799,19 +799,7 @@
             </tr>
           </thead>
           <tbody>
-            @for (row of visibleRows(); track row.employeeId; let i = $index) {
-              @if (groupStarts(i); as g) {
-                <!-- Store by store: its primary, then its secondary; floaters after the stores. -->
-                <tr class="store-group-row">
-                  <td [attr.colspan]="s.dates.length + 2">
-                    @if (g.storeId) {
-                      <span class="store-dot" [style.--store-color]="storeColor(g.storeId)"></span>{{ g.name }}
-                    } @else {
-                      <i class="bi bi-shuffle me-1"></i>{{ g.name }}
-                    }
-                  </td>
-                </tr>
-              }
+            @for (row of visibleRows(); track row.employeeId) {
               <tr [class.is-me]="row.employeeId === auth.user()?.id">
                 <td>
                   <div class="emp-cell" [attr.title]="auth.isEmployee() ? row.employeeName : personTitle(row)">
@@ -1031,7 +1019,7 @@
               <option [ngValue]="null" disabled>Select a store…</option>
               @for (st of schedule()?.stores ?? []; track st.id) {
                 <option [ngValue]="st.id" [disabled]="storeClosedOn(st, e.dayIndex)">
-                  {{ st.name }} ({{ st.label }}) — {{ storeOptionNote(st, e.dayIndex) }}
+                  {{ st.name }} — {{ storeOptionNote(st, e.dayIndex) }}
                 </option>
               }
             </select>
@@ -1098,7 +1086,7 @@
               <select id="weekStore" class="form-select mt-1" [(ngModel)]="weekStoreId">
                 <option [ngValue]="null" disabled>Select a store…</option>
                 @for (st of schedule()?.stores ?? []; track st.id) {
-                  <option [ngValue]="st.id">{{ st.name }} ({{ st.label }})</option>
+                  <option [ngValue]="st.id">{{ st.name }}</option>
                 }
               </select>
             </div>

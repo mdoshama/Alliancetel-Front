@@ -45,7 +45,7 @@ export const routes: Routes = [
       {
         path: 'eod',
         title: 'End of Day · AllianceTel',
-        data: { heading: 'End of Day', roles: ['ADMIN', 'MANAGER', 'EMPLOYEE'] },
+        data: { heading: 'End of Day', roles: ['ADMIN'] },
         loadComponent: () => import('./features/eod/eod-page').then((m) => m.EodPage),
       },
       {
@@ -69,20 +69,20 @@ export const routes: Routes = [
       {
         path: 'performance',
         title: 'Performance · AllianceTel',
-        data: { heading: 'Performance', roles: ['ADMIN', 'MANAGER'] },
+        data: { heading: 'Performance', roles: ['ADMIN'] },
         loadComponent: () => import('./features/performance/performance-page').then((m) => m.PerformancePage),
       },
       {
         path: 'performance/employees/:id',
         title: 'Employee performance · AllianceTel',
-        data: { heading: 'Employee performance', roles: ['ADMIN', 'MANAGER'] },
+        data: { heading: 'Employee performance', roles: ['ADMIN'] },
         loadComponent: () =>
           import('./features/performance/employee-performance-page').then((m) => m.EmployeePerformancePage),
       },
       {
         path: 'my-performance',
         title: 'My Performance · AllianceTel',
-        data: { heading: 'My Performance', roles: ['ADMIN', 'MANAGER', 'EMPLOYEE'] },
+        data: { heading: 'My Performance', roles: ['ADMIN'] },
         loadComponent: () =>
           import('./features/performance/employee-performance-page').then((m) => m.EmployeePerformancePage),
       },
@@ -107,7 +107,7 @@ export const routes: Routes = [
       {
         path: 'time-clock',
         title: 'Time Clock · AllianceTel',
-        data: { heading: 'Time Clock', roles: ['ADMIN', 'MANAGER', 'BACK_OFFICE'] },
+        data: { heading: 'Time Clock', roles: ['ADMIN', 'BACK_OFFICE'] },
         loadComponent: () => import('./features/time-clock/time-clock-page').then((m) => m.TimeClockPage),
       },
       {

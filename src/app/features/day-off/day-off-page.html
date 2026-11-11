@@ -241,11 +241,13 @@
   <div class="mb-2 d-flex align-items-center justify-content-between">
     <span class="form-label mb-0">Week</span>
     <div class="week-nav">
-      <button type="button" class="btn btn-sm btn-light border" (click)="shiftFormWeek(-1)" aria-label="Previous week">
+      <button type="button" class="btn btn-sm btn-light border" (click)="shiftFormWeek(-1)" aria-label="Previous week"
+              [disabled]="!canPrevWeek()">
         <i class="bi bi-chevron-left"></i>
       </button>
       <span class="week-label small">{{ formWeekLabel() }}</span>
-      <button type="button" class="btn btn-sm btn-light border" (click)="shiftFormWeek(1)" aria-label="Next week">
+      <button type="button" class="btn btn-sm btn-light border" (click)="shiftFormWeek(1)" aria-label="Next week"
+              [disabled]="!canNextWeek()" [attr.title]="canNextWeek() ? null : 'You can ask up to 2 weeks ahead'">
         <i class="bi bi-chevron-right"></i>
       </button>
     </div>
@@ -254,7 +256,7 @@
     @if (w.enabled && !formEmergency()) {
       @if (w.openWeeks.length === 0) {
         <div class="alert alert-warning small py-2 mb-2">
-          <i class="bi bi-lock me-1"></i>Day-off requests are closed right now. For something urgent, send an emergency request.
+          <i class="bi bi-lock me-1"></i>Day-off requests are closed right now. For something urgent, send an emergency request below.
         </div>
       } @else {
         <div class="alert alert-info small py-2 mb-2">
@@ -306,33 +308,56 @@
   <div class="day-toggle-group mb-2">
     @for (d of formWeekDates(); track d) {
       <button type="button" class="btn day-pick"
-              [class.is-picked]="formDays().has(d)"
-              [class.is-emergency]="formDays().has(d) && formEmergency()"
+              [class.is-picked]="formDays().has(d) || formEmergencyDays().has(d)"
+              [class.is-emergency]="(formDays().has(d) && formEmergency()) || formEmergencyDays().has(d)"
               [class.is-full]="!!takenBy(d) && !formDays().has(d)"
-              [class.is-available]="!takenBy(d) && !formDays().has(d) && !dayDisabled(d) && !isMyRegular(d)"
+              [class.is-available]="!takenBy(d) && !formDays().has(d) && !formEmergencyDays().has(d) && !dayDisabled(d) && !isMyRegular(d) && !overflowsToEmergency()"
               [class.is-regular]="isMyRegular(d) && !formDays().has(d)"
               [disabled]="dayDisabled(d)"
               [attr.title]="takenTitle(d)"
               (click)="toggleDay(d)">
         {{ format(d, { weekday: 'short' }) }}
         <small>{{ format(d, { month: 'numeric', day: 'numeric' }) }}</small>
-        @if (formDays().has(d)) { <small class="pick-state"><i class="bi bi-check-lg"></i></small> }
+        @if (formEmergencyDays().has(d)) { <small class="pick-state"><i class="bi bi-exclamation-octagon-fill"></i> Emergency</small> }
+        @else if (formDays().has(d)) { <small class="pick-state"><i class="bi bi-check-lg"></i></small> }
+        @else if (myRequestOn(d); as mine) {
+          @if (!mine.reserved) { <small class="taken-by">{{ mine.status === 'APPROVED' ? 'Yours' : mine.status === 'PENDING' ? 'Waiting' : 'Not given' }}</small> }
+          @else if (isMyRegular(d)) { <small class="regular-by"><i class="bi bi-arrow-repeat"></i> Regular</small> }
+          @else { <small class="reserved-by">Reserved</small> }
+        }
         @else if (takenBy(d); as label) { <small class="taken-by">{{ label }}</small> }
         @else if (isMyRegular(d)) { <small class="regular-by"><i class="bi bi-arrow-repeat"></i> Regular</small> }
+        @else if (!dayDisabled(d) && overflowsToEmergency()) { <small class="pick-state">Emergency?</small> }
         @else if (!dayDisabled(d)) { <small class="pick-state">Open</small> }
         @else if (isMyReserved(d)) { <small class="reserved-by">Reserved</small> }
       </button>
     }
   </div>
+  @if (formEmergencyDays().size && !formEmergency()) {
+    <p class="small text-danger mb-2">
+      <i class="bi bi-exclamation-octagon me-1"></i>
+      @for (d of formEmergencyDays(); track d; let last = $last) {
+        <strong>{{ format(d, { weekday: 'short', month: 'short', day: 'numeric' }) }}</strong>{{ last ? '' : ', ' }}
+      }
+      will be sent as an emergency request. A manager approves it.
+    </p>
+  }
   @if (formEmergency()) {
     <p class="small text-danger mb-3">
       <i class="bi bi-exclamation-octagon me-1"></i>Emergency: any day can be picked. A manager approves it.
     </p>
   } @else {
-    <div class="day-pick-key mb-3">
+    <div class="day-pick-key mb-2">
       <span><i class="bi bi-square-fill text-success"></i> Open</span>
       <span><i class="bi bi-square-fill" style="color: #7f1d1d"></i> Full</span>
     </div>
+    @if (formEmployeeId() && !(formOverride() && canOverride())) {
+      <p class="small text-muted-2 mb-3">
+        <i class="bi bi-info-circle me-1"></i>
+        {{ selfService() || auth.isEmployee() ? 'You can' : 'They can' }} take {{ maxDaysPerWeek() }} day{{ maxDaysPerWeek() === 1 ? '' : 's' }} off a week.
+        Pick another day after that and you'll be asked whether to send it as an emergency request.
+      </p>
+    }
   }
   @if (canOverride()) {
     <div class="override-toggle mb-3" [class.on]="formOverride()">
@@ -347,6 +372,7 @@
       </div>
     </div>
   }
+  @if (emergencyAvailable()) {
   <div class="emergency-toggle mb-3" [class.on]="formEmergency()">
     <div class="form-check form-switch mb-0">
       <input class="form-check-input" type="checkbox" role="switch" id="nEmergency"
@@ -361,6 +387,11 @@
       <div class="small text-danger mt-1"><i class="bi bi-info-circle me-1"></i>You've already used this month's emergency request.</div>
     }
   </div>
+  } @else if (selfService() && formWeekLoaded()) {
+    <p class="small text-muted-2 mb-3">
+      <i class="bi bi-info-circle me-1"></i>This week still has open days. Emergency requests are only for weeks that are full.
+    </p>
+  }
   <div>
     <label class="form-label" for="nReason">Reason <span class="text-muted-2 small">(optional)</span></label>
     <input id="nReason" class="form-control" maxlength="255" autocomplete="off" [(ngModel)]="formReason"
@@ -369,9 +400,10 @@
   </div>
   <ng-container modal-footer>
     <button type="button" class="btn btn-light" (click)="modalOpen.set(false)">Cancel</button>
-    <button type="button" class="btn btn-primary" [disabled]="saving() || !formEmployeeId() || formDays().size === 0 || !!reasonError()" (click)="submit()">
+    <button type="button" class="btn btn-primary" [disabled]="saving() || !formEmployeeId() || (formDays().size === 0 && formEmergencyDays().size === 0) || !!reasonError()" (click)="submit()">
       @if (saving()) { <span class="spinner-border spinner-border-sm me-1"></span> }
-      {{ formOverride() && canOverride() ? 'Give day off' : formEmergency() ? 'Send for approval' : 'Take day off' }}
+      {{ formOverride() && canOverride() ? 'Give day off' : formEmergency() || formDays().size === 0 ? 'Send for approval'
+        : formEmergencyDays().size ? 'Take day off + send emergency' : 'Take day off' }}
     </button>
   </ng-container>
 </app-modal>

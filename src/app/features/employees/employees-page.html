@@ -116,7 +116,7 @@
               <td style="min-width: 190px">
                 <div class="fw-semibold">
                   @if (e.role !== 'ADMIN') {
-                    <a [routerLink]="['/performance/employees', e.id]" class="text-decoration-none" title="See their sales performance">{{ e.fullName }}</a>
+                    {{ e.fullName }}
                   } @else { {{ e.fullName }} }
                   @if (birthdaySoon().get(e.id); as days) {
                     <i class="bi bi-cake2 text-danger ms-1" [attr.title]="birthdayTitle(days)" [attr.aria-label]="birthdayTitle(days)"></i>

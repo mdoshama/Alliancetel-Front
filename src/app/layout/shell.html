@@ -51,7 +51,7 @@
             <div class="user-menu-backdrop" (click)="menuOpen.set(false)"></div>
             <div class="dropdown-menu dropdown-menu-end show user-menu-panel">
               <div class="px-3 py-2 small text-muted-2 border-bottom mb-1">{{ user.email }}</div>
-              @if (user.role !== 'ADMIN') {
+              @if (user.role !== 'ADMIN' && user.role !== 'EMPLOYEE') {
                 <div class="px-3 pt-2 wa-optin">
                   <div class="small fw-semibold text-muted-2 mb-1">Schedule updates</div>
                   <div class="form-check form-switch mb-0">

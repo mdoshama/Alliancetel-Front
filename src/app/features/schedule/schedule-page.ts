@@ -182,7 +182,7 @@ export class SchedulePage implements OnInit {
       .filter((r) => r.employeeId !== e.row.employeeId)
       .map((r) => ({ row: r, cell: r.days[e.dayIndex] }))
       .filter((c) => c.cell.type === 'WORK' && c.cell.storeId !== e.cell.storeId)
-      .sort((a, b) => (a.cell.storeLabel ?? '~').localeCompare(b.cell.storeLabel ?? '~'));
+      .sort((a, b) => (a.cell.storeName ?? '~').localeCompare(b.cell.storeName ?? '~'));
   });
 
   // ---------- "By store" view ----------
@@ -330,31 +330,19 @@ export class SchedulePage implements OnInit {
     this.run(this.api.updateScheduleEntry(s.id, row.days[dayIndex].entryId, 'OFF', null), `${first} is off on ${day}.`);
   }
 
+  /** Everyone on the week, A to Z by name, so a person is quick to find. */
   protected readonly visibleRows = computed(() => {
     const rows = this.schedule()?.rows ?? [];
     const store = this.storeFilter();
     const q = this.personSearch();
-    return rows.filter(
-      (r) =>
-        (store == null || r.days.some((c) => c.type === 'WORK' && c.storeId === store)) &&
-        matchesSearch(q, r.employeeName, r.employeeCode),
-    );
+    return rows
+      .filter(
+        (r) =>
+          (store == null || r.days.some((c) => c.type === 'WORK' && c.storeId === store)) &&
+          matchesSearch(q, r.employeeName, r.employeeCode),
+      )
+      .sort((a, b) => a.employeeName.localeCompare(b.employeeName, undefined, { sensitivity: 'base' }));
   });
-
-  /**
-   * Where a new store group starts in the grid (rows come store by store, primary then secondary, floaters last):
-   * the store's name for a header row, or null. Only when the whole team is listed, not while filtering.
-   */
-  protected groupStarts(i: number): { storeId: number | null; name: string } | null {
-    if (this.storeFilter() != null || this.personSearch().trim()) return null;
-    const rows = this.visibleRows();
-    const row = rows[i];
-    const home = row.storeRole === 'FLOATER' || row.homeStoreId == null ? null : row.homeStoreId;
-    const prev = i > 0 ? rows[i - 1] : null;
-    const prevHome = prev == null ? undefined : prev.storeRole === 'FLOATER' || prev.homeStoreId == null ? null : prev.homeStoreId;
-    if (prev != null && prevHome === home) return null;
-    return home == null ? { storeId: null, name: 'Floaters' } : { storeId: home, name: row.homeStoreName ?? 'Store' };
-  }
 
   /** Finds people on the grid by name or code; in the By store view, others are dimmed. */
   protected readonly personSearch = signal('');

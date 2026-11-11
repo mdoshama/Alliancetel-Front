@@ -25,12 +25,15 @@ interface NavSection {
 }
 
 const ALL: Role[] = ['ADMIN', 'MANAGER', 'EMPLOYEE'];
+/** Menu items switched off for now (EOD, commission, performance, devices). */
+const HIDDEN: Role[] = [];
 const SECTIONS: NavSection[] = [
   {
     title: 'Overview',
     items: [
       { label: 'Dashboard', icon: 'bi-grid-1x2', path: '/dashboard', roles: ['ADMIN', 'MANAGER'] },
-      { label: 'Performance', icon: 'bi-graph-up-arrow', path: '/performance', roles: ['ADMIN', 'MANAGER'] },
+      // EOD, commission and performance are switched off for now (roles: HIDDEN). Give the roles back to show them.
+      { label: 'Performance', icon: 'bi-graph-up-arrow', path: '/performance', roles: HIDDEN },
     ],
   },
   {
@@ -41,15 +44,14 @@ const SECTIONS: NavSection[] = [
       { label: 'Employees', icon: 'bi-people', path: '/employees', roles: ['ADMIN'] },
       { label: 'My Team', icon: 'bi-people', path: '/employees', roles: ['MANAGER'] },
       { label: 'Messages', icon: 'bi-chat-dots', path: '/messages', roles: ['ADMIN', 'MANAGER'] },
-      { label: 'Time Clock', icon: 'bi-clock-history', path: '/time-clock', roles: ['ADMIN', 'MANAGER', 'BACK_OFFICE'] },
+      { label: 'Time Clock', icon: 'bi-clock-history', path: '/time-clock', roles: ['ADMIN', 'BACK_OFFICE'] },
     ],
   },
   {
     title: 'Sales & Operations',
     items: [
-      { label: 'End of Day', icon: 'bi-receipt', path: '/eod', roles: ALL },
-      { label: 'My Performance', icon: 'bi-graph-up-arrow', path: '/my-performance', roles: ['EMPLOYEE'] },
-      { label: 'Commission', icon: 'bi-cash-coin', path: '/commission', roles: ['ADMIN'] },
+      { label: 'End of Day', icon: 'bi-receipt', path: '/eod', roles: HIDDEN },
+            { label: 'Commission', icon: 'bi-cash-coin', path: '/commission', roles: HIDDEN },
     ],
   },
   {
@@ -57,7 +59,7 @@ const SECTIONS: NavSection[] = [
     items: [
       { label: 'Areas', icon: 'bi-geo-alt', path: '/areas', roles: ['ADMIN'] },
       { label: 'Stores', icon: 'bi-shop', path: '/stores', roles: ALL },
-      { label: 'Devices', icon: 'bi-phone', path: '/devices', roles: ['ADMIN'] },
+      { label: 'Devices', icon: 'bi-phone', path: '/devices', roles: HIDDEN },
     ],
   },
 ];

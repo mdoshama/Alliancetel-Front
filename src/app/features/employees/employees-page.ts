@@ -1,4 +1,3 @@
-import { RouterLink } from '@angular/router';
 import { DestroyRef, Component, OnInit, computed, inject, input, signal } from '@angular/core';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { DatePipe } from '@angular/common';
@@ -32,7 +31,7 @@ import {
 
 @Component({
   selector: 'app-employees-page',
-  imports: [ReactiveFormsModule, FormsModule, Modal, DatePipe, Pagination, RouterLink],
+  imports: [ReactiveFormsModule, FormsModule, Modal, DatePipe, Pagination],
   templateUrl: './employees-page.html',
 })
 export class EmployeesPage implements OnInit {
