@@ -46,12 +46,12 @@ export class DayOffPage implements OnInit {
    * Managers: only emergencies, waiting and past (everything else the system checks and gives when the stores stay
    * covered, so it isn't listed). Employees: their days off, what's waiting, what wasn't given.
    */
-  protected readonly tabs: { value: StatusTab; label: string; hint: string }[] = this.auth.canManage()
+  protected readonly tabs: { value: StatusTab; label: string; hint: string; short?: string }[] = this.auth.canManage()
     ? [
         { value: 'PENDING', label: 'Pending', hint: 'Emergency requests waiting for a manager or admin' },
         { value: 'APPROVED', label: 'Approved', hint: 'Emergency requests that were approved' },
         { value: 'REJECTED', label: 'Rejected', hint: 'Emergency requests that were turned down' },
-        { value: 'ALL', label: 'All requested', hint: 'Every emergency request: waiting, approved and rejected' },
+        { value: 'ALL', label: 'All requested', short: 'All', hint: 'Every emergency request: waiting, approved and rejected' },
       ]
     : [
         { value: 'ALL', label: 'My days off', hint: 'Every day off you have or asked for' },

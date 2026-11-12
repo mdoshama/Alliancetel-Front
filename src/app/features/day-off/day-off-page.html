@@ -4,7 +4,7 @@
     @for (t of tabs; track t.value) {
       <button type="button" role="tab" class="do-tab" [class.active]="status() === t.value" [attr.aria-selected]="status() === t.value"
               [attr.title]="t.hint" (click)="setTab(t.value)">
-        {{ t.label }}
+        @if (t.short) { <span class="d-none d-sm-inline">{{ t.label }}</span><span class="d-sm-none">{{ t.short }}</span> } @else { {{ t.label }} }
         @if (tabCounts()[t.value]; as n) { <span class="tab-count" [class.is-urgent]="t.value === 'PENDING'">{{ n }}</span> }
       </button>
     }
@@ -387,10 +387,6 @@
       <div class="small text-danger mt-1"><i class="bi bi-info-circle me-1"></i>You've already used this month's emergency request.</div>
     }
   </div>
-  } @else if (selfService() && formWeekLoaded()) {
-    <p class="small text-muted-2 mb-3">
-      <i class="bi bi-info-circle me-1"></i>This week still has open days. Emergency requests are only for weeks that are full.
-    </p>
   }
   <div>
     <label class="form-label" for="nReason">Reason <span class="text-muted-2 small">(optional)</span></label>
@@ -402,7 +398,7 @@
     <button type="button" class="btn btn-light" (click)="modalOpen.set(false)">Cancel</button>
     <button type="button" class="btn btn-primary" [disabled]="saving() || !formEmployeeId() || (formDays().size === 0 && formEmergencyDays().size === 0) || !!reasonError()" (click)="submit()">
       @if (saving()) { <span class="spinner-border spinner-border-sm me-1"></span> }
-      {{ formOverride() && canOverride() ? 'Give day off' : formEmergency() || formDays().size === 0 ? 'Send for approval'
+      {{ formOverride() && canOverride() ? 'Give day off' : formEmergency() || (formDays().size === 0 && formEmergencyDays().size > 0) ? 'Send for approval'
         : formEmergencyDays().size ? 'Take day off + send emergency' : 'Take day off' }}
     </button>
   </ng-container>

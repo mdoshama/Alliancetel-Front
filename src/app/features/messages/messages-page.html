@@ -1,195 +1,216 @@
+<!-- Channels: how updates reach people, and anything that needs attention -->
 @if (status(); as s) {
+  <section class="msg-channels mb-3" aria-label="Channels">
+    <div class="msg-channel ch-email" [class.is-on]="s.emailConnected">
+      <span class="msg-channel-icon"><i class="bi bi-envelope-fill"></i></span>
+      <div class="min-w-0">
+        <div class="msg-channel-name">Email</div>
+        <div class="msg-channel-state text-truncate">
+          <span class="dot"></span>{{ s.emailConnected ? 'Connected' : 'Not connected' }}
+          @if (s.emailOff) { <span class="msg-channel-extra">· {{ s.emailOff }} turned off</span> }
+        </div>
+      </div>
+    </div>
+    <div class="msg-channel ch-whatsapp" [class.is-on]="s.connected">
+      <span class="msg-channel-icon"><i class="bi bi-whatsapp"></i></span>
+      <div class="min-w-0">
+        <div class="msg-channel-name">WhatsApp</div>
+        <div class="msg-channel-state text-truncate">
+          <span class="dot"></span>{{ s.connected ? 'Connected' : 'Not connected' }}
+          @if (s.connected && s.whatsappProvider === 'twilio') {
+            <span class="msg-channel-extra">· {{ s.sandboxNumber ? 'test sandbox' : formatPhone(s.whatsappFrom || '') }}</span>
+          }
+          @if (s.connected && s.withoutPhone + s.notAgreed) { <span class="msg-channel-extra">· {{ s.withoutPhone + s.notAgreed }} not on it</span> }
+        </div>
+      </div>
+    </div>
+    <div class="msg-channel ch-sms" [class.is-on]="s.smsConnected" [attr.title]="s.smsConnected ? 'From ' + s.smsFrom : 'Texting isn\'t set up yet'">
+      <span class="msg-channel-icon"><i class="bi bi-chat-text-fill"></i></span>
+      <div class="min-w-0">
+        <div class="msg-channel-name">Text</div>
+        <div class="msg-channel-state text-truncate">
+          <span class="dot"></span>{{ s.smsConnected ? 'Connected' : 'Not connected' }}
+          @if (s.smsConnected && s.smsNotAgreed) { <span class="msg-channel-extra">· {{ s.smsNotAgreed }} not agreed</span> }
+        </div>
+      </div>
+    </div>
+  </section>
+
   @if (!s.emailConnected) {
-    <div class="alert alert-warning small py-2 mb-3">
-      <i class="bi bi-exclamation-triangle me-1"></i> Email isn't connected, so messages are listed below but not sent.
+    <div class="msg-note is-warn mb-3">
+      <i class="bi bi-exclamation-triangle-fill"></i>
+      <span>Email isn't connected, so messages are listed below but not sent.</span>
     </div>
   }
-  <div class="channel-strip mb-3">
-    <span class="channel-pill" [class.on]="s.emailConnected"><i class="bi bi-envelope"></i> Email {{ s.emailConnected ? 'connected' : 'not connected' }}</span>
-    <span class="channel-pill" [class.on]="s.connected"><i class="bi bi-whatsapp"></i> WhatsApp {{ s.connected ? 'connected' : 'not connected' }}
-      @if (s.whatsappProvider === 'twilio') {
-        <span class="opacity-75">· {{ s.sandboxNumber ? 'test sandbox' : 'from ' + formatPhone(s.whatsappFrom || '') }}</span>
-      }
-    </span>
-    <span class="channel-pill" [class.on]="s.smsConnected" [attr.title]="s.smsConnected ? 'From ' + s.smsFrom : 'Texting isn\'t set up yet'">
-      <i class="bi bi-chat-text"></i> Text {{ s.smsConnected ? 'connected' : 'not connected' }}
-      @if (s.smsConnected && s.smsNotAgreed) { <span class="opacity-75">· {{ s.smsNotAgreed }} haven't agreed</span> }
-    </span>
-  </div>
   @if (s.connected && s.sandboxNumber) {
-    <div class="alert alert-info small py-2 mb-3">
-      <i class="bi bi-info-circle me-1"></i>
-      WhatsApp is sending from the <strong>test sandbox</strong> number ({{ formatPhone(s.sandboxNumber) }}), which is for testing.
-      @if (s.sandboxJoin) { Each person must first send <strong>{{ s.sandboxJoin }}</strong> to it; they see this in their account menu. }
-      To send from your own registered WhatsApp number, set it as the WhatsApp sender in the server settings.
+    <div class="msg-note is-info mb-3">
+      <i class="bi bi-info-circle-fill"></i>
+      <span>
+        WhatsApp is sending from the <strong>test sandbox</strong> ({{ formatPhone(s.sandboxNumber) }}).
+        @if (s.sandboxJoin) { Each person first sends <strong>{{ s.sandboxJoin }}</strong> to it; they see this in their account menu. }
+        To send from your own WhatsApp number, set it as the sender in the server settings.
+      </span>
     </div>
   } @else if (s.connected && s.whatsappProvider === 'twilio' && !s.whatsappTemplatesReady) {
-    <div class="alert alert-warning small py-2 mb-3">
-      <i class="bi bi-exclamation-triangle me-1"></i>
-      WhatsApp is sending from {{ formatPhone(s.whatsappFrom || '') }}, but the approved message templates aren't all set
-      up yet. Until they are, WhatsApp only reaches people who messaged you in the last 24 hours.
+    <div class="msg-note is-warn mb-3">
+      <i class="bi bi-exclamation-triangle-fill"></i>
+      <span>
+        WhatsApp sends from {{ formatPhone(s.whatsappFrom || '') }}, but the approved message templates aren't all set up yet.
+        Until they are, WhatsApp only reaches people who messaged you in the last 24 hours.
+      </span>
     </div>
   }
-
-  <div class="row g-3 mb-3">
-    <div class="col-6 col-lg-3">
-      <div class="card stat-card h-100">
-        <div class="stat-icon bg-success-subtle text-success"><i class="bi bi-send-check"></i></div>
-        <div><div class="stat-value">{{ s.queued }}</div><div class="stat-label">Sending now</div></div>
-      </div>
-    </div>
-    <div class="col-6 col-lg-3">
-      <button type="button" class="card stat-card h-100 w-100 text-start border-0" (click)="setTab('FAILED')">
-        <div class="stat-icon bg-danger-subtle text-danger"><i class="bi bi-exclamation-triangle"></i></div>
-        <div><div class="stat-value">{{ s.failed }}</div><div class="stat-label">Failed</div></div>
-      </button>
-    </div>
-    <div class="col-6 col-lg-3">
-      <a class="card stat-card h-100 text-decoration-none text-body" routerLink="/employees">
-        <div class="stat-icon bg-secondary-subtle text-secondary"><i class="bi bi-envelope-slash"></i></div>
-        <div><div class="stat-value">{{ s.emailOff }}</div><div class="stat-label">Turned email off</div></div>
-      </a>
-    </div>
-    <div class="col-6 col-lg-3">
-      @if (s.connected) {
-        <a class="card stat-card h-100 text-decoration-none text-body" routerLink="/employees">
-          <div class="stat-icon bg-warning-subtle text-warning"><i class="bi bi-person-x"></i></div>
-          <div><div class="stat-value">{{ s.withoutPhone + s.notAgreed }}</div><div class="stat-label">Not on WhatsApp</div></div>
-        </a>
-      } @else {
-        <button type="button" class="card stat-card h-100 w-100 text-start border-0" (click)="setTab('NOT_SENT')">
-          <div class="stat-icon bg-secondary-subtle text-secondary"><i class="bi bi-slash-circle"></i></div>
-          <div><div class="stat-value">{{ s.notSent }}</div><div class="stat-label">Not sent</div></div>
-        </button>
-      }
-    </div>
-  </div>
 }
 
-<div class="card mb-3">
-  <div class="card-header fw-semibold"><i class="bi bi-megaphone me-1"></i> Send an announcement</div>
-  <div class="card-body">
-    <div class="announce-form">
-      @if (auth.isAdmin()) {
-        <div style="min-width: 180px">
-          <label class="form-label small text-muted-2 mb-1" for="annArea">To everyone in</label>
-          <select id="annArea" class="form-select" [(ngModel)]="announceArea">
-            @for (a of areas(); track a.id) {
-              <option [ngValue]="a.id">{{ a.name }}</option>
-            }
-          </select>
-        </div>
-      }
-      <div class="flex-grow-1">
-        <label class="form-label small text-muted-2 mb-1" for="annText">
-          Message @if (!auth.isAdmin()) { to everyone in {{ areaName(announceArea) }} }
-        </label>
-        <input id="annText" class="form-control" [maxlength]="maxMessage" autocomplete="off"
-               placeholder="e.g. Team meeting Friday 9am at Oceanside" [ngModel]="message()" (ngModelChange)="message.set($event)"
-               [class.is-invalid]="messageError()" (keydown.enter)="sendAnnouncement()" />
-        <div class="d-flex justify-content-between">
-          <div class="invalid-feedback d-block">{{ messageError() }}</div>
-          <div class="form-text text-nowrap">{{ message().length }} / {{ maxMessage }}</div>
-        </div>
+<div class="msg-layout">
+  <!-- Announcement composer -->
+  <section class="msg-compose" aria-labelledby="composeTitle">
+    <div class="msg-compose-head">
+      <span class="msg-compose-icon"><i class="bi bi-megaphone-fill"></i></span>
+      <div>
+        <h2 id="composeTitle" class="msg-compose-title">Send an announcement</h2>
+        <div class="small text-muted-2">Everyone in the area gets it the ways they agreed to.</div>
       </div>
-      <button type="button" class="btn btn-primary align-self-start announce-send"
-              [disabled]="sending() || !message().trim() || !!messageError() || announceArea == null" (click)="sendAnnouncement()">
-        @if (sending()) { <span class="spinner-border spinner-border-sm me-1"></span> } @else { <i class="bi bi-send me-1"></i> }
-        Send
-      </button>
     </div>
-  </div>
-</div>
-
-<div class="page-toolbar">
-  <ul class="nav nav-pills">
-    @for (t of tabs; track t.value) {
-      <li class="nav-item">
-        <button type="button" class="nav-link" [class.active]="tab() === t.value" (click)="setTab(t.value)">{{ t.label }}</button>
-      </li>
-    }
-  </ul>
-  <select class="form-select ms-auto" style="width: auto" aria-label="Channel" [ngModel]="channel()" (ngModelChange)="setChannel($event)">
-    <option [ngValue]="null">All channels</option>
-    <option ngValue="EMAIL">Email</option>
-    <option ngValue="WHATSAPP">WhatsApp</option>
-    <option ngValue="SMS">Text message</option>
-  </select>
-  <button type="button" class="btn btn-light border" (click)="loadStatus(); load()"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
-  @if (auth.isAdmin()) {
-    <div class="input-group clear-old" style="width: auto">
-      <select class="form-select" aria-label="Clear messages older than" [(ngModel)]="clearDays">
-        @for (d of clearOptions; track d) { <option [ngValue]="d">Older than {{ d }} days</option> }
+    @if (auth.isAdmin()) {
+      <label class="form-label small fw-semibold mb-1" for="annArea">To everyone in</label>
+      <select id="annArea" class="form-select mb-3" [(ngModel)]="announceArea">
+        @for (a of areas(); track a.id) {
+          <option [ngValue]="a.id">{{ a.name }}</option>
+        }
       </select>
-      <button type="button" class="btn btn-outline-danger" [disabled]="clearing()" (click)="clearOld()">
-        <i class="bi bi-trash3 me-1"></i>Clear
-      </button>
+    } @else {
+      <div class="msg-to mb-3"><i class="bi bi-people-fill"></i> To everyone in <strong>{{ areaName(announceArea) }}</strong></div>
+    }
+    <label class="form-label small fw-semibold mb-1" for="annText">Message</label>
+    <textarea id="annText" class="form-control msg-textarea" rows="4" [maxlength]="maxMessage" autocomplete="off"
+              placeholder="e.g. Team meeting Friday 9am at Oceanside" [ngModel]="message()" (ngModelChange)="message.set($event)"
+              [class.is-invalid]="messageError()"></textarea>
+    <div class="d-flex align-items-start gap-2 mt-1">
+      <div class="invalid-feedback d-block flex-grow-1">{{ messageError() }}</div>
+      <div class="msg-counter" [class.is-near]="message().length > maxMessage - 50">{{ message().length }}/{{ maxMessage }}</div>
     </div>
-  }
-</div>
+    @if (status(); as s) {
+      <div class="msg-reach">
+        <span class="msg-reach-chip" [class.is-on]="s.emailConnected"><i class="bi bi-envelope"></i>Email</span>
+        <span class="msg-reach-chip" [class.is-on]="s.connected"><i class="bi bi-whatsapp"></i>WhatsApp</span>
+        <span class="msg-reach-chip" [class.is-on]="s.smsConnected"><i class="bi bi-chat-text"></i>Text</span>
+      </div>
+    }
+    <button type="button" class="btn btn-primary w-100 mt-3"
+            [disabled]="sending() || !message().trim() || !!messageError() || announceArea == null" (click)="sendAnnouncement()">
+      @if (sending()) { <span class="spinner-border spinner-border-sm me-1"></span> } @else { <i class="bi bi-send-fill me-1"></i> }
+      Send announcement
+    </button>
+  </section>
 
-<div class="card messages-card">
-  @if (loading() && items().length === 0) {
-    <div class="empty-state"><div class="spinner-border text-primary"></div></div>
-  } @else if (items().length === 0) {
-    <div class="empty-state"><i class="bi bi-chat-dots"></i>No messages yet. They appear here when a week is published or changed, a day off is decided, or you send an announcement.</div>
-  } @else {
-    <div class="table-responsive" [class.is-refreshing]="loading()">
-      <table class="table table-hover table-stack table-stack-lg">
-        <thead>
-          <tr>
-            <th>When</th>
-            <th>To</th>
-            <th>About</th>
-            <th>Message</th>
-            <th>Status</th>
-            <th class="text-end"></th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (m of items(); track m.id) {
-            <tr>
-              <td class="text-nowrap small">{{ m.createdAt | date: 'MMM d, h:mm a' }}</td>
-              <td data-label="To">
-                <div class="fw-semibold">
-                  <i class="bi me-1" [class.bi-envelope]="m.channel === 'EMAIL'" [class.text-primary]="m.channel === 'EMAIL'"
-                     [class.bi-whatsapp]="m.channel === 'WHATSAPP'" [class.text-success]="m.channel === 'WHATSAPP'"
-                     [class.bi-chat-text]="m.channel === 'SMS'" [class.text-info]="m.channel === 'SMS'"
-                     [attr.title]="m.channel === 'EMAIL' ? 'Email' : m.channel === 'SMS' ? 'Text message' : 'WhatsApp'"></i>{{ m.employeeName }}
-                </div>
-                <div class="small text-muted-2 text-break">
-                  @if (m.channel === 'EMAIL') { {{ m.email }} } @else { {{ m.phone ? formatPhone(m.phone) : 'No phone' }} }
-                </div>
-              </td>
-              <td data-label="About"><span class="badge text-bg-light border">{{ kindLabels[m.kind] }}</span></td>
-              <td data-label="Message" class="small msg-preview">
-                @if (m.subject) { <div class="fw-semibold mb-1">{{ m.subject }}</div> }
-                <div class="msg-body" [class.is-email]="m.channel === 'EMAIL'">{{ m.preview }}</div>
-              </td>
-              <td data-label="Status">
-                <span class="badge msg-status msg-{{ m.status }}">{{ statusLabels[m.status] }}</span>
-                @if (m.error) { <div class="small text-muted-2 mt-1 msg-error">{{ m.error }}</div> }
-                @if (m.status === 'SENT' && m.sentAt) { <div class="small text-muted-2 mt-1">{{ m.sentAt | date: 'h:mm a' }}</div> }
-              </td>
-              <td class="td-actions text-end">
-                @if (m.status === 'FAILED' && (m.channel === 'EMAIL' ? !!m.email : !!m.phone)) {
-                  <button type="button" class="btn btn-sm btn-outline-primary" [disabled]="retrying() === m.id" (click)="retry(m)">
-                    <i class="bi bi-arrow-repeat"></i> Try again
-                  </button>
-                }
-                @if (auth.isAdmin() && m.status !== 'QUEUED') {
-                  <button type="button" class="btn btn-sm btn-link text-danger ms-1" [disabled]="deleting() === m.id"
-                          [attr.aria-label]="'Delete message to ' + m.employeeName" title="Delete this message" (click)="remove(m)">
-                    <i class="bi bi-trash3"></i>
-                  </button>
-                }
-              </td>
-            </tr>
+  <!-- History -->
+  <section class="msg-history" aria-label="Messages sent">
+    <div class="msg-toolbar">
+      <div class="msg-tabs" role="tablist" aria-label="Status">
+        @for (t of tabs; track t.value) {
+          <button type="button" role="tab" class="msg-tab" [class.active]="tab() === t.value" [attr.aria-selected]="tab() === t.value"
+                  (click)="setTab(t.value)">
+            <i class="bi {{ t.icon }}"></i>{{ t.label }}
+            @if (tabCount(t.value); as n) { <span class="tab-count" [class.is-urgent]="t.value === 'FAILED'">{{ n }}</span> }
+          </button>
+        }
+      </div>
+      <div class="msg-toolbar-row">
+        <div class="msg-channel-filter" role="radiogroup" aria-label="Channel">
+          @for (c of channels; track c.label) {
+            <button type="button" role="radio" class="msg-chip" [class.active]="channel() === c.value" [attr.aria-checked]="channel() === c.value"
+                    [attr.title]="c.label" (click)="setChannel(c.value)">
+              <i class="bi {{ c.icon }}"></i><span class="msg-chip-label">{{ c.label }}</span>
+            </button>
           }
-        </tbody>
-      </table>
+        </div>
+        <button type="button" class="btn btn-light border btn-sm ms-auto" (click)="loadStatus(); load()" title="Refresh" aria-label="Refresh">
+          <i class="bi bi-arrow-clockwise" [class.spin]="loading()"></i>
+        </button>
+      </div>
     </div>
-  }
-  <app-pagination [page]="page()" [size]="pageSize()" [total]="total()" label="messages"
-                  (pageChange)="goToPage($event)" (sizeChange)="changePageSize($event)" />
+
+    @if (loading() && items().length === 0) {
+      <div class="msg-empty"><div class="spinner-border text-primary"></div></div>
+    } @else if (items().length === 0) {
+      <div class="msg-empty">
+        <span class="msg-empty-icon"><i class="bi bi-chat-square-dots"></i></span>
+        <strong>No messages here</strong>
+        <span class="small text-muted-2">Messages appear when a week is published or changed, a day off is decided, or you send an announcement.</span>
+      </div>
+    } @else {
+      <div class="msg-feed" [class.is-refreshing]="loading()">
+        @for (g of groups(); track g.label) {
+          <div class="msg-day">{{ g.label }}</div>
+          @for (m of g.items; track m.id) {
+            <article class="msg-item" [class.is-failed]="m.status === 'FAILED'">
+              <div class="msg-avatar {{ channelMeta[m.channel].css }}" [attr.title]="channelMeta[m.channel].name">
+                {{ initials(m.employeeName) }}
+                <span class="msg-avatar-ch"><i class="bi {{ channelMeta[m.channel].icon }}"></i></span>
+              </div>
+              <div class="msg-main">
+                <div class="msg-line1">
+                  <span class="msg-name">{{ m.employeeName || 'Unknown' }}</span>
+                  <span class="msg-kind">{{ kindLabels[m.kind] }}</span>
+                  <span class="msg-time">{{ m.createdAt | date: 'h:mm a' }}</span>
+                </div>
+                <div class="msg-contact">
+                  @if (m.channel === 'EMAIL') { {{ m.email || 'No email' }} } @else { {{ m.phone ? formatPhone(m.phone) : 'No phone' }} }
+                </div>
+                <div class="msg-bubble" [class.is-open]="expanded().has(m.id)">
+                  @if (m.subject) { <div class="msg-subject">{{ m.subject }}</div> }
+                  <div class="msg-text">{{ expanded().has(m.id) ? m.preview : compact(m.preview) }}</div>
+                </div>
+                <div class="msg-foot">
+                  <span class="msg-status msg-{{ m.status }}">
+                    @switch (m.status) {
+                      @case ('SENT') { <i class="bi bi-check2-all"></i> }
+                      @case ('FAILED') { <i class="bi bi-exclamation-triangle-fill"></i> }
+                      @case ('QUEUED') { <span class="spinner-border spinner-border-sm"></span> }
+                      @default { <i class="bi bi-slash-circle"></i> }
+                    }
+                    {{ statusLabels[m.status] }}
+                    @if (m.status === 'SENT' && m.sentAt) { · {{ m.sentAt | date: 'h:mm a' }} }
+                  </span>
+                  @if (isLong(m)) {
+                    <button type="button" class="msg-more" (click)="toggle(m.id)" [attr.aria-expanded]="expanded().has(m.id)">
+                      {{ expanded().has(m.id) ? 'Show less' : 'Show more' }}
+                    </button>
+                  }
+                  <span class="msg-actions">
+                    @if (m.status === 'FAILED' && (m.channel === 'EMAIL' ? !!m.email : !!m.phone)) {
+                      <button type="button" class="btn btn-sm btn-outline-primary" [disabled]="retrying() === m.id" (click)="retry(m)">
+                        <i class="bi bi-arrow-repeat me-1"></i>Try again
+                      </button>
+                    }
+                    @if (auth.isAdmin() && m.status !== 'QUEUED') {
+                      <button type="button" class="btn btn-sm btn-link text-danger" [disabled]="deleting() === m.id"
+                              [attr.aria-label]="'Delete message to ' + m.employeeName" title="Delete this message" (click)="remove(m)">
+                        <i class="bi bi-trash3"></i>
+                      </button>
+                    }
+                  </span>
+                </div>
+                @if (m.error) { <div class="msg-error-text" [class.is-soft]="m.status !== 'FAILED'"><i class="bi bi-info-circle me-1"></i>{{ m.error }}</div> }
+              </div>
+            </article>
+          }
+        }
+      </div>
+    }
+    <app-pagination [page]="page()" [size]="pageSize()" [total]="total()" label="messages"
+                    (pageChange)="goToPage($event)" (sizeChange)="changePageSize($event)" />
+
+    @if (auth.isAdmin()) {
+      <div class="msg-cleanup">
+        <i class="bi bi-trash3 text-muted-2"></i>
+        <span class="small text-muted-2 me-auto">Clean up the history (all areas)</span>
+        <select class="form-select form-select-sm" aria-label="Clear messages older than" [(ngModel)]="clearDays">
+          @for (d of clearOptions; track d) { <option [ngValue]="d">Older than {{ d }} days</option> }
+        </select>
+        <button type="button" class="btn btn-sm btn-outline-danger" [disabled]="clearing()" (click)="clearOld()">Clear</button>
+      </div>
+    }
+  </section>
 </div>

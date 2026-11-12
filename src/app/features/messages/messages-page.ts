@@ -1,7 +1,6 @@
 import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { ConfirmService } from '../../core/confirm.service';
@@ -21,10 +20,10 @@ import { Pagination } from '../../shared/pagination';
 
 type StatusTab = NotificationStatus | 'ALL';
 
-/** WhatsApp messages: connection status, announcements to an area, and what was sent to whom. */
+/** Messages: which channels are connected, announcements to an area, and what was sent to whom (an inbox-style feed). */
 @Component({
   selector: 'app-messages-page',
-  imports: [FormsModule, DatePipe, RouterLink, Pagination],
+  imports: [FormsModule, DatePipe, Pagination],
   templateUrl: './messages-page.html',
 })
 export class MessagesPage implements OnInit, OnDestroy {
@@ -37,13 +36,81 @@ export class MessagesPage implements OnInit, OnDestroy {
   protected readonly statusLabels = NOTIFICATION_STATUS_LABELS;
   protected readonly formatPhone = formatPhone;
   protected readonly maxMessage = 500;
-  protected readonly tabs: { value: StatusTab; label: string }[] = [
-    { value: 'ALL', label: 'All' },
-    { value: 'SENT', label: 'Sent' },
-    { value: 'FAILED', label: 'Failed' },
-    { value: 'NOT_SENT', label: 'Not sent' },
-    { value: 'QUEUED', label: 'Sending' },
+  protected readonly tabs: { value: StatusTab; label: string; icon: string }[] = [
+    { value: 'ALL', label: 'All', icon: 'bi-inbox' },
+    { value: 'SENT', label: 'Sent', icon: 'bi-check2-all' },
+    { value: 'FAILED', label: 'Failed', icon: 'bi-exclamation-triangle' },
+    { value: 'NOT_SENT', label: 'Not sent', icon: 'bi-slash-circle' },
+    { value: 'QUEUED', label: 'Sending', icon: 'bi-send' },
   ];
+  protected readonly channels: { value: NotificationChannel | null; label: string; icon: string }[] = [
+    { value: null, label: 'All', icon: 'bi-collection' },
+    { value: 'EMAIL', label: 'Email', icon: 'bi-envelope' },
+    { value: 'WHATSAPP', label: 'WhatsApp', icon: 'bi-whatsapp' },
+    { value: 'SMS', label: 'Text', icon: 'bi-chat-text' },
+  ];
+  /** Icon, color class and name for each channel. */
+  protected readonly channelMeta: Record<NotificationChannel, { icon: string; css: string; name: string }> = {
+    EMAIL: { icon: 'bi-envelope-fill', css: 'ch-email', name: 'Email' },
+    WHATSAPP: { icon: 'bi-whatsapp', css: 'ch-whatsapp', name: 'WhatsApp' },
+    SMS: { icon: 'bi-chat-text-fill', css: 'ch-sms', name: 'Text message' },
+  };
+  /** Count shown on a status tab (from the live status), or null. */
+  protected tabCount(tab: StatusTab): number | null {
+    const s = this.status();
+    if (!s) return null;
+    return tab === 'FAILED' ? s.failed : tab === 'QUEUED' ? s.queued : tab === 'NOT_SENT' ? s.notSent : null;
+  }
+
+  /** Messages opened to read in full. */
+  protected readonly expanded = signal<Set<number>>(new Set());
+  protected toggle(id: number): void {
+    this.expanded.update((set) => {
+      const next = new Set(set);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  /** The list grouped by day: "Today", "Yesterday", "Mon, Nov 9". */
+  protected readonly groups = computed(() => {
+    const out: { label: string; items: NotificationItem[] }[] = [];
+    for (const m of this.items()) {
+      const label = this.dayLabel(m.createdAt);
+      const last = out[out.length - 1];
+      if (last && last.label === label) last.items.push(m);
+      else out.push({ label, items: [m] });
+    }
+    return out;
+  });
+
+  private dayLabel(iso: string): string {
+    const d = new Date(iso);
+    const start = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+    const days = Math.round((start(new Date()) - start(d)) / 86400000);
+    if (days === 0) return 'Today';
+    if (days === 1) return 'Yesterday';
+    return d.toLocaleDateString('en-US', {
+      weekday: 'short', month: 'short', day: 'numeric',
+      ...(d.getFullYear() !== new Date().getFullYear() ? { year: 'numeric' } : {}),
+    });
+  }
+
+  /** Initials for the avatar. */
+  protected initials(name: string | null): string {
+    return (name ?? '?').split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0].toUpperCase()).join('');
+  }
+
+  /** The preview without blank lines, so the first lines say something. */
+  protected compact(text: string | null): string {
+    return (text ?? '').replace(/\n\s*\n+/g, '\n').trim();
+  }
+
+  /** Long enough that it's cut short in the list. */
+  protected isLong(m: NotificationItem): boolean {
+    return (m.preview?.length ?? 0) > 160 || (m.preview?.split('\n').length ?? 0) > 3;
+  }
 
   protected readonly status = signal<WhatsAppStatus | null>(null);
   protected readonly areas = signal<Area[]>([]);
