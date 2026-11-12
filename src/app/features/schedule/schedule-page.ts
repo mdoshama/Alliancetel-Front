@@ -81,6 +81,11 @@ interface StoreBoardRow {
   cells: { people: StorePerson[]; hours: DayHours | null; closed: boolean; short: boolean; min: number }[];
 }
 
+/** 0 = managers (on top), 1 = employees, 2 = trainees (at the bottom). */
+export function rowGroup(r: { role: string; trainee?: boolean }): number {
+  return r.role === 'MANAGER' ? 0 : r.trainee ? 2 : 1;
+}
+
 @Component({
   selector: 'app-schedule-page',
   imports: [FormsModule, RouterLink, DatePipe, NgTemplateOutlet, Modal],
@@ -207,9 +212,9 @@ export class SchedulePage implements OnInit {
       return { stores: [] as StoreBoardRow[], off: [] as StorePerson[][] };
     }
     const filter = this.storeFilter();
+    // Managers first, trainees last; A to Z within each.
     const byName = (a: StorePerson, b: StorePerson) =>
-      Number(b.row.storeRole === 'PRIMARY') - Number(a.row.storeRole === 'PRIMARY') ||
-      a.row.employeeName.localeCompare(b.row.employeeName);
+      rowGroup(a.row) - rowGroup(b.row) || a.row.employeeName.localeCompare(b.row.employeeName);
     const stores: StoreBoardRow[] = s.storeCoverage
       .filter((c) => filter == null || c.storeId === filter)
       .map((c) => ({
@@ -339,7 +344,7 @@ export class SchedulePage implements OnInit {
     this.run(this.api.updateScheduleEntry(s.id, row.days[dayIndex].entryId, 'OFF', null), `${first} is off on ${day}.`);
   }
 
-  /** Everyone on the week, A to Z by name, so a person is quick to find. */
+  /** Everyone on the week: managers first, then employees, then trainees; A to Z within each. */
   protected readonly visibleRows = computed(() => {
     const rows = this.schedule()?.rows ?? [];
     const store = this.storeFilter();
@@ -350,7 +355,7 @@ export class SchedulePage implements OnInit {
           (store == null || r.days.some((c) => c.type === 'WORK' && c.storeId === store)) &&
           matchesSearch(q, r.employeeName, r.employeeCode),
       )
-      .sort((a, b) => a.employeeName.localeCompare(b.employeeName, undefined, { sensitivity: 'base' }));
+      .sort((a, b) => rowGroup(a) - rowGroup(b) || a.employeeName.localeCompare(b.employeeName, undefined, { sensitivity: 'base' }));
   });
 
   /** Finds people on the grid by name or code; in the By store view, others are dimmed. */
@@ -651,7 +656,7 @@ export class SchedulePage implements OnInit {
         this.requestStatus.set(status);
         this.toast.success(
           on
-            ? `${name} works all 7 days the week of ${this.weekLabel()}. Their reserved day off was released.`
+            ? `${name} works all 7 days the week of ${this.weekLabel()}. Their system-assigned day off was released.`
             : `${name} is back to their usual days off that week.`,
         );
         if (this.schedule()?.status === 'DRAFT') {
@@ -770,6 +775,28 @@ export class SchedulePage implements OnInit {
   }
 
   /** "Tue" or "Tue, Sat" for a list of dates. */
+  /** The "who picked what" groups for the glance board, in a fixed order, people A to Z; empty groups left out. */
+  protected glanceSections(rs: WeekRequestStatus): {
+    key: string; title: string; note: string; icon: string; tone: string; people: WeekRequestPerson[];
+  }[] {
+    const all = [
+      { key: 'requested', title: 'Requested', note: 'Asked for their days off', icon: 'bi-check2-circle', tone: 'green', people: rs.others },
+      { key: 'regular', title: 'Regular day off', note: 'Their usual day each week', icon: 'bi-arrow-repeat', tone: 'purple', people: rs.regular ?? [] },
+      { key: 'fewer', title: 'Fewer days than usual', note: 'Asked for less than they normally take', icon: 'bi-dash-circle', tone: 'blue', people: rs.fewer },
+      { key: 'missing', title: 'No request yet', note: 'The system picks for them at generate', icon: 'bi-hourglass-split', tone: 'red', people: rs.missing },
+      { key: 'reserved', title: 'Off assigned by system', note: "Didn't ask: the system gave a day", icon: 'bi-cpu', tone: 'teal', people: rs.reserved },
+      { key: 'denied', title: 'Turned down', note: 'Their request was not given', icon: 'bi-x-octagon', tone: 'amber', people: rs.denied },
+      { key: 'fullWeek', title: 'Working all 7 days', note: 'No day off this week', icon: 'bi-calendar-week', tone: 'slate', people: rs.fullWeek },
+    ];
+    return all.filter((g) => g.people.length > 0).map((g) => ({ ...g, people: this.az(g.people) }));
+  }
+
+  /** "Mon 16" for a date. */
+  protected shortDay(date: string): string {
+    const d = new Date(date + 'T00:00:00');
+    return d.toLocaleDateString('en-US', { weekday: 'short' }) + ' ' + d.getDate();
+  }
+
   protected dayLabels(dates: string[]): string {
     return dates.map((d) => new Date(d + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short' })).join(', ');
   }
@@ -787,7 +814,7 @@ export class SchedulePage implements OnInit {
       tone: 'danger',
       notes: [
         'Days changed by hand, swaps and store moves are lost.',
-        'Day-off requests, approvals and reserved days are kept.',
+        'Day-off requests, approvals and system-assigned days off are kept.',
         s.status === 'PUBLISHED'
           ? 'It is published: staff stop seeing it until you publish a new one (then everyone gets their week again).'
           : 'It is a draft, so staff never saw it.',
@@ -825,7 +852,7 @@ export class SchedulePage implements OnInit {
       tone: 'danger',
       notes: [
         'Days changed by hand, swaps and store moves are lost.',
-        'Everyone keeps their day off: the day they took, their regular day or the day the system reserved.',
+        'Everyone keeps their day off: the day they took, their regular day or the day the system assigned.',
         s.status === 'PUBLISHED'
           ? 'It is published: the new week is a draft, so staff stop seeing it until you publish again.'
           : 'It is a draft, so staff never saw it.',
@@ -1122,6 +1149,11 @@ export class SchedulePage implements OnInit {
     } finally {
       this.pdfBusy.set(null);
     }
+  }
+
+  /** People A to Z by name. */
+  protected az<T extends { name: string }>(list: T[] | null | undefined): T[] {
+    return [...(list ?? [])].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
   }
 
   /** A store's minimum on that day of the week (its own for the day, e.g. fewer on Sunday, or the usual one). */

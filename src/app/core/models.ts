@@ -122,6 +122,8 @@ export interface Employee {
   smsConsentAt: string | null;
   /** Days of the week they're normally off (reserved for them when a week opens), Monday first. */
   regularDaysOff?: DayOfWeek[];
+  /** In training: shown as "Trainee" (an employee). */
+  trainee?: boolean;
 }
 
 /** A coming birthday, for the dashboard and the staff list (admins: everyone; managers: their area). */
@@ -326,6 +328,7 @@ export interface EmployeeRequest {
   onSchedule?: boolean;
   /** Text-message updates: only an admin can turn them on for someone (they agreed); null keeps it. */
   smsOptIn?: boolean;
+  trainee?: boolean;
 }
 
 export interface EmployeeFilter {
@@ -486,7 +489,7 @@ export type OffSource = 'REQUESTED' | 'REGULAR' | 'RESERVED' | 'EMERGENCY' | 'MA
 export const OFF_SOURCES: Record<OffSource, { label: string; icon: string; title: string }> = {
   REQUESTED: { label: 'Requested', icon: 'bi-hand-index-thumb', title: 'Day off they asked for' },
   REGULAR: { label: 'Regular', icon: 'bi-arrow-repeat', title: 'Their regular day off (same day every week)' },
-  RESERVED: { label: 'Reserved', icon: 'bi-bookmark-fill', title: 'Given by the system: they didn\'t ask for a day' },
+  RESERVED: { label: 'By system', icon: 'bi-cpu', title: 'Day off assigned by the system: they didn\'t ask for a day' },
   EMERGENCY: { label: 'Emergency', icon: 'bi-exclamation-octagon-fill', title: 'Emergency day off, approved by a manager' },
   MANAGER: { label: 'By manager', icon: 'bi-person-check-fill', title: 'Day off given by a manager' },
 };
@@ -561,6 +564,8 @@ export interface EmployeeRow {
   days: DayCell[];
   /** Stores they may float to (empty = any store in the area). */
   floatStoreIds?: number[];
+  /** In training (shown as "Trainee", listed last). */
+  trainee?: boolean;
 }
 
 export interface Schedule {

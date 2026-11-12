@@ -51,75 +51,7 @@
             <div class="user-menu-backdrop" (click)="menuOpen.set(false)"></div>
             <div class="dropdown-menu dropdown-menu-end show user-menu-panel">
               <div class="px-3 py-2 small text-muted-2 border-bottom mb-1">{{ user.email }}</div>
-              @if (user.role !== 'ADMIN' && user.role !== 'EMPLOYEE') {
-                <div class="px-3 pt-2 wa-optin">
-                  <div class="small fw-semibold text-muted-2 mb-1">Schedule updates</div>
-                  <div class="form-check form-switch mb-0">
-                    <input class="form-check-input" type="checkbox" id="emailOptIn" [checked]="user.emailOptIn !== false"
-                           [disabled]="savingWhatsapp()" (change)="toggleEmail($event)" />
-                    <label class="form-check-label small" for="emailOptIn">
-                      <i class="bi bi-envelope text-primary"></i> By email
-                    </label>
-                  </div>
-                  <div class="small text-muted-2 mb-2">To {{ user.email }}</div>
-                </div>
-                <div class="px-3 pb-2 wa-optin">
-                  <div class="form-check form-switch mb-0">
-                    <input class="form-check-input" type="checkbox" id="waOptIn" [checked]="!!user.whatsappOptIn"
-                           [disabled]="!user.phone || savingWhatsapp()" (change)="toggleWhatsapp($event)" />
-                    <label class="form-check-label small" for="waOptIn">
-                      <i class="bi bi-whatsapp text-success"></i> On WhatsApp
-                    </label>
-                  </div>
-                  <div class="small text-muted-2 mt-1">
-                    @if (user.phone) { To {{ formatPhone(user.phone) }} } @else { No phone number on file. Ask your manager to add it. }
-                  </div>
-                  @if (messaging(); as m) {
-                    @if (m.sandboxNumber && m.sandboxJoin) {
-                      <div class="sandbox-hint mt-2">
-                        First, on WhatsApp send <strong>{{ m.sandboxJoin }}</strong> to {{ formatPhone(m.sandboxNumber) }}.
-                        <a [href]="sandboxLink(m)" target="_blank" rel="noopener">Open WhatsApp</a>
-                      </div>
-                    }
-                  }
-                </div>
-                <div class="px-3 pb-2 wa-optin">
-                  <div class="form-check form-switch mb-0">
-                    <input class="form-check-input" type="checkbox" id="smsOptIn" [checked]="!!user.smsOptIn || smsConsentOpen()"
-                           [disabled]="!user.phone || savingWhatsapp()" (change)="toggleSms($event)" />
-                    <label class="form-check-label small" for="smsOptIn">
-                      <i class="bi bi-chat-text text-info"></i> By text message
-                    </label>
-                  </div>
-                  @if (smsConsentOpen()) {
-                    <div class="sms-consent-box mt-2" role="group" aria-label="Text message consent">
-                      <div class="fw-semibold mb-1">Text message consent</div>
-                      <label class="form-label mb-1" for="smsPhone">Mobile number</label>
-                      <input id="smsPhone" class="form-control form-control-sm mb-2" [value]="formatPhone(user.phone || '')" readonly />
-                      <p class="mb-2">{{ smsConsentText }}</p>
-                      <div class="form-check mb-2">
-                        <input class="form-check-input" type="checkbox" id="smsAgree" [checked]="smsAgreed()" (change)="smsAgreed.set($any($event.target).checked)" />
-                        <label class="form-check-label" for="smsAgree">
-                          I agree to receive work schedule text messages from AllianceTel Enterprise at this number,
-                          and to the <a href="/terms#sms-terms" target="_blank" rel="noopener">SMS Terms</a> and
-                          <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>.
-                        </label>
-                      </div>
-                      <div class="d-flex gap-2">
-                        <button type="button" class="btn btn-primary btn-sm flex-grow-1" [disabled]="!smsAgreed() || savingWhatsapp()" (click)="agreeToSms()">Turn on text messages</button>
-                        <button type="button" class="btn btn-light btn-sm border" (click)="smsConsentOpen.set(false)">Cancel</button>
-                      </div>
-                    </div>
-                  } @else {
-                    <div class="small text-muted-2 mt-1 sms-consent">
-                      Msg &amp; data rates may apply. Reply STOP to stop, HELP for help.
-                      <a href="/terms#sms-terms" target="_blank" rel="noopener">SMS Terms</a> ·
-                      <a href="/privacy" target="_blank" rel="noopener">Privacy</a>
-                    </div>
-                  }
-                </div>
-                <div class="dropdown-divider"></div>
-              }
+              
               <a class="dropdown-item" routerLink="/profile" (click)="menuOpen.set(false)"><i class="bi bi-person-circle me-2"></i>My profile</a>
               <a class="dropdown-item" routerLink="/change-password"><i class="bi bi-key me-2"></i>Change password</a>
               <a class="dropdown-item" href="/terms" target="_blank" rel="noopener"><i class="bi bi-file-text me-2"></i>Terms &amp; Privacy</a>

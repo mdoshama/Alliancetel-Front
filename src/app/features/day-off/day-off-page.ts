@@ -128,15 +128,22 @@ export class DayOffPage implements OnInit {
   protected readonly formWeekLoaded = signal(false);
 
   /** People asking for themselves can't go back before this week, nor more than two weeks ahead. */
-  protected readonly firstWeek = weekStartOf(today());
+  /**
+   * The first week anyone can pick, admins and managers included: this week's schedule is already made (changes to
+   * it are made on the schedule itself), so requests start at next week.
+   */
+  protected readonly firstWeek = computed(() => addDays(weekStartOf(today()), 7));
   /** The last week they can reach: two weeks ahead, or further when their manager opened requests until a date. */
   protected readonly lastWeek = computed(() => {
     const usual = addDays(weekStartOf(today()), 7 * SELF_SERVICE_WEEKS_AHEAD);
-    const last = this.window()?.lastDate;
+    // Asking for yourself: your area's window. For someone else: their area's (opened further ahead or not).
+    const last = this.selfService()
+      ? this.window()?.lastDate
+      : this.areas().find((a) => a.id === this.formArea())?.requestsOpenUntil;
     return last && weekStartOf(last) > usual ? weekStartOf(last) : usual;
   });
-  protected readonly canPrevWeek = computed(() => this.formWeek() > this.firstWeek);
-  protected readonly canNextWeek = computed(() => !this.selfService() || this.formWeek() < this.lastWeek());
+  protected readonly canPrevWeek = computed(() => this.formWeek() > this.firstWeek());
+  protected readonly canNextWeek = computed(() => this.formWeek() < this.lastWeek());
 
   /**
    * A day they can ask for now (asking for themselves): in a week taking requests, or from next week on up to the
@@ -165,7 +172,8 @@ export class DayOffPage implements OnInit {
     const normal = mine.filter((r) => !r.emergency && !r.reserved && r.status !== 'REJECTED').length;
     if (normal >= this.maxDaysPerWeek()) return true;
     return !this.formWeekDates().some(
-      (d) => d >= this.todayIso && (!w?.enabled || this.isOpenDay(d)) && !this.takenBy(d) && !mine.some((r) => r.date === d),
+      (d) => d >= this.todayIso && (!w?.enabled || this.isOpenDay(d)) && !this.takenBy(d)
+        && !mine.some((r) => r.date === d && r.status !== 'REJECTED'),
     );
   });
 
@@ -186,9 +194,18 @@ export class DayOffPage implements OnInit {
   /** Normal days still left to pick this week. */
   protected readonly normalLeft = computed(() => Math.max(0, this.maxDaysPerWeek() - this.existingNormal()));
 
+  /** Any part of this request is an emergency: the form turns red. */
+  protected readonly emergencyMode = computed(() => this.formEmergency() || this.formEmergencyDays().size > 0);
+
+  /**
+   * Days picked that count toward the weekly limit. Their regular day off doesn't: it's already theirs, and picking
+   * another day swaps it (the regular day becomes a work day that week).
+   */
+  protected readonly normalPicks = computed(() => [...this.formDays()].filter((d) => !this.isMyRegular(d)).length);
+
   /** The weekly limit is used up: picking another day asks whether to send it as an emergency request. */
   protected readonly overflowsToEmergency = computed(
-    () => !this.formEmergency() && !(this.formOverride() && this.canOverride()) && this.formDays().size >= this.formMaxDays(),
+    () => !this.formEmergency() && !(this.formOverride() && this.canOverride()) && this.normalPicks() >= this.formMaxDays(),
   );
 
   /**
@@ -567,6 +584,86 @@ export class DayOffPage implements OnInit {
 
   // ---------- New request modal ----------
 
+  // ---------- Managers and admins: each person's requests together ----------
+
+  /** The page's requests grouped by person (the server sends them A to Z, each person's days together). */
+  protected readonly personGroups = computed(() => {
+    const groups: { employeeId: number; name: string; code: string; areaName: string | null; items: DayOffRequest[] }[] = [];
+    for (const r of this.requests()) {
+      const last = groups[groups.length - 1];
+      if (last && last.employeeId === r.employeeId) last.items.push(r);
+      else groups.push({ employeeId: r.employeeId, name: r.employeeName, code: r.employeeCode, areaName: r.areaName, items: [r] });
+    }
+    return groups;
+  });
+
+  /** A person's requests a manager can decide now. */
+  protected decidable(items: DayOffRequest[]): DayOffRequest[] {
+    return items.filter((r) => r.status === 'PENDING' && !r.reserved && this.canReview(r));
+  }
+
+  protected initials(name: string): string {
+    return name.split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0].toUpperCase()).join('');
+  }
+
+  /** "Mon Nov 16, Tue Nov 17" */
+  private dayList(items: DayOffRequest[]): string {
+    return items.map((r) => formatDay(r.date, { weekday: 'short', month: 'short', day: 'numeric' })).join(', ');
+  }
+
+  /** Approves all of a person's waiting requests at once. */
+  protected async approveAll(name: string, items: DayOffRequest[]): Promise<void> {
+    const list = this.decidable(items);
+    if (list.length === 0) return;
+    const short = list.filter((r) => this.impacts().get(r.id)?.level === 'SHORT');
+    const ok = await this.confirm.ask({
+      title: `Approve ${name.split(' ')[0]}'s ${list.length} days off?`,
+      message: this.dayList(list),
+      icon: short.length ? 'bi-exclamation-triangle' : 'bi-calendar-check',
+      tone: short.length ? 'danger' : 'primary',
+      notes: short.length ? [`${short.length} of these leave a store short-staffed.`] : undefined,
+      confirmText: `Approve ${list.length}`,
+    });
+    if (!ok) return;
+    this.busyId.set(list[0].id);
+    this.api.approveManyDaysOff(list.map((r) => r.id), false).subscribe({
+      next: (res) => {
+        this.busyId.set(null);
+        if (res.approved.length) this.toast.success(`Approved ${res.approved.length} day${res.approved.length === 1 ? '' : 's'} for ${name}.`);
+        for (const s of res.skipped) this.toast.info(`${formatDay(s.date, { weekday: 'short', month: 'short', day: 'numeric' })}: ${s.reason}`);
+        this.load();
+      },
+      error: () => this.busyId.set(null),
+    });
+  }
+
+  /** Rejects all of a person's waiting requests with one reason. */
+  protected async rejectAll(name: string, items: DayOffRequest[]): Promise<void> {
+    const list = this.decidable(items);
+    if (list.length === 0) return;
+    const note = await this.confirm.askWithInput({
+      title: `Reject ${name.split(' ')[0]}'s ${list.length} days off?`,
+      message: this.dayList(list),
+      icon: 'bi-x-circle',
+      tone: 'danger',
+      input: { label: 'Reason (optional, shown to the employee)', placeholder: 'e.g. Short-staffed that week' },
+      confirmText: `Reject ${list.length}`,
+    });
+    if (note === null) return;
+    this.busyId.set(list[0].id);
+    forkJoin(list.map((r) => this.api.rejectDayOff(r.id, note || undefined))).subscribe({
+      next: () => {
+        this.busyId.set(null);
+        this.toast.info(`Rejected ${list.length} day${list.length === 1 ? '' : 's'} for ${name}.`);
+        this.load();
+      },
+      error: () => {
+        this.busyId.set(null);
+        this.load();
+      },
+    });
+  }
+
   /** Approve/reject is for managers and admins, never on one's own request. */
   protected canReview(r: DayOffRequest): boolean {
     return this.auth.canManage() && r.employeeId !== this.auth.user()?.id;
@@ -586,6 +683,8 @@ export class DayOffPage implements OnInit {
   protected setForMe(on: boolean): void {
     this.forMe.set(on);
     this.formEmployeeId.set(on ? (this.auth.user()?.id ?? null) : null);
+    if (this.formWeek() < this.firstWeek()) this.formWeek.set(this.firstWeek());
+    if (this.formWeek() > this.lastWeek()) this.formWeek.set(this.lastWeek());
     this.formDays.set(new Set());
     this.formEmergencyDays.set(new Set());
     this.formEmergency.set(false);
@@ -635,6 +734,8 @@ export class DayOffPage implements OnInit {
 
   protected onFormEmployeeChange(id: number | null): void {
     this.formEmployeeId.set(id);
+    if (this.formWeek() < this.firstWeek()) this.formWeek.set(this.firstWeek());
+    if (this.formWeek() > this.lastWeek()) this.formWeek.set(this.lastWeek());
     this.loadTaken();
   }
 
@@ -668,6 +769,13 @@ export class DayOffPage implements OnInit {
       : `${t.takenBy} at your store already has this day`;
   }
 
+  private fullReason(date: string, me: boolean): string {
+    const t = this.formTaken().get(date);
+    return !t || t.full
+      ? `full (enough people are already off, so the stores need ${me ? 'you' : 'them'})`
+      : `taken (${t.takenBy} at ${me ? 'your' : 'their'} store already has it)`;
+  }
+
   protected dayDisabled(date: string): boolean {
     if (this.formDays().has(date) || this.formEmergencyDays().has(date)) {
       return false;
@@ -677,14 +785,19 @@ export class DayOffPage implements OnInit {
     }
     // A day they already asked for (a reserved or regular day can be picked: that just keeps it).
     const mine = this.myRequestOn(date);
-    if (mine && !(mine.reserved && mine.status !== 'REJECTED') && !(this.formOverride() && this.canOverride())) {
+    // A day turned down can be asked for again.
+    if (mine && mine.status !== 'REJECTED' && !mine.reserved && !(this.formOverride() && this.canOverride())) {
       return true;
+    }
+    // A full or taken day can be clicked: it asks about an emergency request.
+    if (this.takenBy(date) !== null && !(this.formOverride() && this.canOverride())) {
+      return this.windowApplies() && !this.isOpenDay(date);
     }
     // Limit used up: any other day can still be clicked, and asks about an emergency request.
     if (this.overflowsToEmergency()) {
       return false;
     }
-    if (this.formDays().size >= this.formMaxDays()) {
+    if (this.normalPicks() >= this.formMaxDays()) {
       return true;
     }
     if (this.windowApplies() && !this.isOpenDay(date)) {
@@ -726,7 +839,7 @@ export class DayOffPage implements OnInit {
 
   protected shiftFormWeek(weeks: number): void {
     const next = addDays(this.formWeek(), weeks * 7);
-    if (next < this.firstWeek || (this.selfService() && next > this.lastWeek())) {
+    if (next < this.firstWeek() || next > this.lastWeek()) {
       return;
     }
     this.formWeek.set(next);
@@ -757,17 +870,28 @@ export class DayOffPage implements OnInit {
       }
       return;
     }
-    if (this.overflowsToEmergency()) {
+    if (this.takenBy(date) !== null && !(this.formOverride() && this.canOverride())) {
+      await this.askEmergency(date, true);
+      return;
+    }
+    if (this.overflowsToEmergency() && !this.isMyRegular(date)) {
       await this.askEmergency(date);
       return;
     }
-    if (this.formDays().size < this.formMaxDays()) {
-      this.formDays.update((set) => new Set(set).add(date));
+    if (this.isMyRegular(date) || this.normalPicks() < this.formMaxDays()) {
+      this.formDays.update((set) => {
+        const next = new Set(set).add(date);
+        // A different day swaps out their regular day: it isn't kept alongside the new one.
+        if (!this.isMyRegular(date)) {
+          for (const d of [...next]) if (this.isMyRegular(d)) next.delete(d);
+        }
+        return next;
+      });
     }
   }
 
-  /** Past the weekly limit: asks whether this day should be sent as an emergency request. */
-  private async askEmergency(date: string): Promise<void> {
+  /** A full day, or past the weekly limit: asks whether this day should be sent as an emergency request. */
+  private async askEmergency(date: string, full = false): Promise<void> {
     const me = this.selfService() || this.auth.isEmployee();
     if (me && this.window()?.oneEmergencyPerMonth && this.window()?.emergencyUsedThisMonth) {
       this.toast.error("You've already used this month's emergency request. Please talk to your manager.");
@@ -775,11 +899,12 @@ export class DayOffPage implements OnInit {
     }
     const limit = this.maxDaysPerWeek();
     const when = formatDay(date, { weekday: 'long', month: 'short', day: 'numeric' });
-    const already = this.existingNormal() > 0 && this.formDays().size === 0;
+    const already = this.existingNormal() > 0 && this.normalPicks() === 0;
     const ok = await this.confirm.ask({
       title: 'Send an emergency request?',
-      message:
-        `${me ? 'You' : 'They'} can take ${limit} day${limit === 1 ? '' : 's'} off a week` +
+      message: full
+        ? `${when} is ${this.fullReason(date, me)}. Do you want to ask for it as an emergency day off?`
+        : `${me ? 'You' : 'They'} can take ${limit} day${limit === 1 ? '' : 's'} off a week` +
         `${already ? `, and ${me ? 'you' : 'they'} already have ${limit === 1 ? 'it' : 'them'}` : ''}. ` +
         `Do you want to ask for ${when} as an emergency day off?`,
       icon: 'bi-exclamation-octagon',

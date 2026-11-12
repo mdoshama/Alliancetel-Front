@@ -134,7 +134,13 @@
                   }
                 </div>
               </td>
-              <td data-label="Role"><span class="badge role-badge role-{{ e.role }}">{{ roleLabels[e.role] }}</span></td>
+              <td data-label="Role">
+                @if (e.trainee) {
+                  <span class="badge role-badge role-TRAINEE" title="In training">Trainee</span>
+                } @else {
+                  <span class="badge role-badge role-{{ e.role }}">{{ roleLabels[e.role] }}</span>
+                }
+              </td>
               <td data-label="Area">{{ e.areaName || '—' }}</td>
               <td data-label="Home store">
                 @if (e.areaId && e.active && auth.canManage()) {
@@ -186,7 +192,19 @@
                 @if (e.role === 'MANAGER' && !e.onSchedule) {
                   <span class="badge text-bg-light border" title="Only manages: not on the schedule">Manages only</span>
                 } @else {
-                  {{ e.workDaysPerWeek }}
+                  @if (canSetWorkDays(e) && e.active) {
+                    <select #wd class="form-select form-select-sm work-days-select" [value]="e.workDaysPerWeek"
+                            [disabled]="workDaysSavingId() === e.id"
+                            [attr.aria-label]="'Days a week ' + e.fullName + ' works'"
+                            title="Days a week they work. Change it to give more or fewer days off."
+                            (change)="setWorkDays(e, wd.value, wd)">
+                      @for (n of workDayOptions; track n) {
+                        <option [value]="n" [selected]="n === e.workDaysPerWeek">{{ n }} day{{ n === 1 ? '' : 's' }}</option>
+                      }
+                    </select>
+                  } @else {
+                    {{ e.workDaysPerWeek }}
+                  }
                   @if (e.workDaysPerWeek < 7 && e.active && e.role !== 'ADMIN') {
                     <!-- Regular days off: reserved for them first whenever a week opens (managers decide on them). -->
                     <div class="regular-days" role="group" [attr.aria-label]="'Regular days off for ' + e.fullName"
@@ -323,8 +341,8 @@
       <div class="col-md-4">
         <label class="form-label" for="eRole">Role</label>
         <select id="eRole" class="form-select" formControlName="role">
-          @for (r of roles; track r) {
-            <option [ngValue]="r">{{ roleLabels[r] }}</option>
+          @for (r of roleChoices; track r.value) {
+            <option [ngValue]="r.value">{{ r.label }}</option>
           }
         </select>
       </div>

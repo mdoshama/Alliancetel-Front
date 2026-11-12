@@ -7,6 +7,7 @@ import { ConfirmService } from '../../core/confirm.service';
 import { ToastService } from '../../core/toast.service';
 import {
   Area,
+  Employee,
   NOTIFICATION_KIND_LABELS,
   NOTIFICATION_STATUS_LABELS,
   NotificationChannel,
@@ -130,6 +131,74 @@ export class MessagesPage implements OnInit, OnDestroy {
   protected readonly deleting = signal<number | null>(null);
 
   protected announceArea: number | null = null;
+
+  // ---------- To one person ----------
+  /** Who the message goes to: everyone in the area, or one person. */
+  protected readonly sendTo = signal<'AREA' | 'PERSON'>('AREA');
+  /** People in the chosen area, A to Z. */
+  protected readonly people = signal<Employee[]>([]);
+  protected readonly personSearch = signal('');
+  protected readonly personId = signal<number | null>(null);
+  protected readonly personChoices = computed(() => {
+    const q = this.personSearch().trim().toLowerCase();
+    const chosen = this.personId();
+    return this.people().filter(
+      (e) => e.id === chosen || !q || e.fullName.toLowerCase().includes(q) || e.employeeCode.toLowerCase().includes(q),
+    );
+  });
+  protected readonly person = computed(() => this.people().find((e) => e.id === this.personId()) ?? null);
+
+  protected setSendTo(to: 'AREA' | 'PERSON'): void {
+    this.sendTo.set(to);
+    if (to === 'PERSON' && this.people().length === 0) this.loadPeople();
+  }
+
+  protected onAreaChange(): void {
+    this.personId.set(null);
+    this.people.set([]);
+    if (this.sendTo() === 'PERSON') this.loadPeople();
+  }
+
+  private loadPeople(): void {
+    if (this.announceArea == null) return;
+    this.api.employees({ areaId: this.announceArea, active: true }).subscribe((list) =>
+      this.people.set(
+        list
+          .filter((e) => e.role !== 'ADMIN' && e.id !== this.auth.user()?.id)
+          .sort((a, b) => a.fullName.localeCompare(b.fullName, undefined, { sensitivity: 'base' })),
+      ),
+    );
+  }
+
+  /** Sends the message to one person (email, and WhatsApp / text if they agreed). */
+  protected async sendToPerson(): Promise<void> {
+    const text = clean(this.message());
+    const p = this.person();
+    if (!text || this.messageError() || !p) return;
+    const ok = await this.confirm.ask({
+      title: `Send to ${p.fullName}?`,
+      message: `“${text}”`,
+      icon: 'bi-person-lines-fill',
+      tone: 'primary',
+      confirmText: 'Send message',
+    });
+    if (!ok) return;
+    this.sending.set(true);
+    this.api.messagePerson(p.id, text).subscribe({
+      next: (res) => {
+        this.sending.set(false);
+        this.message.set('');
+        const how = res.sentBy.length ? res.sentBy.join(', ') : 'nowhere';
+        if (res.sentBy.length) this.toast.success(`Message to ${p.fullName} sent by ${how}.`);
+        else this.toast.error(`Couldn't reach ${p.fullName}: ${res.notSentBy.join('; ') || 'no way to contact them'}.`);
+        this.tab.set('ALL');
+        this.page.set(0);
+        this.loadStatus();
+        this.load();
+      },
+      error: () => this.sending.set(false),
+    });
+  }
   protected readonly message = signal('');
   protected readonly messageError = computed(() => {
     const m = this.message();

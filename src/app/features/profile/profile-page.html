@@ -31,7 +31,7 @@
               @if (fieldError(form.controls.phone, 'Phone'); as msg) {
                 <div class="invalid-feedback">{{ msg }}</div>
               } @else {
-                <div class="form-text">Used for WhatsApp and text updates you turn on below.</div>
+                <div class="form-text">Used for WhatsApp and text updates, if an admin turns them on for you.</div>
               }
             </div>
             <div class="col-md-6">
@@ -86,56 +86,16 @@
 
     <div class="col-lg-5">
       @if (user.role !== 'ADMIN') {
+        <!-- How updates reach them: decided by an admin, shown here for information only. -->
         <div class="card mb-4">
           <div class="card-header fw-semibold"><i class="bi bi-bell me-1 text-primary"></i>Schedule updates</div>
           <div class="card-body">
-            <div class="form-check form-switch">
-              <input class="form-check-input" type="checkbox" id="pEmail" [checked]="user.emailOptIn !== false"
-                     [disabled]="savingPrefs()" (change)="toggleEmail($event)" />
-              <label class="form-check-label" for="pEmail"><i class="bi bi-envelope text-primary"></i> By email</label>
+            <div class="d-flex flex-wrap gap-2 mb-2">
+              <span class="msg-reach-chip" [class.is-on]="user.emailOptIn !== false"><i class="bi bi-envelope"></i>Email</span>
+              <span class="msg-reach-chip" [class.is-on]="!!user.whatsappOptIn"><i class="bi bi-whatsapp"></i>WhatsApp</span>
+              <span class="msg-reach-chip" [class.is-on]="!!user.smsOptIn"><i class="bi bi-chat-text"></i>Text</span>
             </div>
-            <div class="small text-muted-2 mb-3 ms-4">To {{ user.email }}</div>
-
-            <div class="form-check form-switch">
-              <input class="form-check-input" type="checkbox" id="pWa" [checked]="!!user.whatsappOptIn"
-                     [disabled]="!user.phone || savingPrefs()" (change)="toggleWhatsapp($event)" />
-              <label class="form-check-label" for="pWa"><i class="bi bi-whatsapp text-success"></i> On WhatsApp</label>
-            </div>
-            <div class="small text-muted-2 mb-3 ms-4">
-              @if (user.phone) { To {{ formatPhone(user.phone) }} } @else { Add your mobile number first. }
-            </div>
-
-            <div class="form-check form-switch">
-              <input class="form-check-input" type="checkbox" id="pSms" [checked]="!!user.smsOptIn || smsConsentOpen()"
-                     [disabled]="!user.phone || savingPrefs()" (change)="toggleSms($event)" />
-              <label class="form-check-label" for="pSms"><i class="bi bi-chat-text text-info"></i> By text message</label>
-            </div>
-            @if (smsConsentOpen()) {
-              <div class="sms-consent-box mt-2" role="group" aria-label="Text message consent">
-                <div class="fw-semibold mb-1">Text message consent</div>
-                <label class="form-label mb-1" for="pSmsPhone">Mobile number</label>
-                <input id="pSmsPhone" class="form-control form-control-sm mb-2" [value]="formatPhone(user.phone || '')" readonly />
-                <p class="mb-2 small">{{ smsConsentText }}</p>
-                <div class="form-check mb-2">
-                  <input class="form-check-input" type="checkbox" id="pSmsAgree" [checked]="smsAgreed()" (change)="smsAgreed.set($any($event.target).checked)" />
-                  <label class="form-check-label small" for="pSmsAgree">
-                    I agree to receive work schedule text messages from AllianceTel Enterprise at this number, and to the
-                    <a href="/terms#sms-terms" target="_blank" rel="noopener">SMS Terms</a> and
-                    <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>.
-                  </label>
-                </div>
-                <div class="d-flex gap-2">
-                  <button type="button" class="btn btn-primary btn-sm flex-grow-1" [disabled]="!smsAgreed() || savingPrefs()" (click)="agreeToSms()">Turn on text messages</button>
-                  <button type="button" class="btn btn-light btn-sm border" (click)="smsConsentOpen.set(false)">Cancel</button>
-                </div>
-              </div>
-            } @else {
-              <div class="small text-muted-2 ms-4">
-                @if (user.phone) { To {{ formatPhone(user.phone) }}. } @else { Add your mobile number first. }
-                Msg &amp; data rates may apply. Reply STOP to stop.
-                <a href="/terms#sms-terms" target="_blank" rel="noopener">SMS Terms</a>
-              </div>
-            }
+            <div class="small text-muted-2">How you get schedule updates is set by an admin. Ask them if something should change.</div>
           </div>
         </div>
       }

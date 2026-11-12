@@ -119,6 +119,10 @@ export class ApiService {
   setRegularDaysOff(id: number, days: DayOfWeek[]): Observable<Employee> {
     return this.http.put<Employee>(`${this.base}/employees/${id}/regular-days-off`, { days });
   }
+  /** How many days a week someone works, 1 to 7 (managers of their area, admins). */
+  setWorkDays(id: number, days: number): Observable<Employee> {
+    return this.http.put<Employee>(`${this.base}/employees/${id}/work-days`, { days });
+  }
   /** New temporary password; also emails (and texts, if they agreed to texts or textLink) a set-password link. */
   resetPassword(id: number, textLink = false): Observable<Credentials> {
     return this.http.post<Credentials>(`${this.base}/employees/${id}/reset-password`, {}, { params: toParams({ textLink }) });

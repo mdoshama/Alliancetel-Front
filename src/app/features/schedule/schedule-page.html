@@ -132,7 +132,7 @@
             </div>
             <div class="glance-stat">
               <div class="glance-num">{{ rs.reserved.length }}</div>
-              <div class="glance-label">Reserved by system</div>
+              <div class="glance-label">Off by system</div>
             </div>
             <div class="glance-stat" [class.is-bad]="weekSpare() < 0">
               <div class="glance-num">{{ c.shiftsAvailable }}<small>/{{ c.shiftsNeeded }}</small></div>
@@ -161,7 +161,7 @@
         }
 
         <!-- People, folded away until needed -->
-        @if (rs.missing.length || rs.denied.length || rs.reserved.length || rs.fewer.length || rs.fullWeek.length) {
+        @if (rs.missing.length || rs.denied.length || rs.reserved.length || rs.fewer.length || rs.fullWeek.length || rs.others.length) {
           <button type="button" class="btn btn-link btn-sm px-0 mt-2 text-decoration-none" (click)="glancePeople.set(!glancePeople())"
                   [attr.aria-expanded]="glancePeople()">
             <i class="bi me-1" [class.bi-chevron-down]="!glancePeople()" [class.bi-chevron-up]="glancePeople()"></i>
@@ -169,67 +169,39 @@
           </button>
         }
         @if (glancePeople()) {
-          <div class="glance-groups">
-            @if (rs.missing.length > 0) {
-              <div class="glance-group">
-                <div class="glance-gtitle text-danger">No request yet · {{ rs.missing.length }} <span class="text-muted-2 text-none">· system picks at generate</span></div>
-                <div class="glance-names">
-                  @for (p of rs.missing; track p.employeeId) { <span class="glance-name is-red">{{ p.name }}</span> }
-                </div>
-              </div>
-            }
-            @if (rs.regular?.length) {
-              <div class="glance-group">
-                <div class="glance-gtitle text-purple">Regular day off · {{ rs.regular!.length }}</div>
-                <div class="glance-names">
-                  @for (p of rs.regular!; track p.employeeId) {
-                    <span class="glance-name is-purple" [attr.title]="'Regular day off: ' + p.dates.join(', ')">{{ p.name }} · {{ dayLabels(p.dates) }}</span>
+          <div class="glance-board">
+            @for (g of glanceSections(rs); track g.key) {
+              <section class="gb-card tone-{{ g.tone }}" [attr.aria-label]="g.title">
+                <header class="gb-head">
+                  <span class="gb-icon"><i class="bi {{ g.icon }}"></i></span>
+                  <div class="min-w-0 flex-grow-1">
+                    <div class="gb-title">{{ g.title }}</div>
+                    <div class="gb-note">{{ g.note }}</div>
+                  </div>
+                  <span class="gb-count">{{ g.people.length }}</span>
+                </header>
+                <ul class="gb-list">
+                  @for (p of g.people; track p.employeeId) {
+                    <li class="gb-row">
+                      <span class="gb-avatar">{{ initials(p.name) }}</span>
+                      <div class="gb-who">
+                        <span class="gb-name">{{ p.name }}</span>
+                        @if (p.homeStoreName) { <span class="gb-store">{{ p.homeStoreName }}</span> }
+                      </div>
+                      <div class="gb-days">
+                        @if (g.key === 'fewer') { <span class="gb-chip is-count" title="Days asked / days they usually take">{{ p.daysOffAsked }}/{{ p.daysOffNeeded }}</span> }
+                        @for (d of p.dates; track d) { <span class="gb-chip" [attr.title]="d">{{ shortDay(d) }}</span> }
+                        @if (g.key === 'fullWeek') {
+                          <button type="button" class="btn btn-sm btn-link text-danger p-0 ms-1" [attr.aria-label]="'Back to usual days off for ' + p.name"
+                                  title="Back to their usual days off" [disabled]="fullWeekBusy()" (click)="setFullWeek(p.employeeId, false)">
+                            <i class="bi bi-x-circle"></i>
+                          </button>
+                        }
+                      </div>
+                    </li>
                   }
-                </div>
-              </div>
-            }
-            @if (rs.reserved.length > 0) {
-              <div class="glance-group">
-                <div class="glance-gtitle text-info-emphasis">Reserved by system · {{ rs.reserved.length }}</div>
-                <div class="glance-names">
-                  @for (p of rs.reserved; track p.employeeId) {
-                    <span class="glance-name is-teal" [attr.title]="'Reserved: ' + p.dates.join(', ')">{{ p.name }}</span>
-                  }
-                </div>
-              </div>
-            }
-            @if (rs.denied.length > 0) {
-              <div class="glance-group">
-                <div class="glance-gtitle text-warning-emphasis">Turned down · {{ rs.denied.length }}</div>
-                <div class="glance-names">
-                  @for (p of rs.denied; track p.employeeId) { <span class="glance-name is-amber">{{ p.name }}</span> }
-                </div>
-              </div>
-            }
-            @if (rs.fewer.length > 0) {
-              <div class="glance-group">
-                <div class="glance-gtitle text-primary-emphasis">Fewer days than usual · {{ rs.fewer.length }}</div>
-                <div class="glance-names">
-                  @for (p of rs.fewer; track p.employeeId) {
-                    <span class="glance-name is-blue">{{ p.name }} · {{ p.daysOffAsked }}/{{ p.daysOffNeeded }}</span>
-                  }
-                </div>
-              </div>
-            }
-            @if (rs.fullWeek.length > 0) {
-              <div class="glance-group">
-                <div class="glance-gtitle text-success-emphasis">Working all 7 days · {{ rs.fullWeek.length }}</div>
-                <div class="glance-names">
-                  @for (p of rs.fullWeek; track p.employeeId) {
-                    <span class="glance-name is-green d-inline-flex align-items-center gap-1">
-                      {{ p.name }}
-                      <button type="button" class="btn-close btn-close-sm" style="font-size: 0.5rem"
-                              [attr.aria-label]="'Back to usual days off for ' + p.name" title="Back to their usual days off"
-                              [disabled]="fullWeekBusy()" (click)="setFullWeek(p.employeeId, false)"></button>
-                    </span>
-                  }
-                </div>
-              </div>
+                </ul>
+              </section>
             }
           </div>
           @if (fullWeekChoices().length > 0) {
@@ -357,32 +329,33 @@
   @let s = schedule()!;
 
   @if (auth.isEmployee() && myRow(); as me) {
-    <div class="card mb-3">
-      <div class="card-body d-flex flex-wrap align-items-center gap-3">
-        <div class="me-2">
-          <div class="text-muted-2 small">Your week</div>
-          <div class="fw-bold fs-5">{{ me.scheduledWorkDays }} work days</div>
-        </div>
-        <div class="d-flex flex-wrap gap-2">
-          @for (cell of me.days; track cell.entryId) {
-            <div class="text-center">
-              <div class="small text-muted-2 mb-1">{{ format(cell.date, { weekday: 'short' }) }}</div>
-              <span class="day-chip type-{{ cell.type }}" [attr.title]="describe(cell)"
-                    [class.has-store]="cell.type === 'WORK' && !!cell.storeId"
-                    [class.no-store]="cell.type === 'WORK' && !cell.storeId"
-                    [style.--store-color]="cell.type === 'WORK' ? cell.storeColor : null">
-                @if (cell.type === 'WORK') {
-                  <span class="chip-name">{{ cell.storeName ?? 'Work · no store' }}</span>
-                  @if (cell.opensAt) { <span class="chip-hours">{{ shiftHours(cell) }}</span> }
-                } @else {
-                  {{ dayTypeLabels[cell.type] }}
-                }
-              </span>
-            </div>
-          }
-        </div>
+    <!-- The employee's own week: seven days in one row, on phones too. -->
+    <section class="card mb-3 my-week" aria-label="Your week">
+      <div class="my-week-head">
+        <span class="my-week-title">Your week</span>
+        <span class="my-week-count"><strong>{{ me.scheduledWorkDays }}</strong> work days</span>
       </div>
-    </div>
+      <div class="my-week-days">
+        @for (cell of me.days; track cell.entryId) {
+          <div class="my-day" [class.is-work]="cell.type === 'WORK'" [class.is-off]="cell.type !== 'WORK'"
+               [class.is-today]="cell.date === todayIso" [style.--store-color]="cell.type === 'WORK' ? cell.storeColor : null"
+               [attr.title]="describe(cell)">
+            <span class="my-day-dow">{{ format(cell.date, { weekday: 'short' }) }}</span>
+            <span class="my-day-date">{{ format(cell.date, { month: 'numeric', day: 'numeric' }) }}</span>
+            @if (cell.type === 'WORK') {
+              <span class="my-day-store">{{ cell.storeName ?? 'Work' }}</span>
+              @if (cell.storeClosed) {
+                <span class="my-day-hours">Closed</span>
+              } @else if (cell.opensAt) {
+                <span class="my-day-hours">{{ shiftHours(cell) }}</span>
+              }
+            } @else {
+              <span class="my-day-store">Off</span>
+            }
+          </div>
+        }
+      </div>
+    </section>
   }
 
   <div class="row g-3 mb-3" [class.d-none]="auth.isEmployee()">
@@ -655,7 +628,7 @@
         @if (auth.canManage()) {
           @if (askedRequests().length) { <span class="d-flex align-items-center gap-1"><span class="req-flag">Off?</span> asked off</span> }
           @if (regularRequests().length) { <span class="d-flex align-items-center gap-1"><span class="req-flag is-regular"><i class="bi bi-arrow-repeat"></i></span> regular day off</span> }
-          @if (reservedRequests().length) { <span class="d-flex align-items-center gap-1"><span class="req-flag is-reserved"><i class="bi bi-bookmark-fill"></i></span> reserved</span> }
+          @if (reservedRequests().length) { <span class="d-flex align-items-center gap-1"><span class="req-flag is-reserved"><i class="bi bi-cpu"></i></span> off by system</span> }
           <span class="d-flex align-items-center gap-1"><span class="day-chip type-WORK has-store auto-moved px-2" style="--store-color: #475569"><i class="bi bi-arrow-left-right"></i></span> auto-moved</span>
           <span class="d-flex align-items-center gap-1"><span class="day-chip type-OFF px-2"><span class="edited-dot"></span>&nbsp;</span> edited</span>
           @if (canEdit()) {
@@ -752,6 +725,7 @@
 
       <ng-template #personChip let-p>
         <button type="button" class="sb-person" [class.is-off]="p.cell.type !== 'WORK'" [class.is-dim]="isSearchMiss(p.row)"
+                [class.is-manager]="p.row.role === 'MANAGER'" [class.is-trainee]="!!p.row.trainee"
                 [class.is-requested]="p.cell.type === 'REQUESTED_OFF'" [class.is-auto]="p.cell.autoAssigned"
                 [class.drag-source]="isDragSource(p.row, p.dayIndex)"
                 [class.drop-hover]="dropKey() === 'sp' + p.row.employeeId + '-' + p.dayIndex"
@@ -768,6 +742,8 @@
             @if (p.row.storeRole === 'PRIMARY') { <span class="emp-star"><i class="bi bi-star-fill"></i></span> }
           </span>
           <span class="sb-name">{{ shortName(p.row.employeeName) }}</span>
+          @if (p.row.role === 'MANAGER') { <i class="bi bi-person-badge-fill sb-mgr" title="Manager"></i> }
+          @if (p.row.trainee) { <i class="bi bi-mortarboard-fill sb-trn" title="In training"></i> }
           @if (p.cell.type === 'REQUESTED_OFF' && p.cell.offSource) {
             <span class="off-source is-icon src-{{ p.cell.offSource }}" [attr.title]="offSource(p.cell).title">
               <i class="bi {{ offSource(p.cell).icon }}"></i>
@@ -775,7 +751,7 @@
           }
           @if (p.cell.request; as rq) {
             <span class="req-flag" [class.is-emergency]="rq.emergency" [class.is-reserved]="rq.reserved && !rq.regular" [class.is-regular]="rq.regular"
-                  [attr.title]="rq.regular ? 'Regular day off (waiting for approval)' : rq.reserved ? 'Day off reserved by the system (waiting for approval)' : 'Asked for this day off'">@if (rq.regular) {<i class="bi bi-arrow-repeat"></i>} @else if (rq.reserved) {<i class="bi bi-bookmark-fill"></i>} @else {Off?}</span>
+                  [attr.title]="rq.regular ? 'Regular day off (waiting for approval)' : rq.reserved ? 'Day off assigned by the system' : 'Asked for this day off'">@if (rq.regular) {<i class="bi bi-arrow-repeat"></i>} @else if (rq.reserved) {<i class="bi bi-cpu"></i>} @else {Off?}</span>
           }
           @if (p.cell.autoAssigned) { <i class="bi bi-arrow-left-right sb-moved" title="Moved automatically"></i> }
           @if (p.cell.manuallyEdited) { <span class="edited-dot"></span> }
@@ -801,7 +777,8 @@
           </thead>
           <tbody>
             @for (row of visibleRows(); track row.employeeId) {
-              <tr [class.is-me]="row.employeeId === auth.user()?.id">
+              <tr [class.is-me]="row.employeeId === auth.user()?.id" [class.is-manager-row]="row.role === 'MANAGER'"
+                  [class.is-trainee-row]="!!row.trainee">
                 <td>
                   <div class="emp-cell" [attr.title]="auth.isEmployee() ? row.employeeName : personTitle(row)">
                     <span class="emp-avatar" [class.is-floater]="row.storeRole === 'FLOATER' && !auth.isEmployee()"
@@ -814,7 +791,8 @@
                     <div class="emp-text">
                       <div class="emp-name">
                         {{ row.employeeName }}
-                        @if (row.role === 'MANAGER') { <span class="emp-manager">Manager</span> }
+                        @if (row.role === 'MANAGER') { <span class="emp-manager"><i class="bi bi-person-badge-fill"></i> Manager</span> }
+                        @if (row.trainee) { <span class="emp-trainee"><i class="bi bi-mortarboard-fill"></i> In training</span> }
                         @if (row.employeeId === auth.user()?.id) { <span class="you-tag">You</span> }
                       </div>
                       <!-- Phones: the Days column is hidden to leave room for the week, so the count goes here. -->
@@ -895,7 +873,7 @@
                       @if (cell.manuallyEdited && auth.canManage()) { <span class="edited-dot"></span> }
                       @if (cell.request; as rq) {
                         <span class="req-flag" [class.is-emergency]="rq.emergency" [class.is-reserved]="rq.reserved && !rq.regular" [class.is-regular]="rq.regular"
-                              [attr.title]="rq.regular ? 'Regular day off (waiting for approval)' : rq.reserved ? 'Day off reserved by the system (waiting for approval)' : 'Asked for this day off' + (rq.reason ? ': ' + rq.reason : '')">@if (rq.regular) {<i class="bi bi-arrow-repeat"></i>} @else if (rq.reserved) {<i class="bi bi-bookmark-fill"></i>} @else {Off?}</span>
+                              [attr.title]="rq.regular ? 'Regular day off (waiting for approval)' : rq.reserved ? 'Day off assigned by the system' : 'Asked for this day off' + (rq.reason ? ': ' + rq.reason : '')">@if (rq.regular) {<i class="bi bi-arrow-repeat"></i>} @else if (rq.reserved) {<i class="bi bi-cpu"></i>} @else {Off?}</span>
                       }
                     </button>
                   </td>
@@ -979,13 +957,13 @@
     </div>
     @if (e.cell.request; as rq) {
       <div class="editor-request" [class.is-emergency]="rq.emergency" [class.is-reserved]="rq.reserved && !rq.regular" [class.is-regular]="rq.regular">
-        <i class="bi" [class.bi-calendar-x]="!rq.reserved" [class.bi-bookmark-fill]="rq.reserved && !rq.regular" [class.bi-arrow-repeat]="rq.regular"></i>
+        <i class="bi" [class.bi-calendar-x]="!rq.reserved" [class.bi-cpu]="rq.reserved && !rq.regular" [class.bi-arrow-repeat]="rq.regular"></i>
         <div class="flex-grow-1">
           @if (rq.regular) {
             <strong>{{ e.row.employeeName.split(' ')[0] }}'s regular day off</strong>
-            <div class="small">Reserved because they're off on this day every week. It waits for you to approve or reject.</div>
+            <div class="small">Set because they're off on this day every week. It waits for you to approve or reject.</div>
           } @else if (rq.reserved) {
-            <strong>Reserved for {{ e.row.employeeName.split(' ')[0] }} by the system</strong>
+            <strong>Off assigned to {{ e.row.employeeName.split(' ')[0] }} by the system</strong>
             <div class="small">They didn't pick a day, so this one is held. It stays pending until approved.</div>
           } @else {
             <strong>{{ e.row.employeeName.split(' ')[0] }} asked for this day off</strong>
@@ -1124,7 +1102,7 @@
               @if (c.row.homeStoreId === g.gap.storeId) { <span class="badge text-bg-light border ms-1">Home store</span> }
               @if (c.pendingRequest) {
                 @if (c.cell.request?.regular) { <span class="req-flag is-regular ms-1" title="Their regular day off (waiting)"><i class="bi bi-arrow-repeat"></i></span> }
-                @else if (c.cell.request?.reserved) { <span class="req-flag is-reserved ms-1" title="Day off reserved by the system (waiting)"><i class="bi bi-bookmark-fill"></i></span> }
+                @else if (c.cell.request?.reserved) { <span class="req-flag is-reserved ms-1" title="Day off assigned by the system"><i class="bi bi-cpu"></i></span> }
                 @else { <span class="req-flag ms-1" title="Asked for this day off (waiting)">Off?</span> }
               }
             </div>

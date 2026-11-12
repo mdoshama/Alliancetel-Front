@@ -146,46 +146,92 @@
       }
     </div>
   </div>
-} @else if (status() === 'PENDING' && auth.canManage()) {
-  <!-- Emergency requests: one card each, with the staffing check and the decision. -->
-  <div class="er-list" [class.is-refreshing]="loading()">
-    @for (r of requests(); track r.id) {
-      <article class="er-card">
-        <div class="er-date">
-          <span class="er-wd">{{ format(r.date, { weekday: 'short' }) }}</span>
-          <span class="er-num">{{ format(r.date, { day: 'numeric' }) }}</span>
-          <span class="er-mon">{{ format(r.date, { month: 'short' }) }}</span>
-        </div>
-        <div class="er-main">
-          <div class="er-name">
-            {{ r.employeeName }}
-            <span class="er-meta">{{ r.employeeCode }}@if (auth.isAdmin()) { · {{ r.areaName }} }</span>
-          </div>
-          <div class="er-reason">
-            <span class="emergency-badge"><i class="bi bi-exclamation-octagon-fill"></i> Emergency</span>
-            {{ r.reason || 'No reason given' }}
-          </div>
-          @if (impacts().get(r.id); as im) {
-            <div class="er-impact {{ impactBadge[im.level].css }}">
-              <i class="bi {{ impactBadge[im.level].icon }}"></i>
-              <span><strong>{{ impactBadge[im.level].label }}.</strong> {{ im.summary }}</span>
+} @else if (auth.canManage()) {
+  <!-- Managers and admins: one card per person, with all their days and a decision for all of them at once. -->
+  <div class="rg-list" [class.is-refreshing]="loading()">
+    @for (g of personGroups(); track g.employeeId) {
+      <article class="rg-card" [class.has-pending]="decidable(g.items).length > 0">
+        <header class="rg-head">
+          <span class="rg-avatar">{{ initials(g.name) }}</span>
+          <div class="min-w-0 flex-grow-1">
+            <div class="rg-name">{{ g.name }} <span class="er-meta">{{ g.code }}@if (auth.isAdmin() && g.areaName) { · {{ g.areaName }} }</span></div>
+            <div class="small text-muted-2">{{ g.items.length }} day{{ g.items.length === 1 ? '' : 's' }}
+              @if (decidable(g.items).length) { · <span class="text-danger fw-semibold">{{ decidable(g.items).length }} waiting</span> }
             </div>
-          } @else if (canReview(r)) {
-            <div class="er-impact"><span class="spinner-border spinner-border-sm"></span><span>Checking the stores…</span></div>
+          </div>
+          @if (decidable(g.items).length > 1) {
+            <div class="rg-actions">
+              <button type="button" class="btn btn-sm btn-success" [disabled]="busyId() !== null" (click)="approveAll(g.name, g.items)">
+                <i class="bi bi-check2-all me-1"></i>Approve all
+              </button>
+              <button type="button" class="btn btn-sm btn-outline-danger" [disabled]="busyId() !== null" (click)="rejectAll(g.name, g.items)">
+                <i class="bi bi-x-lg me-1"></i>Reject all
+              </button>
+            </div>
           }
-        </div>
-        <div class="er-actions">
-          @if (canReview(r)) {
-            <button type="button" class="btn btn-success" [disabled]="busyId() === r.id" (click)="approve(r)">
-              <i class="bi bi-check-lg me-1"></i>Approve
-            </button>
-            <button type="button" class="btn btn-outline-danger" [disabled]="busyId() === r.id" (click)="reject(r)">
-              <i class="bi bi-x-lg me-1"></i>Reject
-            </button>
-          } @else {
-            <span class="small text-muted-2">{{ auth.isManager() && r.employeeId === auth.user()?.id ? 'An admin decides' : 'Awaiting manager' }}</span>
+        </header>
+        <ul class="rg-days">
+          @for (r of g.items; track r.id) {
+            <li class="rg-day" [class.is-pending]="r.status === 'PENDING'">
+              <span class="rg-date" [class.is-emergency]="r.emergency">
+                <span>{{ format(r.date, { weekday: 'short' }) }}</span>
+                <strong>{{ format(r.date, { day: 'numeric' }) }}</strong>
+                <span>{{ format(r.date, { month: 'short' }) }}</span>
+              </span>
+              <div class="rg-day-main">
+                <div class="d-flex flex-wrap align-items-center gap-1">
+                  @if (r.emergency) { <span class="emergency-badge"><i class="bi bi-exclamation-octagon-fill"></i> Emergency</span> }
+                  @if (r.status === 'APPROVED') {
+                    <span class="badge status-badge status-APPROVED"><i class="bi bi-check-circle-fill me-1"></i>Approved</span>
+                  } @else if (r.status === 'PENDING') {
+                    <span class="badge status-badge status-PENDING">Waiting</span>
+                  } @else {
+                    <span class="badge status-badge status-REJECTED">Rejected</span>
+                  }
+                  <span class="small text-muted-2">{{ r.reason || 'No reason given' }}</span>
+                </div>
+                @if (r.status === 'REJECTED' && r.reviewNote) { <div class="small text-muted-2">{{ r.reviewNote }}</div> }
+                @if (r.decisionChangeReason) {
+                  <div class="small fst-italic text-muted-2">
+                    Changed from {{ r.previousStatus | titlecase }}@if (r.decisionChangedBy) { by {{ r.decisionChangedBy }} }: {{ r.decisionChangeReason }}
+                  </div>
+                }
+                @if (r.status === 'PENDING') {
+                  @if (impacts().get(r.id); as im) {
+                    <div class="er-impact {{ impactBadge[im.level].css }}">
+                      <i class="bi {{ impactBadge[im.level].icon }}"></i>
+                      <span><strong>{{ impactBadge[im.level].label }}.</strong> {{ im.summary }}</span>
+                    </div>
+                  } @else if (canReview(r)) {
+                    <div class="er-impact"><span class="spinner-border spinner-border-sm"></span><span>Checking the stores…</span></div>
+                  }
+                }
+              </div>
+              <div class="rg-day-actions">
+                @if (r.status === 'PENDING') {
+                  @if (canReview(r)) {
+                    <button type="button" class="btn btn-sm btn-success" [disabled]="busyId() !== null" (click)="approve(r)" title="Approve this day">
+                      <i class="bi bi-check-lg"></i><span class="d-none d-md-inline ms-1">Approve</span>
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-danger" [disabled]="busyId() !== null" (click)="reject(r)" title="Reject this day">
+                      <i class="bi bi-x-lg"></i><span class="d-none d-md-inline ms-1">Reject</span>
+                    </button>
+                  } @else {
+                    <span class="small text-muted-2">{{ auth.isManager() && r.employeeId === auth.user()?.id ? 'An admin decides' : 'Awaiting manager' }}</span>
+                  }
+                } @else if (canChangeDecision(r) && r.status === 'REJECTED') {
+                  <button type="button" class="btn btn-sm btn-outline-success" [disabled]="busyId() === r.id" (click)="changeDecision(r)" title="Give this day off after all">
+                    <i class="bi bi-arrow-repeat me-1"></i>Give it
+                  </button>
+                } @else if (r.areaId && r.status === 'APPROVED') {
+                  <a class="btn btn-sm btn-link" [routerLink]="['/schedules']" [queryParams]="{ area: r.areaId, week: weekOf(r.date) }" title="Open that week's schedule">
+                    <i class="bi bi-calendar3-week"></i>
+                  </a>
+                }
+              </div>
+            </li>
           }
-        </div>
+        </ul>
       </article>
     }
   </div>
@@ -265,6 +311,13 @@
                 (pageChange)="goToPage($event)" (sizeChange)="changePageSize($event)" />
 
 <app-modal [open]="modalOpen()" [title]="auth.isEmployee() ? 'Request days off' : 'New day-off request'" (closed)="modalOpen.set(false)">
+<div class="req-form" [class.is-emergency-mode]="emergencyMode()">
+  @if (emergencyMode()) {
+    <div class="req-emergency-banner">
+      <i class="bi bi-exclamation-octagon-fill"></i>
+      <div><strong>Emergency request</strong><span>A manager or admin approves or rejects it.</span></div>
+    </div>
+  }
   @if (auth.isAdmin()) {
     <div class="mb-3">
       <label class="form-label" for="nArea">Area</label>
@@ -346,11 +399,7 @@
         <div class="alert alert-info small py-2 mb-2">
           <i class="bi bi-calendar-check me-1"></i>
           You can ask for days off in the week{{ w.openWeeks.length > 1 ? 's' : '' }} of
-          @for (wk of w.openWeeks; track wk; let last = $last) { <strong>{{ short(wk) }} – {{ short(addDays(wk, 6)) }}</strong>{{ last ? '' : ' and ' }} }
-          @if (w.mode === 'AUTO') {
-            until the end of <strong>{{ format(w.deadline, { weekday: 'long', month: 'short', day: 'numeric' }) }}</strong>. The week
-            after opens on {{ format(w.nextOpens, { weekday: 'long', month: 'short', day: 'numeric' }) }}.
-          } @else { (opened by an admin). }
+          @for (wk of w.openWeeks; track wk; let last = $last) { <strong>{{ short(wk) }} – {{ short(addDays(wk, 6)) }}</strong>{{ last ? '' : ' and ' }} }. This week's schedule is already made.
         </div>
       }
     }
@@ -377,27 +426,16 @@
         </span>
       </div>
     }
-    @if (myReserved().length && !formEmergency() && !auth.isEmployee()) {
-      <div class="alert alert-light border small py-2 mb-2">
-        <i class="bi bi-bookmark-check text-info me-1"></i>
-        This was reserved for you:
-        @for (r of myReserved(); track r.id; let last = $last) {
-          <strong>{{ format(r.date, { weekday: 'short', month: 'short', day: 'numeric' }) }}</strong>
-          ({{ r.status === 'APPROVED' ? 'approved' : 'waiting for your manager' }}){{ last ? '' : ', ' }}
-        }.
-
-      </div>
-    }
   }
   <div class="day-toggle-group mb-2">
     @for (d of formWeekDates(); track d) {
       <button type="button" class="btn day-pick"
               [class.is-picked]="formDays().has(d) || formEmergencyDays().has(d)"
-              [class.is-emergency]="(formDays().has(d) && formEmergency()) || formEmergencyDays().has(d)"
-              [class.is-full]="!!takenBy(d) && !formDays().has(d)"
-              [class.is-available]="!takenBy(d) && !formDays().has(d) && !formEmergencyDays().has(d) && !dayDisabled(d) && !isMyRegular(d) && !overflowsToEmergency()"
-              [class.is-overflow]="!formDays().has(d) && !formEmergencyDays().has(d) && !dayDisabled(d) && overflowsToEmergency()"
+              [class.is-emergency]="(formDays().has(d) && emergencyMode()) || formEmergencyDays().has(d)"
+              [class.is-full]="!!takenBy(d) && !formDays().has(d) && !formEmergencyDays().has(d)"
+              [class.is-available]="!takenBy(d) && !formDays().has(d) && !formEmergencyDays().has(d) && !dayDisabled(d) && !isMyRegular(d)"
               [class.is-regular]="isMyRegular(d) && !formDays().has(d)"
+              [class.is-mine]="!!myRequestOn(d) && !myRequestOn(d)!.reserved && myRequestOn(d)!.status !== 'REJECTED' && !formDays().has(d)"
               [disabled]="dayDisabled(d)"
               [attr.title]="takenTitle(d)"
               (click)="toggleDay(d)">
@@ -406,15 +444,14 @@
         @if (formEmergencyDays().has(d)) { <small class="pick-state"><i class="bi bi-exclamation-octagon-fill"></i> Emergency</small> }
         @else if (formDays().has(d)) { <small class="pick-state"><i class="bi bi-check-lg"></i></small> }
         @else if (myRequestOn(d); as mine) {
-          @if (!mine.reserved) { <small class="taken-by">{{ mine.status === 'APPROVED' ? 'Yours' : mine.status === 'PENDING' ? 'Waiting' : 'Not given' }}</small> }
+          @if (mine.status === 'REJECTED') { <small class="pick-state">Ask again</small> }
+          @else if (!mine.reserved) { <small class="taken-by">{{ mine.status === 'APPROVED' ? 'Yours' : 'Waiting' }}</small> }
           @else if (isMyRegular(d)) { <small class="regular-by"><i class="bi bi-arrow-repeat"></i> Regular</small> }
-          @else { <small class="reserved-by">Reserved</small> }
+          @else { <small class="pick-state">Open</small> }
         }
         @else if (takenBy(d); as label) { <small class="taken-by">{{ label }}</small> }
         @else if (isMyRegular(d)) { <small class="regular-by"><i class="bi bi-arrow-repeat"></i> Regular</small> }
-        @else if (!dayDisabled(d) && overflowsToEmergency()) { <small class="pick-state"><i class="bi bi-exclamation-octagon"></i> Urgent</small> }
         @else if (!dayDisabled(d)) { <small class="pick-state">Open</small> }
-        @else if (isMyReserved(d)) { <small class="reserved-by">Reserved</small> }
       </button>
     }
   </div>
@@ -452,36 +489,22 @@
         <label class="form-check-label fw-semibold" for="nOverride">Give it now (approved)</label>
       </div>
       <div class="small text-muted-2">
-        Your decision: approved straight away, even on Taken or Full days and outside the weekly limit. Their reserved
-        day that week goes back to work, and they're told.
+        Your decision: approved straight away, even on Taken or Full days and outside the weekly limit. The day the
+        system set aside for them that week goes back to work, and they're told.
       </div>
     </div>
   }
-  @if (emergencyAvailable()) {
-  <div class="emergency-toggle mb-3" [class.on]="formEmergency()">
-    <div class="form-check form-switch mb-0">
-      <input class="form-check-input" type="checkbox" role="switch" id="nEmergency"
-             [ngModel]="formEmergency()" (ngModelChange)="setEmergency($event)" />
-      <label class="form-check-label fw-semibold" for="nEmergency">Emergency day off</label>
-    </div>
-    <div class="small text-muted-2">
-      For something urgent (illness, family emergency). Skips the usual limits.
-      @if (window()?.oneEmergencyPerMonth) { <strong>Only allowed once a month.</strong> }
-    </div>
-    @if (selfService() && window()?.emergencyUsedThisMonth) {
-      <div class="small text-danger mt-1"><i class="bi bi-info-circle me-1"></i>You've already used this month's emergency request.</div>
-    }
-  </div>
-  }
+
   <div>
     <label class="form-label" for="nReason">Reason <span class="text-muted-2 small">(optional)</span></label>
     <input id="nReason" class="form-control" maxlength="255" autocomplete="off" [(ngModel)]="formReason"
            [class.is-invalid]="reasonError()" placeholder="e.g. Doctor's appointment" />
     <div class="invalid-feedback">{{ reasonError() }}</div>
   </div>
+</div>
   <ng-container modal-footer>
     <button type="button" class="btn btn-light" (click)="modalOpen.set(false)">Cancel</button>
-    <button type="button" class="btn btn-primary" [disabled]="saving() || !formEmployeeId() || (formDays().size === 0 && formEmergencyDays().size === 0) || !!reasonError()" (click)="submit()">
+    <button type="button" class="btn" [class.btn-primary]="!emergencyMode()" [class.btn-danger]="emergencyMode()" [disabled]="saving() || !formEmployeeId() || (formDays().size === 0 && formEmergencyDays().size === 0) || !!reasonError()" (click)="submit()">
       @if (saving()) { <span class="spinner-border spinner-border-sm me-1"></span> }
       {{ formOverride() && canOverride() ? 'Give day off' : formEmergency() || (formDays().size === 0 && formEmergencyDays().size > 0) ? 'Send for approval'
         : formEmergencyDays().size ? 'Take day off + send emergency' : 'Take day off' }}

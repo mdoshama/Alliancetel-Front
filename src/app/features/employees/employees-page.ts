@@ -49,6 +49,14 @@ export class EmployeesPage implements OnInit {
   readonly store = input<string>();
 
   protected readonly roles: Role[] = ['ADMIN', 'MANAGER', 'EMPLOYEE', 'BACK_OFFICE'];
+  /** Choices in the form: a trainee is an employee in training. */
+  protected readonly roleChoices: { value: Role | 'TRAINEE'; label: string }[] = [
+    { value: 'ADMIN', label: 'Admin' },
+    { value: 'MANAGER', label: 'Manager' },
+    { value: 'EMPLOYEE', label: 'Employee' },
+    { value: 'TRAINEE', label: 'Trainee (in training)' },
+    { value: 'BACK_OFFICE', label: 'Back office' },
+  ];
   protected readonly roleLabels = ROLE_LABELS;
 
   protected readonly areas = signal<Area[]>([]);
@@ -114,7 +122,7 @@ export class EmployeesPage implements OnInit {
     lastName: ['', [Validators.required, notBlank, Validators.maxLength(60), personName]],
     email: ['', [Validators.required, notBlank, Validators.maxLength(120), emailRule]],
     phone: ['', [Validators.maxLength(30), phoneRule]],
-    role: ['EMPLOYEE' as Role, Validators.required],
+    role: ['EMPLOYEE' as Role | 'TRAINEE', Validators.required],
     areaId: [null as number | null],
     homeStoreId: [null as number | null],
     primaryAtStore: [false],
@@ -272,7 +280,7 @@ export class EmployeesPage implements OnInit {
       lastName: e.lastName,
       email: e.email,
       phone: formatPhone(e.phone),
-      role: e.role,
+      role: e.trainee ? 'TRAINEE' : e.role,
       areaId: e.areaId,
       homeStoreId: e.homeStoreId,
       primaryAtStore: e.storeRole === 'PRIMARY',
@@ -290,7 +298,7 @@ export class EmployeesPage implements OnInit {
 
   protected areaRequired(): boolean {
     const role = this.form.controls.role.value;
-    return role === 'MANAGER' || role === 'EMPLOYEE';
+    return role === 'MANAGER' || role === 'EMPLOYEE' || role === 'TRAINEE';
   }
 
   protected save(): void {
@@ -301,6 +309,9 @@ export class EmployeesPage implements OnInit {
     }
     const body = {
       ...v,
+      // A trainee is an employee in training.
+      role: (v.role === 'TRAINEE' ? 'EMPLOYEE' : v.role) as Role,
+      trainee: v.role === 'TRAINEE',
       employeeCode: v.employeeCode.trim().toUpperCase(),
       firstName: clean(v.firstName) ?? '',
       lastName: clean(v.lastName) ?? '',
@@ -496,6 +507,38 @@ export class EmployeesPage implements OnInit {
         );
       },
       error: () => this.regularSavingId.set(null),
+    });
+  }
+
+  protected readonly workDayOptions = [1, 2, 3, 4, 5, 6, 7];
+  protected readonly workDaysSavingId = signal<number | null>(null);
+
+  /** Admins for anyone; managers for their team (not themselves or an admin). */
+  protected canSetWorkDays(e: Employee): boolean {
+    return this.auth.isAdmin() || (this.canSetRegular(e) && e.role !== 'ADMIN');
+  }
+
+  /** Changes how many days a week someone works; saved right away. */
+  protected setWorkDays(e: Employee, value: string | number, select?: HTMLSelectElement): void {
+    const days = Number(value);
+    if (!this.canSetWorkDays(e) || days === e.workDaysPerWeek || days < 1 || days > 7) return;
+    const dropped = (e.regularDaysOff?.length ?? 0) > 7 - days;
+    this.workDaysSavingId.set(e.id);
+    this.api.setWorkDays(e.id, days).subscribe({
+      next: (updated) => {
+        this.workDaysSavingId.set(null);
+        this.employees.update((list) => list.map((x) => (x.id === updated.id ? updated : x)));
+        const off = 7 - days;
+        this.toast.success(
+          `${updated.firstName} now works ${days} day${days === 1 ? '' : 's'} a week` +
+            (off === 0 ? ', with no day off.' : ` (${off} day${off === 1 ? '' : 's'} off).`) +
+            (dropped ? ` Regular days off were cut to ${off}.` : ''),
+        );
+      },
+      error: () => {
+        this.workDaysSavingId.set(null);
+        if (select) select.value = String(e.workDaysPerWeek);
+      },
     });
   }
 

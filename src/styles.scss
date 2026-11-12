@@ -593,7 +593,7 @@ body {
 
 .day-toggle-group {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 0.4rem;
 
   .btn {
@@ -5317,4 +5317,604 @@ tr.is-regular-row {
     font-size: 0.62rem;
     white-space: nowrap;
   }
+}
+
+/* Schedule: managers on top and trainees at the bottom, each easy to spot */
+.schedule-grid tbody tr.is-manager-row > td:first-child {
+  box-shadow: inset 4px 0 0 var(--at-primary);
+  background: linear-gradient(90deg, rgba(var(--at-primary-rgb), 0.09), rgba(var(--at-primary-rgb), 0.02));
+}
+
+.schedule-grid tbody tr.is-trainee-row > td:first-child {
+  box-shadow: inset 4px 0 0 #d97706;
+  background: linear-gradient(90deg, #fff7ed, #fffdf8);
+}
+
+.emp-manager,
+.emp-trainee {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  margin-left: 0.3rem;
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.66rem;
+  font-weight: 700;
+  vertical-align: 0.1em;
+}
+
+.emp-manager {
+  color: #fff;
+  background: var(--at-primary);
+}
+
+.emp-trainee {
+  color: #9a3412;
+  background: #ffedd5;
+  border: 1px solid #fdba74;
+}
+
+.sb-person {
+  &.is-manager {
+    box-shadow: inset 0 0 0 1.5px rgba(var(--at-primary-rgb), 0.55);
+  }
+
+  &.is-trainee {
+    box-shadow: inset 0 0 0 1.5px #fdba74;
+    background: #fffaf3;
+  }
+
+  .sb-mgr {
+    color: var(--at-primary);
+    font-size: 0.7rem;
+  }
+
+  .sb-trn {
+    color: #d97706;
+    font-size: 0.7rem;
+  }
+}
+
+.role-badge.role-TRAINEE {
+  color: #9a3412;
+  background: #ffedd5;
+  border: 1px solid #fdba74;
+}
+
+/* Day-off form: an emergency request turns the form red */
+.req-form.is-emergency-mode {
+  .day-toggle-group .btn.day-pick.is-picked,
+  .day-toggle-group .btn.day-pick.is-emergency {
+    color: #fff;
+    background: #dc2626;
+    border-color: #b91c1c;
+  }
+
+  .emergency-toggle {
+    border-color: #fca5a5;
+    background: #fef2f2;
+  }
+
+  .form-control:focus {
+    border-color: #f87171;
+    box-shadow: 0 0 0 0.2rem rgba(220, 38, 38, 0.15);
+  }
+}
+
+.req-emergency-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.65rem 0.85rem;
+  margin-bottom: 0.9rem;
+  border-radius: 0.75rem;
+  color: #fff;
+  background: linear-gradient(135deg, #dc2626, #b91c1c);
+  box-shadow: 0 6px 16px rgba(220, 38, 38, 0.25);
+
+  > .bi {
+    font-size: 1.3rem;
+  }
+
+  div {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.25;
+  }
+
+  span {
+    font-size: 0.8rem;
+    opacity: 0.9;
+  }
+}
+
+/* Day-off requests for managers and admins: one card per person */
+.rg-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+
+  &.is-refreshing {
+    opacity: 0.6;
+  }
+}
+
+.rg-card {
+  border-radius: 1rem;
+  background: #fff;
+  border: 1px solid var(--at-border);
+  overflow: hidden;
+
+  &.has-pending {
+    border-left: 4px solid #dc2626;
+  }
+}
+
+.rg-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  background: #fafbfd;
+  border-bottom: 1px solid var(--at-border);
+}
+
+.rg-avatar {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: #fff;
+  background: linear-gradient(135deg, var(--at-primary), #7c3aed);
+}
+
+.rg-name {
+  font-weight: 700;
+}
+
+.rg-actions {
+  display: flex;
+  gap: 0.4rem;
+  margin-left: auto;
+}
+
+.rg-days {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.rg-day {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.8rem;
+  padding: 0.7rem 1rem;
+
+  & + & {
+    border-top: 1px solid #f1f4f9;
+  }
+}
+
+.rg-date {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+  width: 46px;
+  padding: 0.25rem 0;
+  border-radius: 0.65rem;
+  line-height: 1.1;
+  color: #334155;
+  background: #f1f5f9;
+
+  span {
+    font-size: 0.62rem;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+
+  strong {
+    font-size: 1.1rem;
+  }
+
+  &.is-emergency {
+    color: #b91c1c;
+    background: #fee2e2;
+  }
+}
+
+.rg-day-main {
+  flex: 1;
+  min-width: 0;
+
+  .er-impact {
+    margin-top: 0.35rem;
+  }
+}
+
+.rg-day-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
+@media (max-width: 575.98px) {
+  .rg-actions {
+    width: 100%;
+    margin-left: 0;
+
+    .btn {
+      flex: 1 1 auto;
+    }
+  }
+
+  .rg-day {
+    flex-wrap: wrap;
+  }
+
+  .rg-day-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}
+
+/* In an emergency request, days taken by colleagues go grey so only the picked days are red. */
+.req-form.is-emergency-mode .day-toggle-group .btn.day-pick.is-full:not(.is-picked) {
+  color: #64748b;
+  background: #f1f5f9;
+  border-color: #e2e8f0;
+}
+
+/* Employee's own week: seven days in one row on every screen */
+.my-week {
+  padding: 0.85rem;
+}
+
+.my-week-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 0.6rem;
+}
+
+.my-week-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--at-muted);
+}
+
+.my-week-count {
+  font-size: 0.85rem;
+  color: var(--at-muted);
+
+  strong {
+    font-size: 1.05rem;
+    color: var(--at-navy);
+  }
+}
+
+.my-week-days {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.4rem;
+}
+
+.my-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  min-width: 0;
+  padding: 0.45rem 0.25rem;
+  border-radius: 0.6rem;
+  text-align: center;
+  line-height: 1.15;
+
+  &.is-work {
+    background: color-mix(in srgb, var(--store-color, #16a34a) 12%, #fff);
+    border-top: 3px solid var(--store-color, #16a34a);
+  }
+
+  &.is-off {
+    background: #f1f3f6;
+    border-top: 3px solid #cbd2dc;
+    color: #6b7489;
+  }
+
+  &.is-today {
+    outline: 2px solid var(--at-primary);
+    outline-offset: 1px;
+  }
+}
+
+.my-day-dow {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.my-day-date {
+  font-size: 0.66rem;
+  color: var(--at-muted);
+}
+
+.my-day-store {
+  margin-top: 0.2rem;
+  max-width: 100%;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: color-mix(in srgb, var(--store-color, #146c43) 75%, #000);
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+
+  .is-off & {
+    color: #6b7489;
+  }
+}
+
+.my-day-hours {
+  font-size: 0.66rem;
+  font-weight: 600;
+  color: #475467;
+}
+
+@media (max-width: 575.98px) {
+  .my-week {
+    padding: 0.7rem 0.55rem;
+  }
+
+  .my-week-days {
+    gap: 0.25rem;
+  }
+
+  .my-day {
+    padding: 0.4rem 0.1rem;
+    border-radius: 0.45rem;
+  }
+
+  .my-day-dow {
+    font-size: 0.62rem;
+  }
+
+  .my-day-date {
+    font-size: 0.58rem;
+  }
+
+  .my-day-store {
+    font-size: 0.58rem;
+  }
+
+  .my-day-hours {
+    font-size: 0.54rem;
+    letter-spacing: -0.01em;
+  }
+}
+
+@media (max-width: 359.98px) {
+  .my-day-store {
+    font-size: 0.54rem;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    overflow-wrap: normal;
+    word-break: normal;
+    hyphens: auto;
+  }
+}
+
+/* Day tiles in the request form: equal widths, labels kept short on phones */
+.day-toggle-group .btn.day-pick {
+  min-width: 0;
+  overflow: hidden;
+
+  small {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &.is-mine:disabled {
+    opacity: 1;
+    color: #146c43;
+    background: #e2f5ea;
+    border-color: #86d3a5;
+
+    small {
+      color: #146c43;
+      font-weight: 700;
+    }
+  }
+}
+
+@media (max-width: 575.98px) {
+  .day-toggle-group {
+    gap: 0.25rem;
+
+    .btn.day-pick {
+      padding: 0.4rem 0.1rem;
+      font-size: 0.72rem;
+
+      small {
+        font-size: 0.6rem;
+      }
+    }
+  }
+}
+
+/* Schedule: who picked their days off, one card per group */
+.glance-board {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.gb-card {
+  --tone: #64748b;
+  --tone-bg: #f1f5f9;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border-radius: 0.9rem;
+  background: #fff;
+  border: 1px solid var(--at-border);
+  border-top: 3px solid var(--tone);
+  overflow: hidden;
+
+  &.tone-green { --tone: #16a34a; --tone-bg: #e8f7ee; }
+  &.tone-purple { --tone: #7c3aed; --tone-bg: #f3edfe; }
+  &.tone-blue { --tone: #2457d6; --tone-bg: #e9effd; }
+  &.tone-red { --tone: #dc2626; --tone-bg: #fdecec; }
+  &.tone-teal { --tone: #0d9488; --tone-bg: #e2f6f4; }
+  &.tone-amber { --tone: #d97706; --tone-bg: #fef4e2; }
+  &.tone-slate { --tone: #475569; --tone-bg: #eef1f5; }
+}
+
+.gb-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.65rem 0.8rem;
+  background: var(--tone-bg);
+}
+
+.gb-icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  color: #fff;
+  background: var(--tone);
+}
+
+.gb-title {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: color-mix(in srgb, var(--tone) 70%, #000);
+}
+
+.gb-note {
+  font-size: 0.72rem;
+  color: var(--at-muted);
+}
+
+.gb-count {
+  min-width: 2rem;
+  padding: 0.1rem 0.55rem;
+  border-radius: 999px;
+  text-align: center;
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: #fff;
+  background: var(--tone);
+}
+
+.gb-list {
+  list-style: none;
+  margin: 0;
+  padding: 0.25rem 0;
+  max-height: 290px;
+  overflow-y: auto;
+}
+
+.gb-row {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.4rem 0.8rem;
+
+  & + & {
+    border-top: 1px solid #f1f4f9;
+  }
+}
+
+.gb-avatar {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  font-size: 0.64rem;
+  font-weight: 800;
+  color: color-mix(in srgb, var(--tone) 75%, #000);
+  background: var(--tone-bg);
+}
+
+.gb-who {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+  line-height: 1.2;
+}
+
+.gb-name {
+  font-size: 0.84rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gb-store {
+  font-size: 0.7rem;
+  color: var(--at-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gb-days {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.25rem;
+  flex-shrink: 0;
+  max-width: 55%;
+}
+
+.gb-chip {
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  white-space: nowrap;
+  color: color-mix(in srgb, var(--tone) 75%, #000);
+  background: var(--tone-bg);
+
+  &.is-count {
+    color: #fff;
+    background: var(--tone);
+  }
+}
+
+@media (max-width: 575.98px) {
+  .glance-board {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Days a week, set straight from the staff list */
+.work-days-select {
+  width: auto;
+  min-width: 5.5rem;
+  margin: 0 auto 0.25rem;
+  padding-top: 0.15rem;
+  padding-bottom: 0.15rem;
+  font-weight: 600;
+  text-align: center;
 }

@@ -50,7 +50,14 @@ const GRID: Rgb = [203, 213, 225];
  */
 export async function buildSchedulePdf(s: Schedule): Promise<Blob> {
   // Team members A to Z, the same order as the schedule page.
-  s = { ...s, rows: [...s.rows].sort((a, b) => a.employeeName.localeCompare(b.employeeName, undefined, { sensitivity: 'base' })) };
+  // Managers first, then employees, then trainees; A to Z within each (the same order as the schedule page).
+  const group = (r: { role: string; trainee?: boolean }) => (r.role === 'MANAGER' ? 0 : r.trainee ? 2 : 1);
+  s = {
+    ...s,
+    rows: [...s.rows].sort(
+      (a, b) => group(a) - group(b) || a.employeeName.localeCompare(b.employeeName, undefined, { sensitivity: 'base' }),
+    ),
+  };
   const [{ jsPDF }, { autoTable }] = await Promise.all([import('jspdf'), import('jspdf-autotable')]);
   const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'letter' });
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -161,7 +168,10 @@ export async function buildSchedulePdf(s: Schedule): Promise<Blob> {
   // ---- Section 1 table ---------------------------------------------------------------------------------------
   autoTable(doc, {
     head: [['TEAM MEMBER', ...heads]],
-    body: s.rows.map((r) => [r.employeeName, ...r.days.map(() => '')]),
+    body: s.rows.map((r) => [
+      r.employeeName + (r.role === 'MANAGER' ? ' (Manager)' : r.trainee ? ' (In training)' : ''),
+      ...r.days.map(() => ''),
+    ]),
     startY: top + 6,
     margin: { left: margin, right: margin, top: margin, bottom: 34 },
     theme: 'plain',

@@ -51,15 +51,14 @@ describe('Shell', () => {
     expect(el.querySelector('.avatar')?.textContent?.trim()).toBe('SR');
   });
 
-  it('lets managers turn on email, WhatsApp and text-message updates from their menu', async () => {
+  it('does not show the message toggles to managers either: only an admin decides', async () => {
     const { fixture, el } = await renderAs('MANAGER');
     (el.querySelector('.user-menu-toggle') as HTMLButtonElement).click();
     await fixture.whenStable();
     fixture.detectChanges();
-    expect(el.querySelector('#emailOptIn')).not.toBeNull();
-    expect(el.querySelector('#waOptIn')).not.toBeNull();
-    expect(el.querySelector('label[for=smsOptIn]')?.textContent).toContain('By text message');
-    expect(el.querySelector('.sms-consent')?.textContent).toContain('Reply STOP');
+    expect(el.querySelector('#emailOptIn')).toBeNull();
+    expect(el.querySelector('#waOptIn')).toBeNull();
+    expect(el.querySelector('#smsOptIn')).toBeNull();
   });
 
   it('does not show the message toggles to employees', async () => {
@@ -71,26 +70,6 @@ describe('Shell', () => {
     expect(el.querySelector('#waOptIn')).toBeNull();
     expect(el.querySelector('#smsOptIn')).toBeNull();
     expect(el.querySelector('a[routerLink="/profile"], a[href="/profile"]')).not.toBeNull();
-  });
-
-  it('asks for consent with the SMS Terms before turning on texts', async () => {
-    const { fixture, el } = await renderAs('MANAGER');
-    (el.querySelector('.user-menu-toggle') as HTMLButtonElement).click();
-    await fixture.whenStable();
-    fixture.detectChanges();
-    const toggle = el.querySelector('#smsOptIn') as HTMLInputElement;
-    if (toggle.disabled) {
-      return; // no phone on file in this test session
-    }
-    toggle.checked = true;
-    toggle.dispatchEvent(new Event('change'));
-    await fixture.whenStable();
-    fixture.detectChanges();
-    const box = el.querySelector('.sms-consent-box');
-    expect(box?.textContent).toContain('Message and data rates may apply');
-    expect(box?.textContent).toContain('Reply STOP');
-    expect(box?.querySelector('a[href="/terms#sms-terms"]')).not.toBeNull();
-    expect(box?.querySelector('a[href="/privacy"]')).not.toBeNull();
   });
 
   it('collapses the sidebar on desktop when the menu button is clicked', async () => {
