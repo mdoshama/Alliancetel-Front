@@ -22,20 +22,21 @@ async function renderAs(role: Role) {
 describe('Shell', () => {
   afterEach(() => localStorage.clear());
 
-  it('shows the AllianceTel brand and the full menu to admins', async () => {
+  // EOD, commission, performance and devices are switched off in the menu for now.
+  it('shows the AllianceTel brand and the scheduling menu to admins', async () => {
     const { el, labels } = await renderAs('ADMIN');
     expect(el.querySelector('.brand-text')?.textContent).toContain('AllianceTel');
-    expect(labels).toEqual(['Dashboard', 'Performance', 'Weekly Schedule', 'Day-off Requests', 'Employees', 'Messages', 'Time Clock', 'End of Day', 'Commission', 'Areas', 'Stores', 'Devices']);
+    expect(labels).toEqual(['Dashboard', 'Weekly Schedule', 'Day-off Requests', 'Employees', 'Messages', 'Time Clock', 'Areas', 'Stores']);
   });
 
-  it('shows managers their team but not areas', async () => {
+  it('shows managers their team but not areas, EOD, performance or the time clock', async () => {
     const { labels } = await renderAs('MANAGER');
-    expect(labels).toEqual(['Dashboard', 'Performance', 'Weekly Schedule', 'Day-off Requests', 'My Team', 'Messages', 'Time Clock', 'End of Day', 'Stores']);
+    expect(labels).toEqual(['Dashboard', 'Weekly Schedule', 'Day-off Requests', 'My Team', 'Messages', 'Stores']);
   });
 
   it('shows employees only their own pages', async () => {
     const { labels } = await renderAs('EMPLOYEE');
-    expect(labels).toEqual(['My Schedule', 'My Days Off', 'End of Day', 'My Performance', 'Stores']);
+    expect(labels).toEqual(['My Schedule', 'My Days Off', 'Stores']);
   });
 
   it('shows back office only the Time Clock', async () => {
@@ -50,8 +51,8 @@ describe('Shell', () => {
     expect(el.querySelector('.avatar')?.textContent?.trim()).toBe('SR');
   });
 
-  it('lets staff turn on email, WhatsApp and text-message updates from their menu', async () => {
-    const { fixture, el } = await renderAs('EMPLOYEE');
+  it('lets managers turn on email, WhatsApp and text-message updates from their menu', async () => {
+    const { fixture, el } = await renderAs('MANAGER');
     (el.querySelector('.user-menu-toggle') as HTMLButtonElement).click();
     await fixture.whenStable();
     fixture.detectChanges();
@@ -61,8 +62,19 @@ describe('Shell', () => {
     expect(el.querySelector('.sms-consent')?.textContent).toContain('Reply STOP');
   });
 
-  it('asks for consent with the SMS Terms before turning on texts', async () => {
+  it('does not show the message toggles to employees', async () => {
     const { fixture, el } = await renderAs('EMPLOYEE');
+    (el.querySelector('.user-menu-toggle') as HTMLButtonElement).click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(el.querySelector('#emailOptIn')).toBeNull();
+    expect(el.querySelector('#waOptIn')).toBeNull();
+    expect(el.querySelector('#smsOptIn')).toBeNull();
+    expect(el.querySelector('a[routerLink="/profile"], a[href="/profile"]')).not.toBeNull();
+  });
+
+  it('asks for consent with the SMS Terms before turning on texts', async () => {
+    const { fixture, el } = await renderAs('MANAGER');
     (el.querySelector('.user-menu-toggle') as HTMLButtonElement).click();
     await fixture.whenStable();
     fixture.detectChanges();
