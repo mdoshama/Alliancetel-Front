@@ -5880,3 +5880,26 @@ tr.is-regular-row {
   background: #e8eefc;
   color: #3b5bab;
 }
+
+/* An emergency request: the person's other days off that week */
+.er-week {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  margin-top: 0.35rem;
+  padding: 0.35rem 0.55rem;
+  border-radius: 0.5rem;
+  background: #fef2f2;
+  color: #7f1d1d;
+  font-size: 0.8rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+
+  i { margin-top: 0.1rem; }
+
+  &.is-compact {
+    margin-top: 0.2rem;
+    padding: 0.2rem 0.45rem;
+    font-size: 0.75rem;
+  }
+}

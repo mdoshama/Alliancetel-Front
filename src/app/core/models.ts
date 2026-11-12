@@ -165,6 +165,8 @@ export interface RequestWindow {
   openUntilBy?: string | null;
   /** The last date someone asking for themselves can pick. */
   lastDate?: string | null;
+  /** Weeks (Mondays) whose schedule is already published in their area: the day off it gives stays there. */
+  publishedWeeks?: string[];
 }
 
 export type PortalMode = 'AUTO' | 'OPEN' | 'CLOSED';
@@ -409,6 +411,17 @@ export interface DayOffRequest {
   reserved?: boolean;
   /** Reserved because it is one of their regular days off. */
   regular?: boolean;
+  /** Emergencies (managers and admins): the person's other days off that same week. */
+  weekDaysOff?: WeekDayOff[] | null;
+}
+
+/** Another day off the same person has that week. */
+export interface WeekDayOff {
+  id: number;
+  date: string;
+  /** REGULAR (usual day), SYSTEM (the system gave it), ASKED (they asked for it) or EMERGENCY. */
+  kind: 'REGULAR' | 'SYSTEM' | 'ASKED' | 'EMERGENCY';
+  status: DayOffStatus;
 }
 
 export type ImpactLevel = 'OK' | 'TIGHT' | 'SHORT';

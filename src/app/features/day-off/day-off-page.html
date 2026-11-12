@@ -191,6 +191,20 @@
                   <span class="small text-muted-2">{{ r.reason || 'No reason given' }}</span>
                 </div>
                 @if (r.status === 'REJECTED' && r.reviewNote) { <div class="small text-muted-2">{{ r.reviewNote }}</div> }
+                @if (r.emergency && r.weekDaysOff) {
+                  <div class="er-week">
+                    <i class="bi bi-calendar-week"></i>
+                    <span>
+                      @if (r.weekDaysOff.length) {
+                        Also off this week:
+                        @for (w of r.weekDaysOff; track w.id; let last = $last) { <strong>{{ weekDayOffLabel(w) }}</strong>{{ last ? '.' : ', ' }} }
+                        With this emergency: <strong>{{ r.weekDaysOff.length + 1 }} days off</strong>.
+                      } @else {
+                        No other day off this week.
+                      }
+                    </span>
+                  </div>
+                }
                 @if (r.decisionChangeReason) {
                   <div class="small fst-italic text-muted-2">
                     Changed from {{ r.previousStatus | titlecase }}@if (r.decisionChangedBy) { by {{ r.decisionChangedBy }} }: {{ r.decisionChangeReason }}
@@ -414,6 +428,18 @@
         becomes a work day this week.
       </div>
     }
+    @if (fixedDays().length) {
+      <div class="alert alert-info small py-2 mb-2 d-flex align-items-start">
+        <i class="bi bi-calendar-check me-2 mt-1"></i>
+        <span>
+          This week's schedule is already published with you off on
+          @for (r of fixedDays(); track r.id; let last = $last) {
+            <strong>{{ format(r.date, { weekday: 'long', month: 'short', day: 'numeric' }) }}</strong>{{ last ? '.' : ' and ' }}
+          }
+          Another day this week would be an emergency request.
+        </span>
+      </div>
+    }
     @if (regularReplaced().length) {
       <div class="alert alert-warning small py-2 mb-2 d-flex align-items-start">
         <i class="bi bi-arrow-left-right me-2 mt-1"></i>
@@ -435,7 +461,7 @@
               [class.is-full]="!!takenBy(d) && !formDays().has(d) && !formEmergencyDays().has(d)"
               [class.is-available]="!takenBy(d) && !formDays().has(d) && !formEmergencyDays().has(d) && !dayDisabled(d) && !isMyRegular(d)"
               [class.is-regular]="isMyRegular(d) && !formDays().has(d)"
-              [class.is-mine]="!!myRequestOn(d) && !myRequestOn(d)!.reserved && myRequestOn(d)!.status !== 'REJECTED' && !formDays().has(d)"
+              [class.is-mine]="!!myRequestOn(d) && (!myRequestOn(d)!.reserved || weekPublished()) && myRequestOn(d)!.status !== 'REJECTED' && !formDays().has(d)"
               [disabled]="dayDisabled(d)"
               [attr.title]="takenTitle(d)"
               (click)="toggleDay(d)">
@@ -446,6 +472,7 @@
         @else if (myRequestOn(d); as mine) {
           @if (mine.status === 'REJECTED') { <small class="pick-state">Ask again</small> }
           @else if (!mine.reserved) { <small class="taken-by">{{ mine.status === 'APPROVED' ? 'Yours' : 'Waiting' }}</small> }
+          @else if (weekPublished()) { <small class="taken-by">Your day off</small> }
           @else if (isMyRegular(d)) { <small class="regular-by"><i class="bi bi-arrow-repeat"></i> Regular</small> }
           @else { <small class="pick-state">Open</small> }
         }

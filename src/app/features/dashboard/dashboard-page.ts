@@ -5,6 +5,7 @@ import { catchError } from 'rxjs/operators';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { LiveService } from '../../core/live.service';
+import { weekDayOffLabel } from '../../core/week-days-off';
 import { addDays, formatDay, formatWeekRange, today, weekStartOf } from '../../core/date-utils';
 import { minOn } from '../../core/store-hours';
 import {
@@ -54,6 +55,7 @@ export class DashboardPage implements OnInit {
   protected readonly auth = inject(AuthService);
 
   protected readonly format = formatDay;
+  protected readonly weekDayOffLabel = weekDayOffLabel;
   protected readonly today = today();
   protected readonly thisMonday = weekStartOf(this.today);
   protected readonly nextMonday = addDays(this.thisMonday, 7);

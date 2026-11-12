@@ -264,6 +264,12 @@
                 <div class="small text-muted-2 text-truncate">
                   @if (auth.isAdmin()) { {{ r.areaName }} · } {{ r.reason || 'No reason given' }}
                 </div>
+                @if (r.weekDaysOff?.length) {
+                  <div class="er-week is-compact">
+                    <i class="bi bi-calendar-week"></i>
+                    <span>Also off: @for (w of r.weekDaysOff; track w.id; let last = $last) { {{ weekDayOffLabel(w) }}{{ last ? '' : ', ' }} }</span>
+                  </div>
+                }
               </div>
               <span class="ms-auto badge status-badge status-PENDING">Waiting</span>
             </li>
