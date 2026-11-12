@@ -62,8 +62,6 @@ export interface Store {
   hours: DayHours[];
   /** Hex color like "#2563EB" used for the store on the schedule. */
   color: string;
-  /** Sales tax in percent (e.g. 7.75); commission uses it to take tax off accessories. */
-  taxRate: number;
   /** Most floaters auto-fill sends here on one day; 0 = no limit. */
   maxFloatersPerDay: number;
 }
@@ -79,8 +77,6 @@ export interface StoreRequest {
   hours?: DayHours[];
   /** Leave out to keep the current color. */
   color?: string;
-  /** Sales tax in percent; leave out to keep the current rate. */
-  taxRate?: number;
   /** Most floaters auto-fill sends here on one day (0 = no limit); leave out to keep the current limit. */
   maxFloatersPerDay?: number;
 }
@@ -196,6 +192,32 @@ export interface DirectMessageResult {
 }
 
 /** Who has sent their day-off request for a week (managers). */
+/** A manager asking an admin to open a week that has passed. */
+export interface PastWeekAccess {
+  id: number;
+  areaId: number;
+  areaName: string;
+  weekStart: string;
+  requestedById: number;
+  requestedByName: string;
+  reason: string | null;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  requestedAt: string;
+  decidedBy: string | null;
+  decidedAt: string | null;
+  openUntil: string | null;
+  /** Approved and still within its time. */
+  open: boolean;
+  note: string | null;
+}
+
+/** A week that has passed is locked for managers until an admin opens it. */
+export interface PastWeekStatus {
+  passed: boolean;
+  locked: boolean;
+  request: PastWeekAccess | null;
+}
+
 export interface WeekRequestStatus {
   weekStart: string;
   total: number;
@@ -682,486 +704,6 @@ export interface MessagingInfo {
   /** What to send it, e.g. "join happy-tiger". */
   sandboxJoin: string | null;
   smsConnected: boolean;
-}
-
-// ---------- End of day (EOD) ----------
-
-export type EodStatus = 'OPEN' | 'SUBMITTED' | 'APPROVED';
-export type EodLineType = 'SALE' | 'ACCESSORY';
-export type EodCategory = 'NL_AAL' | 'BTS' | 'UPG' | 'FREE_LINE' | 'REACT' | 'UNLOCK' | 'M_LOCK' | 'HINT';
-
-export interface EodCategoryOption {
-  value: EodCategory;
-  label: string;
-  help: string;
-  /** Unlock / Metro-locked: needs the last 4 of the IMEI and the phone number. */
-  needsDevice: boolean;
-}
-
-export interface EodLine {
-  id: number;
-  type: EodLineType;
-  category: EodCategory | null;
-  categoryLabel: string;
-  description: string;
-  qpay: number;
-  /** The device list's price, for reference. */
-  retail: number;
-  /** Old sales only; 0 on new ones. */
-  tax: number;
-  taxRate: number;
-  /** As the rep wrote it. */
-  subtotal: number;
-  soldFor: number;
-  /** sold for − QPAY − subtotal */
-  accessories: number;
-  customerRef: string | null;
-  imeiLast4: string | null;
-  phone: string | null;
-  repId: number;
-  repName: string;
-  /** Picked from the device list, if any. */
-  deviceId: number | null;
-  /** Colleagues sharing the credit. */
-  sharedWith: EodPerson[];
-  createdAt: string;
-  canEdit: boolean;
-}
-
-export interface EodPerson {
-  id: number;
-  name: string;
-}
-
-/** Someone a sale can be credited to or split with; scheduledHere = on the schedule at this store that day. */
-export interface EodColleague {
-  id: number;
-  name: string;
-  scheduledHere: boolean;
-}
-
-export interface EodTeamMember {
-  id: number;
-  name: string;
-  /** On the published schedule at this store that day. */
-  scheduled: boolean;
-  boxes: number;
-  accessories: number;
-}
-
-export interface EodSplitShare {
-  employeeId: number;
-  name: string;
-  amount: number;
-}
-
-export interface EodLineRequest {
-  storeId: number;
-  date: string;
-  type: EodLineType;
-  category: EodCategory | null;
-  description: string | null;
-  qpay: number | null;
-  /** As written on the receipt. */
-  subtotal: number | null;
-  soldFor: number;
-  customerRef: string | null;
-  imeiLast4: string | null;
-  phone: string | null;
-  repId: number | null;
-  deviceId: number | null;
-  /** Colleagues who split this sale's accessories evenly with the rep (the box stays with the rep), up to 3. */
-  shareWith: number[];
-}
-
-export interface EodClosingRequest {
-  storeId: number;
-  date: string;
-  qpayTotal: number | null;
-  cash: number | null;
-  credit: number | null;
-  finance: number | null;
-  layawayRedeem: number | null;
-  newLayaway: number | null;
-  note: string | null;
-}
-
-export interface EodCategoryCount {
-  category: EodCategory;
-  label: string;
-  count: number;
-}
-
-/** A box always belongs to one rep; accessories can be split. */
-export interface EodRepSummary {
-  repId: number;
-  repName: string;
-  boxes: number;
-  byCategory: EodCategoryCount[];
-  accessories: number;
-  soldFor: number;
-  /** Sales they shared with someone. */
-  sharedSales: number;
-}
-
-export interface EodTotals {
-  /** The sales' subtotals added up. */
-  subtotal: number;
-  accessories: number;
-  grandTotal: number;
-  lineQpay: number;
-  qpayTotal: number;
-  newLayaway: number;
-  totalSale: number;
-  cash: number;
-  credit: number;
-  finance: number;
-  layawayRedeem: number;
-  totalDrop: number;
-  /** Positive = over, negative = short. */
-  overShort: number;
-  boxes: number;
-}
-
-export interface EodReport {
-  /** Null until something is saved for that store and day. */
-  id: number | null;
-  storeId: number;
-  storeName: string;
-  areaId: number;
-  date: string;
-  status: EodStatus;
-  qpayTotal: number | null;
-  cash: number | null;
-  credit: number | null;
-  finance: number | null;
-  layawayRedeem: number | null;
-  newLayaway: number | null;
-  note: string | null;
-  submittedBy: string | null;
-  submittedAt: string | null;
-  approvedBy: string | null;
-  approvedAt: string | null;
-  /** Who last reopened it for corrections (null once it's submitted again). */
-  reopenedBy: string | null;
-  reopenedAt: string | null;
-  lines: EodLine[];
-  totals: EodTotals;
-  categories: EodCategoryCount[];
-  reps: EodRepSummary[];
-  /** Today's team (from the schedule, plus anyone with credit) and each person's credit. */
-  team: EodTeamMember[];
-  /** The day's accessories split by hand at close; empty = credited to whoever sold them. */
-  accessorySplit: EodSplitShare[];
-  canAddSales: boolean;
-  canClose: boolean;
-  canApprove: boolean;
-  canReopen: boolean;
-  myId: number;
-}
-
-export interface EodStoreOption {
-  id: number;
-  name: string;
-  label: string;
-}
-
-export interface EodToday {
-  date: string;
-  storeId: number | null;
-  storeName: string | null;
-  reason: string | null;
-  stores: EodStoreOption[];
-  report: EodReport | null;
-}
-
-export interface EodStoreDay {
-  date: string;
-  storeId: number;
-  storeName: string;
-  storeLabel: string;
-  reportId: number | null;
-  /** Null when nothing was logged that day. */
-  status: EodStatus | null;
-  sales: number;
-  totalSale: number;
-  totalDrop: number;
-  overShort: number;
-  submittedBy: string | null;
-  submittedAt: string | null;
-}
-
-export interface EodDayOverview {
-  date: string;
-  stores: EodStoreDay[];
-  submitted: number;
-  missing: number;
-}
-
-export interface EodMonthSummary {
-  month: string;
-  areaId: number;
-  days: EodStoreDay[];
-  totals: EodTotals;
-  categories: EodCategoryCount[];
-  reps: EodRepSummary[];
-  reports: number;
-  approved: number;
-}
-
-// ---------- Device list (kept by admins, picked when logging a sale) ----------
-
-export interface CatalogDevice {
-  id: number;
-  brandId: number;
-  brandName: string;
-  name: string;
-  /** e.g. "Samsung Galaxy A16" */
-  displayName: string;
-  retailPrice: number;
-  active: boolean;
-}
-
-export interface CatalogBrand {
-  id: number;
-  name: string;
-  active: boolean;
-  devices: CatalogDevice[];
-}
-
-export interface BrandRequest {
-  name: string;
-  active: boolean;
-}
-
-export interface DeviceRequest {
-  brandId: number;
-  name: string;
-  retailPrice: number;
-  active: boolean;
-}
-
-// ---------- Performance (from the EOD credit ledger) ----------
-
-export interface PerfCategoryBoxes {
-  category: EodCategory;
-  label: string;
-  boxes: number;
-}
-
-/** One person's numbers for a period. "Confirmed" = only manager-approved days (what commission is paid on). */
-export interface PerfEmployeeStats {
-  employeeId: number;
-  name: string;
-  employeeCode: string;
-  role: Role;
-  homeStoreName: string | null;
-  active: boolean;
-  boxes: number;
-  byCategory: PerfCategoryBoxes[];
-  accessories: number;
-  soldFor: number;
-  sales: number;
-  sharedSales: number;
-  daysWithSales: number;
-  /** Shifts worked on published schedules. */
-  shifts: number;
-  accessoriesPerShift: number | null;
-  confirmedBoxes: number;
-  confirmedAccessories: number;
-}
-
-export interface PerfDay {
-  date: string;
-  boxes: number;
-  accessories: number;
-  soldFor: number;
-}
-
-export interface PerfTotals {
-  boxes: number;
-  accessories: number;
-  soldFor: number;
-  sales: number;
-  confirmedBoxes: number;
-  confirmedAccessories: number;
-  reports: number;
-  approvedReports: number;
-}
-
-export interface PerfLeaderboard {
-  from: string;
-  to: string;
-  areaId: number | null;
-  storeId: number | null;
-  totals: PerfTotals;
-  employees: PerfEmployeeStats[];
-  days: PerfDay[];
-}
-
-export interface PerfCreditItem {
-  date: string;
-  storeName: string;
-  status: EodStatus;
-  type: EodLineType;
-  category: EodCategory | null;
-  categoryLabel: string;
-  description: string;
-  boxes: number;
-  accessories: number;
-  soldFor: number;
-  shared: boolean;
-  /** They made the sale (have the box). */
-  rep: boolean;
-  /** A share of the day's accessories split at close. */
-  daySplit: boolean;
-}
-
-export interface PerfStoreStats {
-  storeId: number;
-  storeName: string;
-  boxes: number;
-  accessories: number;
-  sales: number;
-}
-
-export interface PerfProfile {
-  employeeId: number;
-  name: string;
-  employeeCode: string;
-  role: Role;
-  areaName: string | null;
-  homeStoreName: string | null;
-  email: string;
-  active: boolean;
-  from: string;
-  to: string;
-  stats: PerfEmployeeStats;
-  days: PerfDay[];
-  stores: PerfStoreStats[];
-  recent: PerfCreditItem[];
-  rank: number;
-  ranked: number;
-}
-
-// ---------- Commission (admins only) ----------
-
-export type PaysAs = 'ACTIVATION' | 'UPGRADE' | 'NONE';
-export type AccessoryMode = 'WHOLE' | 'BRACKETS';
-export type AdjustmentType =
-  | 'LATE'
-  | 'NO_CALL_NO_SHOW'
-  | 'NO_UNIFORM'
-  | 'MISSED_MEETING'
-  | 'MISSED_SYNC_MEETING'
-  | 'SCORECARD_REWARD'
-  | 'OTHER_FINE'
-  | 'OTHER_BONUS';
-
-export interface CommissionPlan {
-  activationTier1Max: number;
-  activationTier1Rate: number;
-  activationTier2Max: number;
-  activationTier2Rate: number;
-  activationTier3Rate: number;
-  upgradeTier1Max: number;
-  upgradeTier1Rate: number;
-  upgradeTier2Rate: number;
-  btsRate: number;
-  homeInternetRate: number;
-  unlockRate: number;
-  metroLockedRate: number;
-  freeLinePaysAs: PaysAs;
-  reactivationPaysAs: PaysAs;
-  costPercent: number;
-  accessoryTier1Max: number;
-  accessoryTier1Percent: number;
-  accessoryTier3From: number;
-  accessoryTier2Percent: number;
-  accessoryTier3Percent: number;
-  accessoryMode: AccessoryMode;
-  lateFinePerMinute: number;
-  noCallNoShowFine: number;
-  noUniformFine: number;
-  missedMeetingFine: number;
-  missedSyncMeetingFine: number;
-  scorecardReward: number;
-  updatedAt: string | null;
-  updatedBy: string | null;
-}
-
-export interface AdjustmentTypeOption {
-  value: AdjustmentType;
-  label: string;
-  reward: boolean;
-  perMinute: boolean;
-  defaultAmount: number;
-}
-
-export interface CommissionAdjustment {
-  id: number;
-  employeeId: number;
-  employeeName: string;
-  date: string;
-  type: AdjustmentType;
-  typeLabel: string;
-  quantity: number;
-  /** Negative = fine. */
-  amount: number;
-  note: string | null;
-  createdBy: string;
-  createdAt: string;
-}
-
-export interface CommissionBreakdown {
-  activations: number;
-  activationRate: number;
-  activationPay: number;
-  upgrades: number;
-  upgradeRate: number;
-  upgradePay: number;
-  bts: number;
-  btsPay: number;
-  homeInternet: number;
-  homeInternetPay: number;
-  unlock: number;
-  unlockPay: number;
-  metroLocked: number;
-  metroLockedPay: number;
-  accessoriesGross: number;
-  accessoriesNet: number;
-  accessoryPercent: number;
-  accessoryPay: number;
-  boxPay: number;
-  fines: number;
-  rewards: number;
-  total: number;
-}
-
-export interface CommissionStatement {
-  employeeId: number;
-  name: string;
-  employeeCode: string;
-  areaName: string | null;
-  homeStoreName: string | null;
-  active: boolean;
-  pay: CommissionBreakdown;
-  pendingBoxes: number;
-  pendingAccessories: number;
-  noCallNoShows: number;
-  adjustments: CommissionAdjustment[];
-}
-
-export interface CommissionMonth {
-  month: string;
-  areaId: number | null;
-  finalized: boolean;
-  finalizedAt: string | null;
-  finalizedBy: string | null;
-  totals: { boxPay: number; accessoryPay: number; fines: number; rewards: number; total: number; people: number };
-  statements: CommissionStatement[];
-  warnings: string[];
-  unapprovedReports: number;
 }
 
 // ---- Time clock ----------------------------------------------------------------------------------------

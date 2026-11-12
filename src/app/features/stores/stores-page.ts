@@ -133,7 +133,6 @@ export class StoresPage implements OnInit {
     minStaffPerDay: [1, [Validators.required, Validators.min(0), Validators.max(50), wholeNumber]],
     /** Most floaters auto-fill sends here on one day; 0 = no limit. */
     maxFloatersPerDay: [0, [Validators.required, Validators.min(0), Validators.max(50), wholeNumber]],
-    taxRate: [0 as number | null, [Validators.min(0), Validators.max(30)]],
     active: [true],
   });
 
@@ -159,7 +158,7 @@ export class StoresPage implements OnInit {
 
   protected openCreate(areaId: number | null = this.areaFilter): void {
     this.editing.set(null);
-    this.form.reset({ areaId, name: '', code: '', address: '', minStaffPerDay: 1, maxFloatersPerDay: 0, taxRate: 0, active: true });
+    this.form.reset({ areaId, name: '', code: '', address: '', minStaffPerDay: 1, maxFloatersPerDay: 0, active: true });
     this.hoursRows = defaultWeek();
     this.hoursTouched = false;
     this.color = null;
@@ -175,7 +174,6 @@ export class StoresPage implements OnInit {
       address: store.address ?? '',
       minStaffPerDay: store.minStaffPerDay,
       maxFloatersPerDay: store.maxFloatersPerDay ?? 0,
-      taxRate: store.taxRate ?? 0,
       active: store.active,
     });
     this.hoursRows = WEEK_DAYS.map((day) => {
@@ -204,7 +202,6 @@ export class StoresPage implements OnInit {
       address: clean(v.address),
       minStaffPerDay: Number(v.minStaffPerDay),
       maxFloatersPerDay: Number(v.maxFloatersPerDay),
-      taxRate: Number(v.taxRate ?? 0),
       active: v.active,
       hours: this.hoursRows.map((h) => ({
         day: h.day,

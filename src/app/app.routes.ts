@@ -43,12 +43,6 @@ export const routes: Routes = [
         loadComponent: () => import('./features/schedule/schedule-page').then((m) => m.SchedulePage),
       },
       {
-        path: 'eod',
-        title: 'End of Day · AllianceTel',
-        data: { heading: 'End of Day', roles: ['ADMIN'] },
-        loadComponent: () => import('./features/eod/eod-page').then((m) => m.EodPage),
-      },
-      {
         path: 'day-off-requests',
         title: 'Day-off Requests · AllianceTel',
         data: { heading: 'Day-off Requests', employeeHeading: 'My Days Off', roles: ['ADMIN', 'MANAGER', 'EMPLOYEE'] },
@@ -65,38 +59,6 @@ export const routes: Routes = [
         title: 'Areas · AllianceTel',
         data: { heading: 'Areas', roles: ['ADMIN'] },
         loadComponent: () => import('./features/areas/areas-page').then((m) => m.AreasPage),
-      },
-      {
-        path: 'performance',
-        title: 'Performance · AllianceTel',
-        data: { heading: 'Performance', roles: ['ADMIN'] },
-        loadComponent: () => import('./features/performance/performance-page').then((m) => m.PerformancePage),
-      },
-      {
-        path: 'performance/employees/:id',
-        title: 'Employee performance · AllianceTel',
-        data: { heading: 'Employee performance', roles: ['ADMIN'] },
-        loadComponent: () =>
-          import('./features/performance/employee-performance-page').then((m) => m.EmployeePerformancePage),
-      },
-      {
-        path: 'my-performance',
-        title: 'My Performance · AllianceTel',
-        data: { heading: 'My Performance', roles: ['ADMIN'] },
-        loadComponent: () =>
-          import('./features/performance/employee-performance-page').then((m) => m.EmployeePerformancePage),
-      },
-      {
-        path: 'commission',
-        title: 'Commission · AllianceTel',
-        data: { heading: 'Commission', roles: ['ADMIN'] },
-        loadComponent: () => import('./features/commission/commission-page').then((m) => m.CommissionPage),
-      },
-      {
-        path: 'devices',
-        title: 'Devices · AllianceTel',
-        data: { heading: 'Devices', roles: ['ADMIN'] },
-        loadComponent: () => import('./features/devices/devices-page').then((m) => m.DevicesPage),
       },
       {
         path: 'messages',

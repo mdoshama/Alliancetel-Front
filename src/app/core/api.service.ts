@@ -3,25 +3,6 @@ import { Injectable, inject } from '@angular/core';
 import { Observable, map } from 'rxjs';
 import {
   DirectMessageResult,
-  AdjustmentType,
-  AdjustmentTypeOption,
-  CommissionAdjustment,
-  CommissionMonth,
-  CommissionPlan,
-  PerfLeaderboard,
-  PerfProfile,
-  BrandRequest,
-  CatalogBrand,
-  CatalogDevice,
-  DeviceRequest,
-  EodColleague,
-  EodCategoryOption,
-  EodClosingRequest,
-  EodDayOverview,
-  EodLineRequest,
-  EodMonthSummary,
-  EodReport,
-  EodToday,
   NotificationItem,
   NotificationChannel,
   NotificationStatus,
@@ -52,6 +33,8 @@ import {
   TimeClockRow,
   PortalMode,
   WeekRequestStatus,
+  PastWeekAccess,
+  PastWeekStatus,
   DayOffSuggestion,
 } from './models';
 
@@ -240,6 +223,30 @@ export class ApiService {
   setFullWeek(employeeId: number, weekStart: string, on: boolean): Observable<WeekRequestStatus> {
     return this.http.post<WeekRequestStatus>(`${this.base}/schedules/requests/full-week`, { employeeId, weekStart, on });
   }
+  /** Whether a week that has passed is locked for you, and the latest request to open it. */
+  pastWeekStatus(areaId: number, weekStart: string): Observable<PastWeekStatus> {
+    return this.http.get<PastWeekStatus>(`${this.base}/schedules/past-week-access`, { params: { areaId, weekStart } });
+  }
+  /** Managers: ask an admin to open a week that has passed. */
+  askPastWeekAccess(areaId: number, weekStart: string, reason: string): Observable<PastWeekAccess> {
+    return this.http.post<PastWeekAccess>(`${this.base}/schedules/past-week-access`, { areaId, weekStart, reason });
+  }
+  /** Admins: requests to open past weeks, waiting for a decision. */
+  pendingPastWeekAccess(): Observable<PastWeekAccess[]> {
+    return this.http.get<PastWeekAccess[]>(`${this.base}/schedules/past-week-access/pending`);
+  }
+  /** Admins: open the week (for "hours", 24 by default) or turn the request down. */
+  decidePastWeekAccess(id: number, approve: boolean, note?: string | null, hours?: number): Observable<PastWeekAccess> {
+    return this.http.post<PastWeekAccess>(`${this.base}/schedules/past-week-access/${id}/decide`, {
+      approve,
+      note: note ?? null,
+      hours: hours ?? null,
+    });
+  }
+  /** Admins: lock an opened week again. */
+  lockPastWeek(id: number): Observable<PastWeekAccess> {
+    return this.http.post<PastWeekAccess>(`${this.base}/schedules/past-week-access/${id}/lock`, {});
+  }
   weekRequests(areaId: number, weekStart: string): Observable<WeekRequestStatus> {
     return this.http.get<WeekRequestStatus>(`${this.base}/schedules/requests`, { params: { areaId, weekStart } });
   }
@@ -295,117 +302,5 @@ export class ApiService {
   }
   revertSchedule(scheduleId: number): Observable<Schedule> {
     return this.http.post<Schedule>(`${this.base}/schedules/${scheduleId}/revert-to-draft`, {});
-  }
-
-  // End of day
-  eodCategories(): Observable<EodCategoryOption[]> {
-    return this.http.get<EodCategoryOption[]>(`${this.base}/eod/categories`);
-  }
-  eodToday(): Observable<EodToday> {
-    return this.http.get<EodToday>(`${this.base}/eod/today`);
-  }
-  eodReport(storeId: number, date: string): Observable<EodReport> {
-    return this.http.get<EodReport>(`${this.base}/eod`, { params: toParams({ storeId, date }) });
-  }
-  eodDay(areaId: number | null, date: string): Observable<EodDayOverview> {
-    return this.http.get<EodDayOverview>(`${this.base}/eod/day`, { params: toParams({ areaId, date }) });
-  }
-  eodMonth(areaId: number | null, month: string, storeId: number | null = null): Observable<EodMonthSummary> {
-    return this.http.get<EodMonthSummary>(`${this.base}/eod/month`, { params: toParams({ areaId, month, storeId }) });
-  }
-  addEodLine(line: EodLineRequest): Observable<EodReport> {
-    return this.http.post<EodReport>(`${this.base}/eod/lines`, line);
-  }
-  updateEodLine(id: number, line: EodLineRequest): Observable<EodReport> {
-    return this.http.put<EodReport>(`${this.base}/eod/lines/${id}`, line);
-  }
-  deleteEodLine(id: number): Observable<EodReport> {
-    return this.http.delete<EodReport>(`${this.base}/eod/lines/${id}`);
-  }
-  saveEodClosing(closing: EodClosingRequest): Observable<EodReport> {
-    return this.http.put<EodReport>(`${this.base}/eod/closing`, closing);
-  }
-  submitEod(closing: EodClosingRequest): Observable<EodReport> {
-    return this.http.post<EodReport>(`${this.base}/eod/submit`, closing);
-  }
-  approveEod(reportId: number): Observable<EodReport> {
-    return this.http.post<EodReport>(`${this.base}/eod/${reportId}/approve`, {});
-  }
-  reopenEod(reportId: number): Observable<EodReport> {
-    return this.http.post<EodReport>(`${this.base}/eod/${reportId}/reopen`, {});
-  }
-  eodColleagues(storeId: number, date: string): Observable<EodColleague[]> {
-    return this.http.get<EodColleague[]>(`${this.base}/eod/colleagues`, { params: toParams({ storeId, date }) });
-  }
-  /** Splits the day's accessories by hand; an empty list goes back to "whoever sold it". */
-  saveEodSplit(storeId: number, date: string, shares: { employeeId: number; amount: number }[]): Observable<EodReport> {
-    return this.http.put<EodReport>(`${this.base}/eod/accessory-split`, { storeId, date, shares });
-  }
-
-  // Device list
-  brands(): Observable<CatalogBrand[]> {
-    return this.http.get<CatalogBrand[]>(`${this.base}/catalog/brands`);
-  }
-  createBrand(body: BrandRequest): Observable<CatalogBrand> {
-    return this.http.post<CatalogBrand>(`${this.base}/catalog/brands`, body);
-  }
-  updateBrand(id: number, body: BrandRequest): Observable<CatalogBrand> {
-    return this.http.put<CatalogBrand>(`${this.base}/catalog/brands/${id}`, body);
-  }
-  deleteBrand(id: number): Observable<void> {
-    return this.http.delete<void>(`${this.base}/catalog/brands/${id}`);
-  }
-  createDevice(body: DeviceRequest): Observable<CatalogDevice> {
-    return this.http.post<CatalogDevice>(`${this.base}/catalog/devices`, body);
-  }
-  updateDevice(id: number, body: DeviceRequest): Observable<CatalogDevice> {
-    return this.http.put<CatalogDevice>(`${this.base}/catalog/devices/${id}`, body);
-  }
-  deleteDevice(id: number): Observable<void> {
-    return this.http.delete<void>(`${this.base}/catalog/devices/${id}`);
-  }
-
-  // Performance
-  leaderboard(filter: { areaId?: number | null; storeId?: number | null; from: string; to: string }): Observable<PerfLeaderboard> {
-    return this.http.get<PerfLeaderboard>(`${this.base}/performance/leaderboard`, { params: toParams(filter) });
-  }
-  employeePerformance(employeeId: number, from: string, to: string): Observable<PerfProfile> {
-    return this.http.get<PerfProfile>(`${this.base}/performance/employees/${employeeId}`, { params: toParams({ from, to }) });
-  }
-  myPerformance(from: string, to: string): Observable<PerfProfile> {
-    return this.http.get<PerfProfile>(`${this.base}/performance/me`, { params: toParams({ from, to }) });
-  }
-
-  // Commission (admins only)
-  commissionPlan(): Observable<CommissionPlan> {
-    return this.http.get<CommissionPlan>(`${this.base}/commission/plan`);
-  }
-  updateCommissionPlan(plan: CommissionPlan): Observable<CommissionPlan> {
-    return this.http.put<CommissionPlan>(`${this.base}/commission/plan`, plan);
-  }
-  adjustmentTypes(): Observable<AdjustmentTypeOption[]> {
-    return this.http.get<AdjustmentTypeOption[]>(`${this.base}/commission/adjustment-types`);
-  }
-  addAdjustment(body: {
-    employeeId: number;
-    date: string;
-    type: AdjustmentType;
-    quantity: number | null;
-    amount: number | null;
-    note: string | null;
-  }): Observable<CommissionAdjustment> {
-    return this.http.post<CommissionAdjustment>(`${this.base}/commission/adjustments`, body);
-  }
-  deleteAdjustment(id: number): Observable<void> {
-    return this.http.delete<void>(`${this.base}/commission/adjustments/${id}`);
-  }
-  commissionMonth(month: string, areaId: number | null): Observable<CommissionMonth> {
-    return this.http.get<CommissionMonth>(`${this.base}/commission/months/${month}`, { params: toParams({ areaId }) });
-  }
-  finalizeCommission(month: string): Observable<CommissionMonth> {
-    return this.http.post<CommissionMonth>(`${this.base}/commission/months/${month}/finalize`, {});
-  }
-  reopenCommission(month: string): Observable<CommissionMonth> {
-    return this.http.post<CommissionMonth>(`${this.base}/commission/months/${month}/reopen`, {});
   }
 }

@@ -1665,6 +1665,7 @@ body {
 }
 
 .primary-tag {
+  display: inline-block;
   padding: 0.02rem 0.35rem;
   border-radius: 4px;
   background: #fff4d6;
@@ -1717,9 +1718,15 @@ body {
     gap: 0.45rem;
   }
 
-  .emp-manager,
-  .emp-sub {
+  .emp-manager {
     display: none;
+  }
+
+  /* Phones: keep the Primary / Secondary / Floater tag, drop the store name to save room. */
+  .emp-sub {
+    margin-top: 0.1rem;
+    .emp-home { display: none; }
+    .emp-floater { font-size: 0.6rem; }
   }
 }
 
@@ -2672,102 +2679,8 @@ button.stat-card {
   color: var(--at-muted);
 }
 
-.dash-progress {
-  height: 4px;
-  background: var(--at-page-bg);
-
-  > div {
-    height: 100%;
-    background: linear-gradient(90deg, #1f9d55, #34c172);
-    transition: width 0.4s ease;
-  }
-}
-
-.dash-store-list {
-  max-height: 360px;
-  overflow-y: auto;
-}
-
 .min-w-0 {
   min-width: 0;
-}
-
-.dash-leaders li + li {
-  margin-top: 0.85rem;
-}
-
-.dash-leader {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  color: inherit;
-  text-decoration: none;
-
-  &:hover .fw-semibold {
-    color: var(--at-primary);
-  }
-}
-
-.dash-rank {
-  display: inline-grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  font-size: 0.8rem;
-  font-weight: 700;
-  background: var(--at-page-bg);
-  color: var(--at-muted);
-
-  &.gold {
-    background: #fff1c2;
-    color: #8a5a00;
-  }
-}
-
-.dash-bar {
-  display: block;
-  height: 6px;
-  margin-top: 0.35rem;
-  border-radius: 3px;
-  background: var(--at-page-bg);
-
-  > span {
-    display: block;
-    height: 100%;
-    border-radius: 3px;
-    background: var(--at-primary);
-  }
-}
-
-.dash-trend {
-  display: flex;
-  align-items: flex-end;
-  gap: 3px;
-  height: 48px;
-
-  > span {
-    flex: 1 1 0;
-    max-width: 18px;
-    min-height: 2px;
-    border-radius: 2px 2px 0 0;
-    background: rgba(var(--at-primary-rgb), 0.55);
-
-    &:last-child {
-      background: var(--at-primary);
-    }
-  }
-}
-
-/* ---------- End of Day ---------- */
-
-/* "Over by $x" nudge in the close out: log it as accessories. */
-.over-hint {
-  padding: 0.6rem 0.7rem;
-  border-radius: 0.5rem;
-  background: var(--bs-warning-bg-subtle);
-  color: var(--bs-warning-text-emphasis);
 }
 
 /* ---------- Messages: which channels are connected ---------- */
@@ -3068,25 +2981,6 @@ button.stat-card {
 @media (max-width: 575.98px) {
   .stat-value.stat-value-text {
     font-size: 0.95rem;
-  }
-}
-
-/* Number grids (commission, leaderboard, boxes by rep) scroll sideways on small screens; the name stays put. */
-@media (max-width: 991.98px) {
-  .table-sticky-first {
-    > thead > tr > th:first-child,
-    > tbody > tr > td:first-child,
-    > tfoot > tr > td:first-child {
-      position: sticky;
-      left: 0;
-      z-index: 1;
-      background: var(--bs-body-bg, #fff);
-      box-shadow: 1px 0 0 var(--at-border);
-    }
-
-    > thead > tr > th:first-child {
-      background: #f8f9fc;
-    }
   }
 }
 
@@ -5917,4 +5811,72 @@ tr.is-regular-row {
   padding-bottom: 0.15rem;
   font-weight: 600;
   text-align: center;
+}
+
+/* A week that has passed: locked for managers until an admin opens it */
+.past-week-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  flex-wrap: wrap;
+  padding: 0.8rem 1rem;
+  margin-bottom: 1rem;
+  border-radius: 0.75rem;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+
+  &.is-locked {
+    border-color: #fcd34d;
+    background: #fffbeb;
+    .past-week-icon { color: #b45309; background: #fef3c7; }
+  }
+
+  &.is-open {
+    border-color: #86efac;
+    background: #f0fdf4;
+    .past-week-icon { color: #15803d; background: #dcfce7; }
+  }
+
+  .past-week-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 50%;
+    font-size: 1.05rem;
+    flex-shrink: 0;
+  }
+
+  .past-week-text {
+    flex: 1 1 16rem;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    strong { font-size: 0.95rem; }
+    span { font-size: 0.85rem; color: #475569; overflow-wrap: anywhere; }
+  }
+
+  .past-week-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  @media (max-width: 575.98px) {
+    .past-week-actions { width: 100%; }
+    .past-week-actions .btn { flex: 1 1 auto; }
+  }
+}
+
+.access-reason {
+  font-size: 0.85rem;
+  color: #475569;
+  overflow-wrap: anywhere;
+}
+
+.primary-tag.is-secondary {
+  background: #e8eefc;
+  color: #3b5bab;
 }

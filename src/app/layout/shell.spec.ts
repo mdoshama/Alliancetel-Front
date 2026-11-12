@@ -22,14 +22,13 @@ async function renderAs(role: Role) {
 describe('Shell', () => {
   afterEach(() => localStorage.clear());
 
-  // EOD, commission, performance and devices are switched off in the menu for now.
   it('shows the AllianceTel brand and the scheduling menu to admins', async () => {
     const { el, labels } = await renderAs('ADMIN');
     expect(el.querySelector('.brand-text')?.textContent).toContain('AllianceTel');
     expect(labels).toEqual(['Dashboard', 'Weekly Schedule', 'Day-off Requests', 'Employees', 'Messages', 'Time Clock', 'Areas', 'Stores']);
   });
 
-  it('shows managers their team but not areas, EOD, performance or the time clock', async () => {
+  it('shows managers their team but not areas or the time clock', async () => {
     const { labels } = await renderAs('MANAGER');
     expect(labels).toEqual(['Dashboard', 'Weekly Schedule', 'Day-off Requests', 'My Team', 'Messages', 'Stores']);
   });

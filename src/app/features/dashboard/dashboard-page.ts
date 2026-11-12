@@ -11,6 +11,7 @@ import {
   Area,
   DayOffRequest,
   DayHours,
+  PastWeekAccess,
   RequestWindow,
   Schedule,
   UpcomingBirthday,
@@ -63,6 +64,9 @@ export class DashboardPage implements OnInit {
   protected readonly weeks = signal<AreaWeek[]>([]);
   protected readonly window = signal<RequestWindow | null>(null);
   protected readonly emergencies = signal<DayOffRequest[]>([]);
+  /** Admins: managers asking to change a week that has passed. */
+  protected readonly accessRequests = signal<PastWeekAccess[]>([]);
+  protected readonly accessBusy = signal<number | null>(null);
   protected readonly emergencyCount = signal(0);
   protected readonly birthdays = signal<UpcomingBirthday[]>([]);
   protected readonly birthdaysLoaded = signal(false);
@@ -149,6 +153,12 @@ export class DashboardPage implements OnInit {
   }
 
   private refresh(): void {
+    if (this.auth.isAdmin()) {
+      this.api.pendingPastWeekAccess().subscribe({
+        next: (list) => this.accessRequests.set(list),
+        error: () => this.accessRequests.set([]),
+      });
+    }
     this.api.dayOffWindow().subscribe({ next: (w) => this.window.set(w), error: () => this.window.set(null) });
     this.api
       .dayOffRequestsPage({ status: 'PENDING', emergency: true, from: this.thisMonday, page: 0, size: 5 })
@@ -170,6 +180,22 @@ export class DashboardPage implements OnInit {
       next: (areas) => this.loadWeeks(this.myAreas(areas)),
       error: () => this.loaded.set(true),
     });
+  }
+
+  /** Admins: open the week for 24 hours, or turn the request down. */
+  protected decideAccess(r: PastWeekAccess, approve: boolean): void {
+    this.accessBusy.set(r.id);
+    this.api.decidePastWeekAccess(r.id, approve).subscribe({
+      next: () => {
+        this.accessBusy.set(null);
+        this.accessRequests.update((list) => list.filter((x) => x.id !== r.id));
+      },
+      error: () => this.accessBusy.set(null),
+    });
+  }
+
+  protected weekOf(monday: string): string {
+    return formatWeekRange(monday);
   }
 
   /** Admins see every active area; managers their own. */

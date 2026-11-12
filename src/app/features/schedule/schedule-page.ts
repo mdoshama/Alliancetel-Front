@@ -26,6 +26,7 @@ import {
   DayOffSuggestion,
   WeekRequestStatus,
   WeekRequestPerson,
+  PastWeekStatus,
 } from '../../core/models';
 import { RULES, formatPhone } from '../../core/validation';
 import { IMPACT_BADGE, approvalCard } from '../../core/day-off-impact';
@@ -369,7 +370,13 @@ export class SchedulePage implements OnInit {
   protected readonly weekLabel = computed(() => formatWeekRange(this.weekStart()));
   protected readonly isDraft = computed(() => this.schedule()?.status === 'DRAFT');
   /** Managers and admins edit drafts; employees only ever see published weeks. */
-  protected readonly canEdit = computed(() => this.auth.canManage() && this.isDraft());
+  /** A week that has passed: managers need an admin to open it before changing anything. */
+  protected readonly pastWeek = signal<PastWeekStatus | null>(null);
+  protected readonly weekLocked = computed(() => this.pastWeek()?.locked === true);
+  /** Managers and admins can change this week (it isn't over, or an admin opened it). */
+  protected readonly canChange = computed(() => this.auth.canManage() && !this.weekLocked());
+  protected readonly askingAccess = signal(false);
+  protected readonly canEdit = computed(() => this.canChange() && this.isDraft());
   /** The signed-in person's own row, shown as a summary above the grid. */
   protected readonly myRow = computed(
     () => this.schedule()?.rows.find((r) => r.employeeId === this.auth.user()?.id) ?? null,
@@ -683,6 +690,7 @@ export class SchedulePage implements OnInit {
     if (areaId == null) return;
     const week = this.weekStart();
     this.loadRequestStatus();
+    this.loadPastWeek();
     this.api.schedule(areaId, week).subscribe({
       next: (s) => {
         if (this.areaId() !== areaId || this.weekStart() !== week) return;
@@ -707,6 +715,7 @@ export class SchedulePage implements OnInit {
     this.personSearch.set('');
     this.loading.set(true);
     this.loadRequestStatus();
+    this.loadPastWeek();
     this.api.schedule(areaId, this.weekStart()).subscribe({
       next: (s) => {
         this.schedule.set(s);
@@ -714,6 +723,89 @@ export class SchedulePage implements OnInit {
       },
       error: () => this.loading.set(false),
     });
+  }
+
+  /** Whether the week shown has passed, and so is locked for managers. */
+  private loadPastWeek(): void {
+    const areaId = this.areaId();
+    const week = this.weekStart();
+    // Weeks still running or ahead are never locked: no need to ask.
+    if (areaId == null || !this.auth.canManage() || addDays(week, 6) >= today()) {
+      this.pastWeek.set(null);
+      return;
+    }
+    this.api.pastWeekStatus(areaId, week).subscribe({
+      next: (st) => {
+        if (this.areaId() === areaId && this.weekStart() === week) this.pastWeek.set(st);
+      },
+      error: () => this.pastWeek.set(null),
+    });
+  }
+
+  /** Managers: ask an admin to open this week so it can be changed. */
+  protected async askForAccess(): Promise<void> {
+    const areaId = this.areaId();
+    if (areaId == null) return;
+    const week = this.weekStart();
+    const reason = await this.confirm.askWithInput({
+      title: 'Ask an admin for access?',
+      message: `The week of ${this.weekLabel()} has passed, so it's locked. An admin can open it for you to make changes.`,
+      icon: 'bi-unlock',
+      input: { label: 'What needs changing?', placeholder: 'e.g. Ana and Ben swapped Tuesday', required: true, maxLength: 500 },
+      confirmText: 'Send request',
+    });
+    if (reason === null || !reason.trim()) return;
+    this.askingAccess.set(true);
+    this.api.askPastWeekAccess(areaId, week, reason.trim()).subscribe({
+      next: () => {
+        this.askingAccess.set(false);
+        this.toast.success('Request sent. You can make changes once an admin opens the week.');
+        this.loadPastWeek();
+      },
+      error: () => this.askingAccess.set(false),
+    });
+  }
+
+  /** Admins: decide on a manager's request to open this week. */
+  protected async decideAccess(approve: boolean): Promise<void> {
+    const req = this.pastWeek()?.request;
+    if (!req) return;
+    let note: string | null = null;
+    if (!approve) {
+      note = await this.confirm.askWithInput({
+        title: `Turn down ${req.requestedByName.split(' ')[0]}'s request?`,
+        message: `The week of ${this.weekLabel()} stays locked.`,
+        icon: 'bi-lock',
+        tone: 'danger',
+        input: { label: 'Reason (optional, shown to the manager)', placeholder: 'e.g. Payroll is already done' },
+        confirmText: 'Turn down',
+      });
+      if (note === null) return;
+    }
+    this.askingAccess.set(true);
+    this.api.decidePastWeekAccess(req.id, approve, note).subscribe({
+      next: () => {
+        this.askingAccess.set(false);
+        this.toast.success(approve ? `Opened for ${req.requestedByName} for 24 hours.` : 'Request turned down.');
+        this.loadPastWeek();
+      },
+      error: () => this.askingAccess.set(false),
+    });
+  }
+
+  /** Admins: lock the week again before its time runs out. */
+  protected lockAgain(): void {
+    const req = this.pastWeek()?.request;
+    if (!req) return;
+    this.api.lockPastWeek(req.id).subscribe(() => {
+      this.toast.info('Locked again.');
+      this.loadPastWeek();
+    });
+  }
+
+  protected accessTime(iso: string | null): string {
+    if (!iso) return '';
+    return new Date(iso).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
   }
 
   /** Managers: refreshes who has sent their day-off request for the week shown. */
@@ -1255,7 +1347,7 @@ export class SchedulePage implements OnInit {
 
   /** Managers and admins can click an approved day off (draft or published) to revoke it. */
   protected canRevoke(cell: DayCell): boolean {
-    return this.auth.canManage() && cell.type === 'REQUESTED_OFF' && !!cell.approvedRequestId;
+    return this.canChange() && cell.type === 'REQUESTED_OFF' && !!cell.approvedRequestId;
   }
 
   protected openCell(row: EmployeeRow, dayIndex: number): void {

@@ -41,7 +41,7 @@
     @if (remoteNote(); as note) { <span class="live-note">· {{ note }}</span> }
   </div>
   <div class="ms-auto d-flex gap-2 toolbar-actions">
-    @if (auth.canManage() && schedule(); as s) {
+    @if (canChange() && schedule(); as s) {
       @if (s.status === 'DRAFT') {
         @if (s.stores.length > 0) {
           <button type="button" class="btn btn-outline-primary" [disabled]="working()" (click)="autoFill()"
@@ -87,7 +87,61 @@
   </div>
 </div>
 
-@if (auth.canManage() && requestStatus(); as rs) {
+@if (pastWeek(); as pw) {
+  @if (pw.passed) {
+    @let req = pw.request;
+    <div class="past-week-bar" [class.is-locked]="pw.locked" [class.is-open]="!pw.locked" role="status">
+      <i class="bi past-week-icon" [class]="pw.locked ? 'bi-lock-fill' : 'bi-unlock-fill'"></i>
+      <div class="past-week-text">
+        @if (auth.isAdmin()) {
+          @if (req?.status === 'PENDING') {
+            <strong>{{ req!.requestedByName }} asked for access to change this week.</strong>
+            <span>"{{ req!.reason }}" · asked {{ accessTime(req!.requestedAt) }}</span>
+          } @else if (req?.open) {
+            <strong>Open for {{ req!.requestedByName }} until {{ accessTime(req!.openUntil) }}.</strong>
+            <span>This week has passed; managers can change it only while it's open.</span>
+          } @else {
+            <strong>This week has passed.</strong>
+            <span>Managers need your approval to change it. You can still make changes.</span>
+          }
+        } @else if (!pw.locked) {
+          <strong>Open for changes until {{ accessTime(req?.openUntil ?? null) }}.</strong>
+          <span>{{ req?.decidedBy }} gave you access to this week.</span>
+        } @else if (req?.status === 'PENDING') {
+          <strong>This week is locked. You've asked an admin for access.</strong>
+          <span>Asked {{ accessTime(req!.requestedAt) }}: "{{ req!.reason }}". You'll be able to make changes once it's opened.</span>
+        } @else {
+          <strong>This week has passed, so it's locked.</strong>
+          <span>
+            @if (req?.status === 'REJECTED') {
+              {{ req!.decidedBy }} turned down your last request@if (req!.note) {: "{{ req!.note }}"}. You can ask again.
+            } @else {
+              Ask an admin for access to make changes.
+            }
+          </span>
+        }
+      </div>
+      <div class="past-week-actions">
+        @if (auth.isAdmin()) {
+          @if (req?.status === 'PENDING') {
+            <button type="button" class="btn btn-sm btn-success" [disabled]="askingAccess()" (click)="decideAccess(true)">
+              <i class="bi bi-unlock me-1"></i>Open for 24 hours
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-danger" [disabled]="askingAccess()" (click)="decideAccess(false)">Turn down</button>
+          } @else if (req?.open) {
+            <button type="button" class="btn btn-sm btn-outline-secondary" (click)="lockAgain()"><i class="bi bi-lock me-1"></i>Lock again</button>
+          }
+        } @else if (pw.locked && req?.status !== 'PENDING') {
+          <button type="button" class="btn btn-sm btn-primary" [disabled]="askingAccess()" (click)="askForAccess()">
+            <i class="bi bi-send me-1"></i>{{ req?.status === 'REJECTED' ? 'Ask again' : 'Ask admin for access' }}
+          </button>
+        }
+      </div>
+    </div>
+  }
+}
+
+@if (canChange() && requestStatus(); as rs) {
   @if (rs.total > 0 && schedule()?.status !== 'PUBLISHED') {
     <div class="card mb-3 week-glance">
       <div class="card-body">
@@ -319,10 +373,14 @@
         Generating gives everyone their days off: their regular day first, then the day they asked for,
         otherwise the system picks one that keeps the stores covered.
       </p>
-      <button type="button" class="btn btn-primary" [disabled]="working()" (click)="generate()">
-        @if (working()) { <span class="spinner-border spinner-border-sm me-1"></span> }
-        <i class="bi bi-magic me-1"></i> Generate schedule
-      </button>
+      @if (canChange()) {
+        <button type="button" class="btn btn-primary" [disabled]="working()" (click)="generate()">
+          @if (working()) { <span class="spinner-border spinner-border-sm me-1"></span> }
+          <i class="bi bi-magic me-1"></i> Generate schedule
+        </button>
+      } @else {
+        <p class="small mb-0"><i class="bi bi-lock me-1"></i>This week has passed. Ask an admin for access to make one.</p>
+      }
     </div>
   </div>
 } @else {
@@ -812,6 +870,7 @@
                               {{ row.homeStoreName }}
                             </span>
                             @if (row.storeRole === 'PRIMARY') { <span class="primary-tag">Primary</span> }
+                            @else if (row.storeRole === 'SECONDARY') { <span class="primary-tag is-secondary">Secondary</span> }
                           }
                         }
                       </div>
