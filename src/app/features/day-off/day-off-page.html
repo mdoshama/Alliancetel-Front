@@ -225,6 +225,8 @@
                   @if (r.emergency) { <span class="emergency-badge"><i class="bi bi-exclamation-octagon-fill"></i> Emergency</span> }
                   @if (r.status === 'APPROVED') {
                     <span class="badge status-badge status-APPROVED"><i class="bi bi-check-circle-fill me-1"></i>Approved</span>
+                  } @else if (r.status === 'PENDING' && r.companion && r.reserved) {
+                    <span class="badge status-badge status-PENDING">Planned</span>
                   } @else if (r.status === 'PENDING') {
                     <span class="badge status-badge status-PENDING">Waiting</span>
                   } @else {
@@ -248,14 +250,13 @@
                       <i class="bi {{ impactBadge[im.level].icon }}"></i>
                       <span><strong>{{ impactBadge[im.level].label }}.</strong> {{ im.summary }}</span>
                     </div>
-                  } @else if (canReview(r)) {
+                  } @else if (impactsLoading().has(r.id)) {
                     <div class="er-impact"><span class="spinner-border spinner-border-sm"></span><span>Checking the stores…</span></div>
                   }
                 }
               </div>
               <div class="rg-day-actions">
                 @if (r.companion && (r.status === 'APPROVED' || (r.status === 'PENDING' && r.reserved)) && canRemoveCompanion(r)) {
-                  <span class="small text-muted-2 d-none d-md-inline">{{ r.status === 'APPROVED' ? 'Off' : 'Planned' }}</span>
                   <button type="button" class="btn btn-sm btn-outline-danger" [disabled]="busyId() !== null" (click)="removeCompanion(r)"
                           title="Take this day back: they work it (e.g. you give the emergency day instead)">
                     <i class="bi bi-x-lg"></i><span class="d-none d-md-inline ms-1">Remove (they work)</span>

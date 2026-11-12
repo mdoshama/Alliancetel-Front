@@ -464,16 +464,31 @@ export class DayOffPage implements OnInit {
   }
 
   /** Checks staffing for every request waiting for a decision, so problems show before deciding. */
+  /** Requests whose store check is still on its way (only these show "Checking the stores…"). */
+  protected readonly impactsLoading = signal<Set<number>>(new Set());
+
   private loadImpacts(list: DayOffRequest[]): void {
     this.impacts.set(new Map());
+    const ids = new Set<number>();
     for (const r of list) {
       // Planned days (regular, reserved) aren't decided by anyone: the system gives them at generate.
-      if (r.status === 'PENDING' && !r.reserved && this.canReview(r)) {
-        this.api.dayOffImpact(r.id).subscribe({
-          next: (impact) => this.impacts.update((m) => new Map(m).set(r.id, impact)),
-          error: () => undefined,
-        });
-      }
+      if (r.status === 'PENDING' && !r.reserved && this.canReview(r)) ids.add(r.id);
+    }
+    this.impactsLoading.set(new Set(ids));
+    const done = (id: number) => this.impactsLoading.update((s) => {
+      const next = new Set(s);
+      next.delete(id);
+      return next;
+    });
+    for (const id of ids) {
+      this.api.dayOffImpact(id).subscribe({
+        next: (impact) => {
+          this.impacts.update((m) => new Map(m).set(id, impact));
+          done(id);
+        },
+        // No check (e.g. the network hiccuped): the manager can still decide, just without the hint.
+        error: () => done(id),
+      });
     }
   }
 
@@ -658,13 +673,16 @@ export class DayOffPage implements OnInit {
 
   /** On a card with an emergency: how many days off they'd have that week if everything is approved. */
   protected weekSummary(items: DayOffRequest[]): string | null {
-    const emergency = items.find((r) => r.emergency && !r.companion && r.status === 'PENDING');
-    if (!emergency) return null;
-    const monday = weekStartOf(emergency.date);
-    const sunday = addDays(monday, 6);
-    const week = items.filter((r) => r.date >= monday && r.date <= sunday && r.status !== 'REJECTED');
-    if (week.length < 2) return null;
-    return `Week of ${this.short(monday)}: ${week.length} days off if you approve all. Approve or remove each day to give fewer.`;
+    const weeks = [...new Set(items.filter((r) => r.emergency && !r.companion && r.status === 'PENDING')
+      .map((r) => weekStartOf(r.date)))].sort();
+    const parts = weeks.map((monday) => {
+      const sunday = addDays(monday, 6);
+      const n = items.filter((r) => r.date >= monday && r.date <= sunday && r.status !== 'REJECTED').length;
+      return n >= 2 ? `week of ${this.short(monday)}: ${n} days off` : null;
+    }).filter((x): x is string => !!x);
+    if (!parts.length) return null;
+    const text = parts.join(', ');
+    return `If you approve all, ${text}. Approve or remove each day to give fewer.`;
   }
 
   protected canRemoveCompanion(r: DayOffRequest): boolean {
