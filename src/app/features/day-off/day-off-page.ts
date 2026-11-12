@@ -8,7 +8,7 @@ import { AuthService } from '../../core/auth.service';
 import { LiveService } from '../../core/live.service';
 import { weekDayOffLabel } from '../../core/week-days-off';
 import { addDays, formatDay, formatWeekRange, today, weekDates, weekStartOf } from '../../core/date-utils';
-import { Area, DayOffImpact, DayOffRequest, DayOffStatus, Employee, TakenDay, RequestWindow, PortalMode } from '../../core/models';
+import { Area, DayOffImpact, DayOffRequest, DayOffStatus, Employee, TakenDay, RequestWindow, PortalMode, ExtraDaysOff } from '../../core/models';
 import { IMPACT_BADGE, approvalCard } from '../../core/day-off-impact';
 import { ConfirmService } from '../../core/confirm.service';
 import { ToastService } from '../../core/toast.service';
@@ -255,6 +255,7 @@ export class DayOffPage implements OnInit {
     this.api.areas().subscribe((list) => this.areas.set(list));
     this.api.dayOffWindow().subscribe({ next: (w) => this.portal.set(w), error: () => this.portal.set(null) });
     this.load();
+    this.loadExtraDays();
     // Requests decided or sent from another device show up here without a manual refresh. The open form is left
     // alone; the list reloads when it's saved anyway.
     this.live.on(['dayoff', 'schedule', 'people'], this.destroyRef, (change) => {
@@ -612,8 +613,112 @@ export class DayOffPage implements OnInit {
       if (last && last.employeeId === r.employeeId) last.items.push(r);
       else groups.push({ employeeId: r.employeeId, name: r.employeeName, code: r.employeeCode, areaName: r.areaName, items: [r] });
     }
+    // Next to an emergency: their other days off that week, each one a row, so a manager can keep or approve one
+    // day or all of them.
+    for (const g of groups) {
+      const shown = new Set(g.items.map((r) => r.id));
+      const extra: DayOffRequest[] = [];
+      for (const r of g.items) {
+        for (const w of r.emergency ? (r.weekDaysOff ?? []) : []) {
+          if (shown.has(w.id)) continue;
+          shown.add(w.id);
+          extra.push({
+            ...r,
+            id: w.id,
+            date: w.date,
+            dayOfWeek: '',
+            status: w.status,
+            emergency: w.kind === 'EMERGENCY',
+            reserved: w.kind === 'REGULAR' || w.kind === 'SYSTEM',
+            regular: w.kind === 'REGULAR',
+            reason: null,
+            reviewNote: null,
+            previousStatus: null,
+            decisionChangeReason: null,
+            weekDaysOff: null,
+            companion: w.kind,
+          });
+        }
+      }
+      if (extra.length) g.items = [...g.items, ...extra].sort((a, b) => a.date.localeCompare(b.date));
+    }
     return groups;
   });
+
+  /** A day shown next to an emergency: why they have it. */
+  protected companionLabel(kind: DayOffRequest['companion']): string {
+    switch (kind) {
+      case 'REGULAR': return 'Regular day off';
+      case 'SYSTEM': return 'Given by the system';
+      case 'ASKED': return 'Asked for';
+      case 'EMERGENCY': return 'Emergency';
+      default: return '';
+    }
+  }
+
+  /** On a card with an emergency: how many days off they'd have that week if everything is approved. */
+  protected weekSummary(items: DayOffRequest[]): string | null {
+    const emergency = items.find((r) => r.emergency && !r.companion && r.status === 'PENDING');
+    if (!emergency) return null;
+    const monday = weekStartOf(emergency.date);
+    const sunday = addDays(monday, 6);
+    const week = items.filter((r) => r.date >= monday && r.date <= sunday && r.status !== 'REJECTED');
+    if (week.length < 2) return null;
+    return `Week of ${this.short(monday)}: ${week.length} days off if you approve all. Approve or remove each day to give fewer.`;
+  }
+
+  protected canRemoveCompanion(r: DayOffRequest): boolean {
+    return r.date >= this.todayIso && this.auth.canManage() && (this.auth.isAdmin() || r.employeeId !== this.auth.user()?.id);
+  }
+
+  /** Takes a day shown next to an emergency back: they work that day (e.g. the manager approves the emergency only). */
+  protected async removeCompanion(r: DayOffRequest): Promise<void> {
+    if (r.status === 'APPROVED') {
+      await this.changeDecision(r);
+      return;
+    }
+    await this.reject(r);
+  }
+
+  /** Admins: people with more days off in a week than they normally get. */
+  protected readonly extraDays = signal<ExtraDaysOff[]>([]);
+  protected readonly extraOpen = signal(false);
+  protected readonly extraBusy = signal(false);
+  protected readonly extraCount = computed(() => this.extraDays().reduce((n, x) => n + x.extra.length, 0));
+
+  private loadExtraDays(): void {
+    if (!this.auth.isAdmin()) return;
+    this.api.extraDaysOff().subscribe({ next: (list) => this.extraDays.set(list), error: () => this.extraDays.set([]) });
+  }
+
+  protected async moveExtraDays(): Promise<void> {
+    const n = this.extraCount();
+    const ok = await this.confirm.ask({
+      title: `Move ${n} extra day${n === 1 ? '' : 's'} off to emergency requests?`,
+      message: `${this.extraDays().length} ${this.extraDays().length === 1 ? 'person has' : 'people have'} more days off in a week than they normally get. ` +
+        'The extra days become emergency requests for a manager to approve or reject.',
+      icon: 'bi-exclamation-octagon',
+      tone: 'warning',
+      notes: [
+        'Until a manager approves them, they are back on the schedule those days.',
+        'A day the system only planned (nobody asked for it) is dropped: they work that day.',
+        'Days a manager or admin gave directly are left alone.',
+      ],
+      confirmText: 'Move to emergency requests',
+    });
+    if (!ok) return;
+    this.extraBusy.set(true);
+    this.api.moveExtraDaysOff().subscribe({
+      next: (res) => {
+        this.extraBusy.set(false);
+        this.toast.success(`Moved ${res.days} day${res.days === 1 ? '' : 's'} (${res.people} ${res.people === 1 ? 'person' : 'people'}) to emergency requests.`);
+        this.extraDays.set([]);
+        this.extraOpen.set(false);
+        this.load();
+      },
+      error: () => this.extraBusy.set(false),
+    });
+  }
 
   /** A person's requests a manager can decide now. */
   protected decidable(items: DayOffRequest[]): DayOffRequest[] {

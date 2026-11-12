@@ -413,6 +413,25 @@ export interface DayOffRequest {
   regular?: boolean;
   /** Emergencies (managers and admins): the person's other days off that same week. */
   weekDaysOff?: WeekDayOff[] | null;
+  /** Screen only: another day off that week shown next to their emergency (from weekDaysOff). */
+  companion?: WeekDayOff['kind'];
+}
+
+/** Someone with more days off in a week than they normally get; the extra ones can move to emergency requests. */
+export interface ExtraDaysOff {
+  employeeId: number;
+  employeeName: string;
+  areaName: string | null;
+  workDaysPerWeek: number;
+  weekStart: string;
+  kept: WeekDayOff[];
+  extra: WeekDayOff[];
+}
+
+export interface ExtraDaysMoved {
+  people: number;
+  days: number;
+  moved: ExtraDaysOff[];
 }
 
 /** Another day off the same person has that week. */

@@ -34,6 +34,8 @@ import {
   PortalMode,
   WeekRequestStatus,
   PastWeekAccess,
+  ExtraDaysOff,
+  ExtraDaysMoved,
   PastWeekStatus,
   DayOffSuggestion,
 } from './models';
@@ -188,6 +190,14 @@ export class ApiService {
     return this.http.post<DayOffRequest>(`${this.base}/day-off-requests/${id}/reject`, { note: note ?? null });
   }
   /** Managers/admins: switch an approved request to rejected (or back); the reason is required. */
+  /** Admins: people with more days off in a week than they normally get (nothing changes). */
+  extraDaysOff(): Observable<ExtraDaysOff[]> {
+    return this.http.get<ExtraDaysOff[]>(`${this.base}/day-off-requests/extra-days`);
+  }
+  /** Admins: moves those extra days to the emergency requests for a manager to decide. */
+  moveExtraDaysOff(): Observable<ExtraDaysMoved> {
+    return this.http.post<ExtraDaysMoved>(`${this.base}/day-off-requests/extra-days/move`, {});
+  }
   changeDayOffDecision(id: number, status: 'APPROVED' | 'REJECTED', reason: string): Observable<DayOffRequest> {
     return this.http.post<DayOffRequest>(`${this.base}/day-off-requests/${id}/change-decision`, { status, reason });
   }

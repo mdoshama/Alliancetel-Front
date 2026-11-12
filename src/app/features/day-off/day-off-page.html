@@ -48,6 +48,44 @@
   </div>
 }
 
+<!-- Admins: people with more days off in a week than they normally get (e.g. a 6-day worker with 2). -->
+@if (auth.isAdmin() && extraDays().length) {
+  <div class="extra-bar">
+    <div class="d-flex align-items-start gap-2 flex-wrap">
+      <i class="bi bi-exclamation-triangle-fill extra-icon"></i>
+      <div class="flex-grow-1 min-w-0">
+        <strong>{{ extraDays().length }} {{ extraDays().length === 1 ? 'person has' : 'people have' }} more days off in a week than they normally get</strong>
+        <div class="small">{{ extraCount() }} extra day{{ extraCount() === 1 ? '' : 's' }}, e.g. someone working 6 days with 2 days off. Move them to emergency requests so a manager decides.</div>
+      </div>
+      <button type="button" class="btn btn-sm btn-outline-secondary" (click)="extraOpen.set(!extraOpen())">{{ extraOpen() ? 'Hide' : 'See who' }}</button>
+      <button type="button" class="btn btn-sm btn-warning" [disabled]="extraBusy()" (click)="moveExtraDays()">
+        @if (extraBusy()) { <span class="spinner-border spinner-border-sm me-1"></span> }
+        <i class="bi bi-arrow-right-circle me-1"></i>Move to emergency requests
+      </button>
+    </div>
+    @if (extraOpen()) {
+      <ul class="extra-list">
+        @for (x of extraDays(); track x.employeeId + x.weekStart) {
+          <li>
+            <span class="fw-semibold">{{ x.employeeName }}</span>
+            <span class="text-muted-2">@if (x.areaName) { {{ x.areaName }} · } works {{ x.workDaysPerWeek }} days · week of {{ short(x.weekStart) }}</span>
+            <span class="extra-days">
+              @for (w of x.kept; track w.id) { <span class="extra-chip is-kept" title="Stays">{{ weekDayOffLabel(w) }}</span> }
+              @for (w of x.extra; track w.id) {
+                @if ((w.kind === 'SYSTEM' || w.kind === 'REGULAR') && w.status === 'PENDING') {
+                  <span class="extra-chip is-dropped" title="Only planned by the system: dropped, they work that day"><i class="bi bi-x"></i> {{ weekDayOffLabel(w) }} (dropped)</span>
+                } @else {
+                  <span class="extra-chip is-extra" title="Becomes an emergency request"><i class="bi bi-arrow-right"></i> {{ weekDayOffLabel(w) }} → emergency</span>
+                }
+              }
+            </span>
+          </li>
+        }
+      </ul>
+    }
+  </div>
+}
+
 <!-- How far ahead employees can ask: the usual window, or opened further by a manager or admin. -->
 @if (auth.canManage() && owArea(); as a) {
   <div class="ow-bar" [class.is-extended]="!!a.requestsOpenUntil">
@@ -158,6 +196,9 @@
             <div class="small text-muted-2">{{ g.items.length }} day{{ g.items.length === 1 ? '' : 's' }}
               @if (decidable(g.items).length) { · <span class="text-danger fw-semibold">{{ decidable(g.items).length }} waiting</span> }
             </div>
+            @if (weekSummary(g.items); as ws) {
+              <div class="er-week is-compact mt-1"><i class="bi bi-calendar-week"></i><span>{{ ws }}</span></div>
+            }
           </div>
           @if (decidable(g.items).length > 1) {
             <div class="rg-actions">
@@ -180,6 +221,7 @@
               </span>
               <div class="rg-day-main">
                 <div class="d-flex flex-wrap align-items-center gap-1">
+                  @if (r.companion) { <span class="companion-badge"><i class="bi bi-calendar-check"></i> {{ companionLabel(r.companion) }}</span> }
                   @if (r.emergency) { <span class="emergency-badge"><i class="bi bi-exclamation-octagon-fill"></i> Emergency</span> }
                   @if (r.status === 'APPROVED') {
                     <span class="badge status-badge status-APPROVED"><i class="bi bi-check-circle-fill me-1"></i>Approved</span>
@@ -188,23 +230,13 @@
                   } @else {
                     <span class="badge status-badge status-REJECTED">Rejected</span>
                   }
-                  <span class="small text-muted-2">{{ r.reason || 'No reason given' }}</span>
+                  @if (r.companion) {
+                    <span class="small text-muted-2">Same week as the emergency</span>
+                  } @else {
+                    <span class="small text-muted-2">{{ r.reason || 'No reason given' }}</span>
+                  }
                 </div>
                 @if (r.status === 'REJECTED' && r.reviewNote) { <div class="small text-muted-2">{{ r.reviewNote }}</div> }
-                @if (r.emergency && r.weekDaysOff) {
-                  <div class="er-week">
-                    <i class="bi bi-calendar-week"></i>
-                    <span>
-                      @if (r.weekDaysOff.length) {
-                        Also off this week:
-                        @for (w of r.weekDaysOff; track w.id; let last = $last) { <strong>{{ weekDayOffLabel(w) }}</strong>{{ last ? '.' : ', ' }} }
-                        With this emergency: <strong>{{ r.weekDaysOff.length + 1 }} days off</strong>.
-                      } @else {
-                        No other day off this week.
-                      }
-                    </span>
-                  </div>
-                }
                 @if (r.decisionChangeReason) {
                   <div class="small fst-italic text-muted-2">
                     Changed from {{ r.previousStatus | titlecase }}@if (r.decisionChangedBy) { by {{ r.decisionChangedBy }} }: {{ r.decisionChangeReason }}
@@ -222,7 +254,13 @@
                 }
               </div>
               <div class="rg-day-actions">
-                @if (r.status === 'PENDING') {
+                @if (r.companion && (r.status === 'APPROVED' || (r.status === 'PENDING' && r.reserved)) && canRemoveCompanion(r)) {
+                  <span class="small text-muted-2 d-none d-md-inline">{{ r.status === 'APPROVED' ? 'Off' : 'Planned' }}</span>
+                  <button type="button" class="btn btn-sm btn-outline-danger" [disabled]="busyId() !== null" (click)="removeCompanion(r)"
+                          title="Take this day back: they work it (e.g. you give the emergency day instead)">
+                    <i class="bi bi-x-lg"></i><span class="d-none d-md-inline ms-1">Remove (they work)</span>
+                  </button>
+                } @else if (r.status === 'PENDING') {
                   @if (canReview(r)) {
                     <button type="button" class="btn btn-sm btn-success" [disabled]="busyId() !== null" (click)="approve(r)" title="Approve this day">
                       <i class="bi bi-check-lg"></i><span class="d-none d-md-inline ms-1">Approve</span>

@@ -5649,7 +5649,7 @@ tr.is-regular-row {
 /* Schedule: who picked their days off, one card per group */
 .glance-board {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 0.75rem;
   margin-top: 0.5rem;
 }
@@ -5706,6 +5706,8 @@ tr.is-regular-row {
 }
 
 .gb-count {
+  flex-shrink: 0;
+  white-space: nowrap;
   min-width: 2rem;
   padding: 0.1rem 0.55rem;
   border-radius: 999px;
@@ -5726,8 +5728,9 @@ tr.is-regular-row {
 
 .gb-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 0.55rem;
+  gap: 0.3rem 0.55rem;
   padding: 0.4rem 0.8rem;
 
   & + & {
@@ -5752,16 +5755,15 @@ tr.is-regular-row {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  flex: 1;
+  flex: 1 1 9rem;
   line-height: 1.2;
 }
 
+/* Full names, wrapped onto a second line if needed (never cut off). */
 .gb-name {
   font-size: 0.84rem;
   font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
 }
 
 .gb-store {
@@ -5778,7 +5780,7 @@ tr.is-regular-row {
   justify-content: flex-end;
   gap: 0.25rem;
   flex-shrink: 0;
-  max-width: 55%;
+  margin-left: auto;
 }
 
 .gb-chip {
@@ -5903,3 +5905,60 @@ tr.is-regular-row {
     font-size: 0.75rem;
   }
 }
+
+/* Day-off requests: a day shown next to someone's emergency (same week) */
+.companion-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #3730a3;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+/* Admins: people with more days off in a week than they normally get */
+.extra-bar {
+  margin-bottom: 1rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid #fcd34d;
+  border-radius: 0.75rem;
+  background: #fffbeb;
+
+  .extra-icon { color: #b45309; font-size: 1.1rem; margin-top: 0.1rem; }
+}
+
+.extra-list {
+  list-style: none;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+
+  li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem 0.6rem;
+    padding: 0.45rem 0.6rem;
+    border-radius: 0.5rem;
+    background: #fff;
+    font-size: 0.85rem;
+  }
+}
+
+.extra-days { display: inline-flex; flex-wrap: wrap; gap: 0.3rem; }
+
+.extra-chip {
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  white-space: nowrap;
+
+  &.is-kept { background: #dcfce7; color: #166534; }
+  &.is-extra { background: #fee2e2; color: #991b1b; font-weight: 600; }
+}
+.extra-chip.is-dropped { background: #f1f5f9; color: #475569; text-decoration: line-through; }
