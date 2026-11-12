@@ -6,6 +6,7 @@ import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { LiveService } from '../../core/live.service';
 import { addDays, formatDay, formatWeekRange, today, weekStartOf } from '../../core/date-utils';
+import { minOn } from '../../core/store-hours';
 import {
   Area,
   DayOffRequest,
@@ -121,11 +122,11 @@ export class DashboardPage implements OnInit {
           storeId: c.storeId as number,
           name: c.storeName,
           color: c.color ?? '#475569',
-          min: c.minStaffPerDay,
+          min: minOn(c, i),
           closed,
           hours,
           people,
-          short: !closed && people.length < c.minStaffPerDay,
+          short: !closed && people.length < minOn(c, i),
         };
       })
       .sort((a, b) => a.name.localeCompare(b.name));

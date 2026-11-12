@@ -689,6 +689,7 @@
                     <div class="sb-full">
                       <div class="fw-semibold"><span class="store-dot me-1" [style.--store-color]="st.color"></span>{{ st.name }}</div>
                       <div class="small text-muted-2">{{ st.min > 0 ? 'Needs ' + st.min + ' a day' : 'No minimum' }}</div>
+                      @if (st.exceptions) { <div class="small text-muted-2">{{ st.exceptions }}</div> }
                     </div>
                     <!-- Phones: the store's name in its color, in a narrow column so the week gets the room. -->
                     <div class="sb-compact" [style.--store-color]="st.color" [attr.title]="st.name">
@@ -714,7 +715,7 @@
                     @if (st.storeId !== null) {
                       <div class="sb-cell-head">
                         <span class="sb-count" [class.short]="c.short">
-                          {{ c.people.length }}@if (st.min > 0 && !c.closed) {<span class="min-of">/{{ st.min }}</span>}
+                          {{ c.people.length }}@if (c.min > 0 && !c.closed) {<span class="min-of">/{{ c.min }}</span>}
                         </span>
                         <span class="sb-hours">{{ c.closed ? 'Closed' : (c.hours ? hoursLabel(c.hours) : '') }}</span>
                       </div>
@@ -940,15 +941,15 @@
                         {{ n > 0 ? n : '' }}<span class="day-hours">Closed</span>
                       </td>
                     } @else {
-                      <td [class.below-min]="isShort(c.storeId, c.minStaffPerDay, n)"
-                          [attr.title]="isShort(c.storeId, c.minStaffPerDay, n) ? (c.minStaffPerDay - n) + ' more needed' : null"
+                      <td [class.below-min]="isShort(c.storeId, minOn(c, i), n)"
+                          [attr.title]="isShort(c.storeId, minOn(c, i), n) ? (minOn(c, i) - n) + ' more needed' : null"
                           [class.drag-other-day]="drag() !== null && !canDropOnStore(c.storeId, i)"
                           [class.drop-ok]="canDropOnStore(c.storeId, i)"
                           [class.drop-hover]="dropKey() === 's' + c.storeId + '-' + i"
                           (dragover)="onDragOver($event, 's' + c.storeId + '-' + i, canDropOnStore(c.storeId, i))"
                           (dragleave)="onDragLeave('s' + c.storeId + '-' + i)"
                           (drop)="onDropOnStore($event, c.storeId, i)">
-                        {{ n }}@if (c.minStaffPerDay > 0) {<span class="min-of">/{{ c.minStaffPerDay }}</span>}
+                        {{ n }}@if (minOn(c, i) > 0) {<span class="min-of">/{{ minOn(c, i) }}</span>}
                         @if (c.storeId && c.dailyHours[i]) { <span class="day-hours">{{ hoursLabel(c.dailyHours[i]) }}</span> }
                       </td>
                     }

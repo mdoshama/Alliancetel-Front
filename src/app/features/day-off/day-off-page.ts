@@ -129,9 +129,25 @@ export class DayOffPage implements OnInit {
 
   /** People asking for themselves can't go back before this week, nor more than two weeks ahead. */
   protected readonly firstWeek = weekStartOf(today());
-  protected readonly lastWeek = addDays(weekStartOf(today()), 7 * SELF_SERVICE_WEEKS_AHEAD);
+  /** The last week they can reach: two weeks ahead, or further when their manager opened requests until a date. */
+  protected readonly lastWeek = computed(() => {
+    const usual = addDays(weekStartOf(today()), 7 * SELF_SERVICE_WEEKS_AHEAD);
+    const last = this.window()?.lastDate;
+    return last && weekStartOf(last) > usual ? weekStartOf(last) : usual;
+  });
   protected readonly canPrevWeek = computed(() => this.formWeek() > this.firstWeek);
-  protected readonly canNextWeek = computed(() => !this.selfService() || this.formWeek() < this.lastWeek);
+  protected readonly canNextWeek = computed(() => !this.selfService() || this.formWeek() < this.lastWeek());
+
+  /**
+   * A day they can ask for now (asking for themselves): in a week taking requests, or from next week on up to the
+   * date their manager opened requests until.
+   */
+  protected isOpenDay(date: string): boolean {
+    const w = this.window();
+    if (!w) return true;
+    if (w.openWeeks.includes(weekStartOf(date))) return true;
+    return !!w.openUntil && date <= w.openUntil && weekStartOf(date) >= addDays(weekStartOf(today()), 7);
+  }
 
   /** Their own request on this day, if any. */
   protected myRequestOn(date: string): DayOffRequest | undefined {
@@ -145,11 +161,12 @@ export class DayOffPage implements OnInit {
   protected readonly weekFull = computed(() => {
     if (!this.formWeekLoaded()) return false;
     const w = this.window();
-    if (w?.enabled && !w.openWeeks.includes(this.formWeek())) return true;
     const mine = this.formMine();
     const normal = mine.filter((r) => !r.emergency && !r.reserved && r.status !== 'REJECTED').length;
     if (normal >= this.maxDaysPerWeek()) return true;
-    return !this.formWeekDates().some((d) => d >= this.todayIso && !this.takenBy(d) && !mine.some((r) => r.date === d));
+    return !this.formWeekDates().some(
+      (d) => d >= this.todayIso && (!w?.enabled || this.isOpenDay(d)) && !this.takenBy(d) && !mine.some((r) => r.date === d),
+    );
   });
 
   /** The emergency switch: always for managers entering it for someone else; for oneself only when the week is full. */
@@ -213,6 +230,61 @@ export class DayOffPage implements OnInit {
       if (this.modalOpen()) return;
       this.api.dayOffWindow().subscribe({ next: (w) => this.portal.set(w), error: () => undefined });
       this.load();
+    });
+  }
+
+  // ---------- Open requests further ahead (managers: their area; admins: any area) ----------
+
+  /** The area whose request window is shown: the manager's own, or the one an admin picked. */
+  protected readonly owAreaId = signal<number | null>(null);
+  protected readonly owArea = computed(() => {
+    const id = this.auth.isAdmin() ? (this.owAreaId() ?? this.areas().find((a) => a.active)?.id ?? null) : this.auth.user()?.areaId;
+    return this.areas().find((a) => a.id === id) ?? null;
+  });
+  protected readonly owEditing = signal(false);
+  protected owDate = '';
+  protected readonly owBusy = signal(false);
+  /** Quick picks for how far ahead to open requests. */
+  protected readonly owChoices = computed(() => {
+    const t = today();
+    const endOfNextMonth = (() => {
+      const d = new Date(t + 'T00:00:00');
+      const end = new Date(d.getFullYear(), d.getMonth() + 2, 0);
+      return `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, '0')}-${String(end.getDate()).padStart(2, '0')}`;
+    })();
+    return [
+      { label: '3 weeks', date: addDays(weekStartOf(t), 7 * 4 - 1) },
+      { label: '6 weeks', date: addDays(weekStartOf(t), 7 * 7 - 1) },
+      { label: 'End of next month', date: endOfNextMonth },
+    ];
+  });
+  protected readonly maxOpenDate = addDays(today(), 365);
+  protected readonly minOpenDate = addDays(today(), 1);
+
+  protected startOpenUntil(): void {
+    this.owDate = this.owArea()?.requestsOpenUntil ?? this.owChoices()[0].date;
+    this.owEditing.set(true);
+  }
+
+  protected saveOpenUntil(until: string | null): void {
+    const area = this.owArea();
+    if (!area) return;
+    this.owBusy.set(true);
+    this.api.setOpenUntil(area.id, until).subscribe({
+      next: (res) => {
+        this.owBusy.set(false);
+        this.owEditing.set(false);
+        this.areas.update((list) =>
+          list.map((a) => (a.id === area.id ? { ...a, requestsOpenUntil: res.until, requestsOpenedBy: res.by } : a)),
+        );
+        this.toast.success(
+          until
+            ? `${area.name}: employees can ask for days off until ${formatDay(until, { weekday: 'short', month: 'short', day: 'numeric' })}.`
+            : `${area.name} is back to the usual window (next week).`,
+        );
+        this.api.dayOffWindow().subscribe({ next: (w) => this.portal.set(w), error: () => undefined });
+      },
+      error: () => this.owBusy.set(false),
     });
   }
 
@@ -506,18 +578,34 @@ export class DayOffPage implements OnInit {
     return r.status === 'PENDING' && (this.auth.canManage() || r.employeeId === this.auth.user()?.id);
   }
 
-  protected openCreate(): void {
+  /** Managers on the schedule can take days off for themselves too (an admin decides their emergencies). */
+  protected readonly canAskForMe = computed(() => this.auth.isManager() && this.auth.user()?.worksShifts !== false);
+  /** Managers: asking for themselves rather than for someone on the team. */
+  protected readonly forMe = signal(false);
+
+  protected setForMe(on: boolean): void {
+    this.forMe.set(on);
+    this.formEmployeeId.set(on ? (this.auth.user()?.id ?? null) : null);
+    this.formDays.set(new Set());
+    this.formEmergencyDays.set(new Set());
+    this.formEmergency.set(false);
+    this.formOverride.set(false);
+    this.loadTaken();
+  }
+
+  protected openCreate(forMe = false): void {
     const me = this.auth.user();
-    // Employees request for themselves; managers for anyone in their own area.
+    // Employees request for themselves; managers for anyone in their own area, or for themselves.
+    this.forMe.set(forMe && this.canAskForMe());
     this.formArea.set(this.auth.isAdmin() ? this.areaFilter : (me?.areaId ?? null));
-    this.formEmployeeId.set(this.auth.isEmployee() ? (me?.id ?? null) : null);
+    this.formEmployeeId.set(this.auth.isEmployee() || this.forMe() ? (me?.id ?? null) : null);
     this.formWeek.set(addDays(weekStartOf(today()), 7));
     this.api.dayOffWindow().subscribe({
       next: (w) => {
         this.window.set(w);
         // Start on the week they can ask for.
-        if (w.enabled && this.formDays().size === 0 && w.openWeeks.length) {
-          this.formWeek.set(w.openWeeks[0]);
+        if (w.enabled && this.formDays().size === 0 && (w.openWeeks.length || w.openUntil)) {
+          this.formWeek.set(w.openWeeks[0] ?? addDays(weekStartOf(today()), 7));
           this.loadTaken();
         }
         // Show the days reserved for them, so they know what asking for another day will swap.
@@ -599,7 +687,7 @@ export class DayOffPage implements OnInit {
     if (this.formDays().size >= this.formMaxDays()) {
       return true;
     }
-    if (this.windowApplies() && !this.window()!.openWeeks.includes(weekStartOf(date))) {
+    if (this.windowApplies() && !this.isOpenDay(date)) {
       return true;
     }
     return !this.formEmergency() && !(this.formOverride() && this.canOverride()) && this.takenBy(date) !== null;
@@ -638,7 +726,7 @@ export class DayOffPage implements OnInit {
 
   protected shiftFormWeek(weeks: number): void {
     const next = addDays(this.formWeek(), weeks * 7);
-    if (next < this.firstWeek || (this.selfService() && next > this.lastWeek)) {
+    if (next < this.firstWeek || (this.selfService() && next > this.lastWeek())) {
       return;
     }
     this.formWeek.set(next);

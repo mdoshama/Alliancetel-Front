@@ -145,6 +145,11 @@ export class ApiService {
   dayOffWindow(): Observable<RequestWindow> {
     return this.http.get<RequestWindow>(`${this.base}/day-off-requests/window`);
   }
+  /** Managers (their area) and admins: let employees ask up to a date; null = back to the usual window. */
+  setOpenUntil(areaId: number, until: string | null): Observable<{ areaId: number; until: string | null; by: string | null }> {
+    return this.http.put<{ areaId: number; until: string | null; by: string | null }>(
+      `${this.base}/day-off-requests/open-until`, { areaId, until });
+  }
   /** Admins: open or close day-off requests, or back to the Friday cycle (AUTO). */
   setRequestPortal(mode: PortalMode): Observable<RequestWindow> {
     return this.http.put<RequestWindow>(`${this.base}/day-off-requests/portal`, { mode });

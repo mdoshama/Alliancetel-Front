@@ -1,6 +1,6 @@
 import { DayHours, Schedule } from './models';
 import { formatDay, formatWeekRange } from './date-utils';
-import { formatTime } from './store-hours';
+import { formatTime, minOn } from './store-hours';
 
 /** File name like "AllianceTel-San-Diego-2026-11-02.pdf" ("...-DRAFT.pdf" for a week not published yet). */
 export function schedulePdfName(s: Schedule): string {
@@ -14,7 +14,8 @@ export function workingVsNeeded(s: Schedule): { working: number; needed: number;
     const working = s.dailyHeadCount?.[i] ?? 0;
     const needed = (s.storeCoverage ?? [])
       .filter((c) => c.storeId !== null && !c.dailyHours[i]?.closed)
-      .reduce((n, c) => n + c.minStaffPerDay, 0);
+      // The day's own minimum when the store has one (e.g. fewer on Sunday), otherwise its usual one.
+      .reduce((n, c) => n + minOn(c, i), 0);
     const diff = working - needed;
     return { working, needed, diff, label: diff === 0 ? 'Exact' : diff > 0 ? `+${diff}` : `${-diff} short` };
   });

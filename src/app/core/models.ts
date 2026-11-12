@@ -22,6 +22,9 @@ export interface Area {
   description: string | null;
   active: boolean;
   employeeCount: number;
+  /** Employees here can ask for days off up to this date (a manager opened it further ahead); null = usual window. */
+  requestsOpenUntil?: string | null;
+  requestsOpenedBy?: string | null;
 }
 
 export interface AreaRequest {
@@ -38,6 +41,8 @@ export interface DayHours {
   opensAt: string | null;
   closesAt: string | null;
   closed: boolean;
+  /** Fewest people needed this weekday when it differs from the store's usual minimum; null/absent = the usual. */
+  minStaff?: number | null;
 }
 
 export interface Store {
@@ -157,6 +162,11 @@ export interface RequestWindow {
   changedAt: string | null;
   /** Days off are reserved for everyone when a week opens. */
   reservations: boolean;
+  /** Their area takes requests up to this date (opened further ahead by a manager), and who opened it. */
+  openUntil?: string | null;
+  openUntilBy?: string | null;
+  /** The last date someone asking for themselves can pick. */
+  lastDate?: string | null;
 }
 
 export type PortalMode = 'AUTO' | 'OPEN' | 'CLOSED';
@@ -282,6 +292,8 @@ export interface Me {
   workDaysPerWeek?: number;
   /** Their regular days off, the same every week (e.g. 'TUESDAY'). A day they ask for replaces it that week. */
   regularDaysOff?: string[];
+  /** On the weekly schedule (false for managers who only manage). */
+  worksShifts?: boolean;
 }
 
 export interface LoginResponse {

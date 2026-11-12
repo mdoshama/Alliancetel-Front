@@ -29,7 +29,7 @@ import {
 } from '../../core/models';
 import { RULES, formatPhone } from '../../core/validation';
 import { IMPACT_BADGE, approvalCard } from '../../core/day-off-impact';
-import { formatHours, formatTime } from '../../core/store-hours';
+import { formatHours, formatTime, minOn } from '../../core/store-hours';
 import { ConfirmService } from '../../core/confirm.service';
 import { ToastService } from '../../core/toast.service';
 import { Modal } from '../../shared/modal';
@@ -76,7 +76,9 @@ interface StoreBoardRow {
   name: string;
   color: string | null;
   min: number;
-  cells: { people: StorePerson[]; hours: DayHours | null; closed: boolean; short: boolean }[];
+  /** Days whose minimum differs from the usual one, e.g. "Sun 2". */
+  exceptions: string;
+  cells: { people: StorePerson[]; hours: DayHours | null; closed: boolean; short: boolean; min: number }[];
 }
 
 @Component({
@@ -217,6 +219,11 @@ export class SchedulePage implements OnInit {
         code: c.label || this.initialsOf(c.storeName),
         color: c.color,
         min: c.minStaffPerDay,
+        exceptions: s.dates
+          .map((d, i) => ({ d, m: minOn(c, i) }))
+          .filter((x, i) => c.storeId !== null && !c.dailyHours[i]?.closed && x.m !== c.minStaffPerDay)
+          .map((x) => `${this.format(x.d, { weekday: 'short' })} ${x.m}`)
+          .join(' · '),
         cells: s.dates.map((_, i) => {
           const people = s.rows
             .filter((r) => r.days[i].type === 'WORK' && r.days[i].storeId === c.storeId)
@@ -224,11 +231,13 @@ export class SchedulePage implements OnInit {
             .sort(byName);
           const hours = c.dailyHours[i] ?? null;
           const closed = c.storeId !== null && !!hours?.closed;
+          const min = minOn(c, i);
           return {
             people,
             hours,
             closed,
-            short: c.storeId !== null && !closed && people.length < c.minStaffPerDay,
+            min,
+            short: c.storeId !== null && !closed && people.length < min,
           };
         }),
       }));
@@ -957,7 +966,10 @@ export class SchedulePage implements OnInit {
       const dayIndex = s.dates.indexOf(gap.date);
       const countAt = (storeId: number) =>
         s.storeCoverage.find((c) => c.storeId === storeId)?.dailyHeadCount[dayIndex] ?? 0;
-      const minAt = (storeId: number) => s.storeCoverage.find((c) => c.storeId === storeId)?.minStaffPerDay ?? 0;
+      const minAt = (storeId: number) => {
+        const c = s.storeCoverage.find((x) => x.storeId === storeId);
+        return c ? minOn(c, dayIndex) : 0;
+      };
       const candidates: FillCandidate[] = s.rows
         .map((row) => ({ row, cell: row.days[dayIndex] }))
         .filter(({ cell }) => cell.type === 'WORK' && cell.storeId !== gap.storeId)
@@ -1112,6 +1124,9 @@ export class SchedulePage implements OnInit {
     }
   }
 
+  /** A store's minimum on that day of the week (its own for the day, e.g. fewer on Sunday, or the usual one). */
+  protected minOn = minOn;
+
   /** True when a store has fewer people than its minimum on that day of the week. */
   protected isShort(storeId: number | null, minStaffPerDay: number, scheduled: number): boolean {
     return storeId !== null && scheduled < minStaffPerDay;
@@ -1129,7 +1144,8 @@ export class SchedulePage implements OnInit {
       return '';
     }
     const n = c.dailyHeadCount[dayIndex];
-    return c.minStaffPerDay > 0 ? `${n}/${c.minStaffPerDay}${n < c.minStaffPerDay ? ' · short' : ''}` : `${n}`;
+    const min = minOn(c, dayIndex);
+    return min > 0 ? `${n}/${min}${n < min ? ' · short' : ''}` : `${n}`;
   }
 
   /** "Oceanside Mission Ave" → "OMA": a short store code when none is set. */
@@ -1564,9 +1580,10 @@ export class SchedulePage implements OnInit {
       const cov = this.schedule()?.storeCoverage.find((c) => c.storeId === row.homeStoreId);
       if (cov) {
         const left = cov.dailyHeadCount[dayIndex] - 1;
+        const min = minOn(cov, dayIndex);
         notes.unshift(
-          cov.minStaffPerDay > 0
-            ? `${home} would have ${left} of ${cov.minStaffPerDay} needed that day.`
+          min > 0
+            ? `${home} would have ${left} of ${min} needed that day.`
             : `${home} would have ${left} working that day.`,
         );
       }

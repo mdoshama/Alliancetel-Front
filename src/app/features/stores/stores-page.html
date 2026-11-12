@@ -146,6 +146,9 @@
                   } @else {
                     <span class="text-muted-2">None</span>
                   }
+                  @if (minExceptions(s.hours, s.minStaffPerDay); as ex) {
+                    <div class="small text-muted-2 text-nowrap" title="Days with their own minimum">{{ ex }}</div>
+                  }
                 </td>
                 <td data-label="Home staff" class="text-center">
                   <a [routerLink]="['/employees']" [queryParams]="{ area: s.areaId, store: s.id }">{{ s.employeeCount }}</a>
@@ -265,6 +268,11 @@
           </button>
         </div>
         <div class="hours-editor border rounded-3">
+          <div class="hours-row hours-head d-none d-sm-flex">
+            <span class="hours-day"></span>
+            <span class="hours-head-times">Open – close</span>
+            <span class="hours-head-min" title="Fewest people needed that day. Leave empty to use the store's minimum.">Min</span>
+          </div>
           @for (h of hoursRows; track h.day) {
             <div class="hours-row" [class.is-closed]="h.closed">
               <span class="hours-day">{{ dayShort[h.day] }}</span>
@@ -275,6 +283,12 @@
               <input type="time" class="form-control form-control-sm" [attr.aria-label]="dayShort[h.day] + ' closes'"
                      [(ngModel)]="h.closesAt" [ngModelOptions]="{ standalone: true }" [disabled]="h.closed" step="900"
                      [class.is-invalid]="hoursTouched && hoursError(h)" />
+              <span class="hours-min-label d-sm-none">Min</span>
+              <input type="number" class="form-control form-control-sm hours-min" min="0" max="50" step="1" inputmode="numeric"
+                     [attr.aria-label]="dayShort[h.day] + ' minimum staff'" [placeholder]="'' + (form.controls.minStaffPerDay.value ?? '')"
+                     [title]="'Fewest people needed on ' + dayShort[h.day] + '. Empty = the store minimum (' + form.controls.minStaffPerDay.value + ').'"
+                     [(ngModel)]="h.minStaff" [ngModelOptions]="{ standalone: true }" [disabled]="h.closed"
+                     [class.is-custom]="h.minStaff != null && $any(h.minStaff) !== '' && h.minStaff !== form.controls.minStaffPerDay.value" />
               <div class="form-check mb-0 ms-1">
                 <input class="form-check-input" type="checkbox" [id]="'closed-' + h.day"
                        [(ngModel)]="h.closed" [ngModelOptions]="{ standalone: true }" />
@@ -297,7 +311,8 @@
   </form>
   <p class="small text-muted-2 mt-3 mb-0">
     The short code appears in the weekly schedule grid. Days with fewer people than the minimum are shown in red
-    (0 = no minimum).
+    (0 = no minimum). To need a different number on some days (e.g. 2 on Sunday), fill in that day's <strong>Min staff</strong>;
+    empty days use the store's minimum.
   </p>
   <ng-container modal-footer>
     <button type="button" class="btn btn-light" (click)="modalOpen.set(false)">Cancel</button>

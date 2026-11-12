@@ -985,7 +985,7 @@ body {
   }
 
   input[type='time'] {
-    width: 7.5rem;
+    width: 7.15rem;
   }
 
   &.is-closed .hours-day {
@@ -5174,5 +5174,147 @@ tr.is-regular-row {
     white-space: nowrap;
     padding: 0.45rem 0.6rem;
     font-size: 0.85rem;
+  }
+}
+
+/* Store form: each day's own minimum staff (optional) */
+.hours-min-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--at-muted);
+  margin-right: -0.25rem;
+}
+
+.hours-row {
+  .hours-min {
+    width: 3.6rem;
+
+    &.is-custom {
+      border-color: var(--at-primary);
+      background: rgba(var(--at-primary-rgb), 0.06);
+      font-weight: 700;
+    }
+  }
+
+  &.hours-head {
+    padding-bottom: 0;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--at-muted);
+
+    .hours-head-times {
+      width: calc(14.3rem + 1.6rem);
+    }
+
+    .hours-head-min {
+      width: 3.6rem;
+      cursor: help;
+    }
+  }
+}
+
+/* Day-off page: how far ahead employees can ask (usual, or opened further by a manager) */
+.ow-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  padding: 0.8rem 1rem;
+  margin-bottom: 1rem;
+  border-radius: 0.9rem;
+  background: #fff;
+  border: 1px solid var(--at-border);
+
+  &.is-extended {
+    background: linear-gradient(90deg, rgba(var(--at-primary-rgb), 0.07), #fff 70%);
+    border-color: rgba(var(--at-primary-rgb), 0.3);
+
+    .ow-icon {
+      color: #fff;
+      background: var(--at-primary);
+    }
+  }
+}
+
+.ow-icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  font-size: 1.05rem;
+  color: var(--at-primary);
+  background: rgba(var(--at-primary-rgb), 0.1);
+}
+
+.ow-text {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
+.ow-title {
+  font-size: 0.9rem;
+}
+
+.ow-area {
+  display: inline-block;
+  width: auto;
+  margin-right: 0.35rem;
+  font-weight: 600;
+}
+
+.ow-sub {
+  font-size: 0.78rem;
+  color: var(--at-muted);
+}
+
+.ow-actions {
+  display: flex;
+  gap: 0.4rem;
+  margin-left: auto;
+}
+
+.ow-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin-left: auto;
+}
+
+.ow-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+@media (max-width: 575.98px) {
+  .ow-actions,
+  .ow-editor {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .ow-actions .btn {
+    flex: 1 1 auto;
+  }
+}
+
+/* Past the weekly limit: picking the day asks about an emergency request. */
+.day-toggle-group .btn.day-pick.is-overflow {
+  color: #9a3412;
+  background: #fff7ed;
+  border: 1.5px dashed #fb923c;
+
+  &:hover {
+    background: #ffedd5;
+  }
+
+  .pick-state {
+    font-size: 0.62rem;
+    white-space: nowrap;
   }
 }

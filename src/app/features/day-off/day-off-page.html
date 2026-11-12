@@ -9,9 +9,16 @@
       </button>
     }
   </div>
-  <button type="button" class="btn btn-primary" (click)="openCreate()">
-    <i class="bi bi-calendar-plus me-1"></i> {{ auth.isEmployee() ? 'Request days off' : 'New request' }}
-  </button>
+  <div class="d-flex gap-2 flex-wrap">
+    @if (canAskForMe()) {
+      <button type="button" class="btn btn-outline-primary" (click)="openCreate(true)">
+        <i class="bi bi-person me-1"></i> My day off
+      </button>
+    }
+    <button type="button" class="btn btn-primary" (click)="openCreate()">
+      <i class="bi bi-calendar-plus me-1"></i> {{ auth.isEmployee() ? 'Request days off' : 'New request' }}
+    </button>
+  </div>
 </div>
 
 @if (auth.isAdmin() && portal(); as p) {
@@ -37,6 +44,62 @@
       <button type="button" class="btn btn-sm btn-success" [disabled]="portalBusy()" (click)="setPortal('OPEN')">
         <i class="bi bi-unlock me-1"></i>Open requests
       </button>
+    }
+  </div>
+}
+
+<!-- How far ahead employees can ask: the usual window, or opened further by a manager or admin. -->
+@if (auth.canManage() && owArea(); as a) {
+  <div class="ow-bar" [class.is-extended]="!!a.requestsOpenUntil">
+    <span class="ow-icon"><i class="bi" [class]="a.requestsOpenUntil ? 'bi-calendar-range' : 'bi-calendar-week'"></i></span>
+    <div class="ow-text">
+      <div class="ow-title">
+        @if (auth.isAdmin() && areas().length > 1) {
+          <select class="form-select form-select-sm ow-area" aria-label="Area" [ngModel]="a.id" (ngModelChange)="owAreaId.set($event); owEditing.set(false)">
+            @for (x of areas(); track x.id) { <option [ngValue]="x.id">{{ x.name }}</option> }
+          </select>
+        } @else {
+          {{ a.name }}:
+        }
+        @if (a.requestsOpenUntil) {
+          employees can ask until <strong>{{ format(a.requestsOpenUntil, { weekday: 'short', month: 'short', day: 'numeric' }) }}</strong>
+        } @else {
+          employees can ask for <strong>next week</strong> (usual)
+        }
+      </div>
+      <div class="ow-sub">
+        @if (a.requestsOpenUntil) {
+          Opened further ahead{{ a.requestsOpenedBy ? ' by ' + a.requestsOpenedBy : '' }}. After that date it goes back to the usual window.
+        } @else {
+          Open further ahead so people can plan holidays (e.g. until the end of next month).
+        }
+      </div>
+    </div>
+    @if (!owEditing()) {
+      <div class="ow-actions">
+        <button type="button" class="btn btn-sm btn-primary" (click)="startOpenUntil()">
+          <i class="bi bi-calendar-plus me-1"></i>{{ a.requestsOpenUntil ? 'Change' : 'Open further ahead' }}
+        </button>
+        @if (a.requestsOpenUntil) {
+          <button type="button" class="btn btn-sm btn-light border" [disabled]="owBusy()" (click)="saveOpenUntil(null)">Back to usual</button>
+        }
+      </div>
+    } @else {
+      <div class="ow-editor">
+        <div class="ow-chips">
+          @for (c of owChoices(); track c.label) {
+            <button type="button" class="msg-chip" [class.active]="owDate === c.date" (click)="owDate = c.date">{{ c.label }}</button>
+          }
+        </div>
+        <div class="d-flex gap-2 align-items-center">
+          <input type="date" class="form-control form-control-sm" aria-label="Open until" [(ngModel)]="owDate"
+                 [min]="minOpenDate" [max]="maxOpenDate" />
+          <button type="button" class="btn btn-sm btn-primary text-nowrap" [disabled]="owBusy() || !owDate" (click)="saveOpenUntil(owDate)">
+            @if (owBusy()) { <span class="spinner-border spinner-border-sm me-1"></span> } Save
+          </button>
+          <button type="button" class="btn btn-sm btn-light border" (click)="owEditing.set(false)">Cancel</button>
+        </div>
+      </div>
     }
   </div>
 }
@@ -218,7 +281,23 @@
       <i class="bi bi-person me-1"></i> Requesting for <strong>{{ auth.user()?.fullName }}</strong>. Open days are yours straight away.
     </div>
   }
-  <div class="mb-3" [class.d-none]="auth.isEmployee()">
+  @if (canAskForMe()) {
+    <div class="msg-tabs mb-3" role="tablist" aria-label="Who is this for">
+      <button type="button" role="tab" class="msg-tab" [class.active]="forMe()" [attr.aria-selected]="forMe()" (click)="setForMe(true)">
+        <i class="bi bi-person"></i>For me
+      </button>
+      <button type="button" role="tab" class="msg-tab" [class.active]="!forMe()" [attr.aria-selected]="!forMe()" (click)="setForMe(false)">
+        <i class="bi bi-people"></i>For my team
+      </button>
+    </div>
+    @if (forMe()) {
+      <div class="alert alert-light border small py-2 mb-3">
+        <i class="bi bi-person me-1"></i> Requesting for <strong>{{ auth.user()?.fullName }}</strong>. Open days are yours
+        straight away; an emergency goes to an admin.
+      </div>
+    }
+  }
+  <div class="mb-3" [class.d-none]="auth.isEmployee() || forMe()">
     <label class="form-label" for="nEmployee">Employee</label>
     @if (formEmployees().length > 8) {
       <div class="input-group input-group-sm mb-1">
@@ -247,14 +326,19 @@
       </button>
       <span class="week-label small">{{ formWeekLabel() }}</span>
       <button type="button" class="btn btn-sm btn-light border" (click)="shiftFormWeek(1)" aria-label="Next week"
-              [disabled]="!canNextWeek()" [attr.title]="canNextWeek() ? null : 'You can ask up to 2 weeks ahead'">
+              [disabled]="!canNextWeek()" [attr.title]="canNextWeek() ? null : 'You can\'t ask further ahead yet'">
         <i class="bi bi-chevron-right"></i>
       </button>
     </div>
   </div>
   @if (selfService() && window(); as w) {
     @if (w.enabled && !formEmergency()) {
-      @if (w.openWeeks.length === 0) {
+      @if (w.openUntil) {
+        <div class="alert alert-info small py-2 mb-2">
+          <i class="bi bi-calendar-range me-1"></i>
+          Requests are open until <strong>{{ format(w.openUntil, { weekday: 'long', month: 'short', day: 'numeric' }) }}</strong>@if (w.openUntilBy) { (opened by {{ w.openUntilBy }})}.
+        </div>
+      } @else if (w.openWeeks.length === 0) {
         <div class="alert alert-warning small py-2 mb-2">
           <i class="bi bi-lock me-1"></i>Day-off requests are closed right now. For something urgent, send an emergency request below.
         </div>
@@ -312,6 +396,7 @@
               [class.is-emergency]="(formDays().has(d) && formEmergency()) || formEmergencyDays().has(d)"
               [class.is-full]="!!takenBy(d) && !formDays().has(d)"
               [class.is-available]="!takenBy(d) && !formDays().has(d) && !formEmergencyDays().has(d) && !dayDisabled(d) && !isMyRegular(d) && !overflowsToEmergency()"
+              [class.is-overflow]="!formDays().has(d) && !formEmergencyDays().has(d) && !dayDisabled(d) && overflowsToEmergency()"
               [class.is-regular]="isMyRegular(d) && !formDays().has(d)"
               [disabled]="dayDisabled(d)"
               [attr.title]="takenTitle(d)"
@@ -327,7 +412,7 @@
         }
         @else if (takenBy(d); as label) { <small class="taken-by">{{ label }}</small> }
         @else if (isMyRegular(d)) { <small class="regular-by"><i class="bi bi-arrow-repeat"></i> Regular</small> }
-        @else if (!dayDisabled(d) && overflowsToEmergency()) { <small class="pick-state">Emergency?</small> }
+        @else if (!dayDisabled(d) && overflowsToEmergency()) { <small class="pick-state"><i class="bi bi-exclamation-octagon"></i> Urgent</small> }
         @else if (!dayDisabled(d)) { <small class="pick-state">Open</small> }
         @else if (isMyReserved(d)) { <small class="reserved-by">Reserved</small> }
       </button>

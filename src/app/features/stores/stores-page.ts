@@ -15,6 +15,7 @@ import {
   WEEK_DAYS,
   hhmm,
   hoursError,
+  minExceptions,
   summarizeWeek,
 } from '../../core/store-hours';
 import { ConfirmService } from '../../core/confirm.service';
@@ -44,6 +45,7 @@ export class StoresPage implements OnInit {
   private readonly confirm = inject(ConfirmService);
   protected readonly auth = inject(AuthService);
   protected readonly formatHours = formatHours;
+  protected readonly minExceptions = minExceptions;
   protected readonly weekDays = WEEK_DAYS;
 
   /** Today's weekday, to highlight today's hours in the store directory. */
@@ -179,8 +181,9 @@ export class StoresPage implements OnInit {
     this.hoursRows = WEEK_DAYS.map((day) => {
       const h = store.hours?.find((x) => x.day === day);
       return h
-        ? { day, opensAt: hhmm(h.opensAt) || DEFAULT_OPENS, closesAt: hhmm(h.closesAt) || DEFAULT_CLOSES, closed: h.closed }
-        : { day, opensAt: DEFAULT_OPENS, closesAt: DEFAULT_CLOSES, closed: false };
+        ? { day, opensAt: hhmm(h.opensAt) || DEFAULT_OPENS, closesAt: hhmm(h.closesAt) || DEFAULT_CLOSES, closed: h.closed,
+            minStaff: h.minStaff ?? null }
+        : { day, opensAt: DEFAULT_OPENS, closesAt: DEFAULT_CLOSES, closed: false, minStaff: null };
     });
     this.hoursTouched = false;
     this.color = store.color?.toUpperCase() ?? null;
@@ -190,7 +193,7 @@ export class StoresPage implements OnInit {
   protected save(): void {
     const v = this.form.getRawValue();
     this.hoursTouched = true;
-    if (this.form.invalid || v.areaId == null || this.hoursRows.some((h) => hoursError(h))) {
+    if (this.form.invalid || v.areaId == null || this.hoursRows.some((h) => hoursError(h) || dayMinError(h.minStaff))) {
       this.form.markAllAsTouched();
       return;
     }
@@ -208,6 +211,8 @@ export class StoresPage implements OnInit {
         opensAt: h.closed ? null : h.opensAt,
         closesAt: h.closed ? null : h.closesAt,
         closed: h.closed,
+        // A day's own minimum only when it differs from the store's usual one.
+        minStaff: h.closed || dayMin(h.minStaff) == null || dayMin(h.minStaff) === Number(v.minStaffPerDay) ? null : dayMin(h.minStaff),
       })),
       ...(this.color ? { color: this.color } : {}),
     };
@@ -253,5 +258,16 @@ export class StoresPage implements OnInit {
 }
 
 function defaultWeek(): DayHours[] {
-  return WEEK_DAYS.map((day) => ({ day, opensAt: DEFAULT_OPENS, closesAt: DEFAULT_CLOSES, closed: false }));
+  return WEEK_DAYS.map((day) => ({ day, opensAt: DEFAULT_OPENS, closesAt: DEFAULT_CLOSES, closed: false, minStaff: null }));
+}
+
+/** A day's minimum from its input: a whole number 0–50, or null when left empty. */
+function dayMin(value: unknown): number | null {
+  if (value === null || value === undefined || value === '') return null;
+  const n = Number(value);
+  return Number.isInteger(n) && n >= 0 && n <= 50 ? n : null;
+}
+
+function dayMinError(value: unknown): boolean {
+  return value !== null && value !== undefined && value !== '' && dayMin(value) === null;
 }

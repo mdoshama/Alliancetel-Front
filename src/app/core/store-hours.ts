@@ -73,3 +73,24 @@ export function hoursError(h: Pick<DayHours, 'opensAt' | 'closesAt' | 'closed'>)
   }
   return hhmm(h.closesAt) > hhmm(h.opensAt) ? null : 'Closing must be after opening';
 }
+
+/**
+ * Fewest people a store needs on one day of a schedule week: the day's own minimum when the store has one (e.g. 2 on
+ * Sunday), otherwise its usual minimum. 0 when closed or for the "no store" row.
+ */
+export function minOn(
+  c: { storeId: number | null; minStaffPerDay: number; dailyHours: Pick<DayHours, 'closed' | 'minStaff'>[] },
+  dayIndex: number,
+): number {
+  const h = c.dailyHours[dayIndex];
+  if (c.storeId === null || !h || h.closed) return 0;
+  return Math.max(0, h.minStaff ?? c.minStaffPerDay);
+}
+
+/** Days whose minimum differs from the usual one, e.g. "Sat 4 · Sun 2" (empty when none). */
+export function minExceptions(hours: DayHours[], usual: number): string {
+  return WEEK_DAYS.map((d) => hours.find((h) => h.day === d))
+    .filter((h): h is DayHours => !!h && !h.closed && h.minStaff != null && h.minStaff !== usual)
+    .map((h) => `${DAY_SHORT[h.day]} ${h.minStaff}`)
+    .join(' · ');
+}

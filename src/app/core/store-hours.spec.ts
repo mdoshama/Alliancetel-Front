@@ -1,5 +1,5 @@
 import { DayHours } from './models';
-import { formatHours, formatTime, hoursError, summarizeWeek, WEEK_DAYS } from './store-hours';
+import { formatHours, formatTime, hoursError, summarizeWeek, WEEK_DAYS, minOn, minExceptions } from './store-hours';
 
 function week(overrides: Partial<Record<string, Partial<DayHours>>> = {}): DayHours[] {
   return WEEK_DAYS.map((day) => ({ day, opensAt: '10:00:00', closesAt: '20:00:00', closed: false, ...overrides[day] }));
@@ -36,5 +36,29 @@ describe('store hours', () => {
     expect(hoursError({ opensAt: '20:00', closesAt: '10:00', closed: false })).toContain('after');
     expect(hoursError({ opensAt: '', closesAt: '20:00', closed: false })).toContain('both');
     expect(hoursError({ opensAt: null, closesAt: null, closed: true })).toBeNull();
+  });
+});
+
+describe('minOn / minExceptions', () => {
+  const open = { closed: false, minStaff: null };
+  const sunday = { closed: false, minStaff: 2 };
+  const closed = { closed: true, minStaff: null };
+
+  it("uses the day's own minimum, otherwise the store's usual one", () => {
+    const c = { storeId: 1, minStaffPerDay: 3, dailyHours: [open, sunday, closed] };
+    expect(minOn(c, 0)).toBe(3);
+    expect(minOn(c, 1)).toBe(2);
+    expect(minOn(c, 2)).toBe(0);
+    expect(minOn({ storeId: null, minStaffPerDay: 3, dailyHours: [open] }, 0)).toBe(0);
+  });
+
+  it('lists only the days that differ', () => {
+    const hours = [
+      { day: 'MONDAY', opensAt: '10:00', closesAt: '20:00', closed: false, minStaff: 3 },
+      { day: 'SATURDAY', opensAt: '10:00', closesAt: '20:00', closed: false, minStaff: 4 },
+      { day: 'SUNDAY', opensAt: '11:00', closesAt: '19:00', closed: false, minStaff: 2 },
+    ] as const;
+    expect(minExceptions([...hours], 3)).toBe('Sat 4 · Sun 2');
+    expect(minExceptions([], 3)).toBe('');
   });
 });
