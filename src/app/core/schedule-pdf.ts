@@ -176,6 +176,8 @@ export async function buildSchedulePdf(s: Schedule): Promise<Blob> {
     startY: top + 6,
     margin: { left: margin, right: margin, top: margin, bottom: 34 },
     theme: 'plain',
+    // A person's row never splits over two pages (a split half would have no row number to look up).
+    rowPageBreak: 'avoid',
     styles: {
       font: 'helvetica', fontSize: 9, textColor: INK, minCellHeight: 32, valign: 'middle',
       cellPadding: { top: 4, bottom: 4, left: 8, right: 4 },
@@ -197,7 +199,7 @@ export async function buildSchedulePdf(s: Schedule): Promise<Blob> {
       const { x, y, width: w, height: h } = data.cell;
       const cx = x + w / 2;
       if (data.section !== 'body') return;
-      const row = s.rows[data.row.index];
+      const row = data.row.index >= 0 ? s.rows[data.row.index] : undefined;
       if (!row) return;
       if (data.column.index === 0) {
         write(row.employeeName, x + 8, y + h / 2, 9.5, INK, true, w - 12);
@@ -268,6 +270,9 @@ export async function buildSchedulePdf(s: Schedule): Promise<Blob> {
       startY: t2 + 6,
       margin: { left: margin, right: margin, top: margin, bottom: 34 },
       theme: 'plain',
+      // A store's row (its hours and whole team) stays on one page: areas with many stores or big teams used to
+      // split a row over two pages, and the second half had no store to draw, so the whole PDF failed.
+      rowPageBreak: 'avoid',
       styles: {
         font: 'helvetica', fontSize: 8, textColor: INK, valign: 'top', minCellHeight: 40,
         cellPadding: { top: 9, bottom: 8, left: 8, right: 6 },
@@ -287,7 +292,8 @@ export async function buildSchedulePdf(s: Schedule): Promise<Blob> {
       },
       didDrawCell: (data) => {
         if (data.section !== 'body') return;
-        const st = s.stores[data.row.index];
+        const st = data.row.index >= 0 ? s.stores[data.row.index] : undefined;
+        if (!st) return;
         const { x, y, width: w, height: h } = data.cell;
         if (data.column.index === 0) {
           doc.setFillColor(...rgb(st.color));
@@ -316,7 +322,7 @@ export async function buildSchedulePdf(s: Schedule): Promise<Blob> {
         doc.setFillColor(...rgb(st.color));
         doc.circle(x + 9, y + 11.5, 2, 'F');
         write(hours, x + 14, y + 12, 7.5, INK, true, w - 18);
-        const team = teams[data.row.index][i];
+        const team = teams[data.row.index]?.[i] ?? [];
         if (team.length === 0) {
           write('Nobody scheduled', x + 8, y + 24, 7.5, RED, true, w - 12);
         }

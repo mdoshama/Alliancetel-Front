@@ -117,4 +117,22 @@ describe('schedule PDF', () => {
     expect(text).toContain('DAY OFF');
     expect(text).not.toContain('6 days');
   });
+
+  it('builds the PDF when a store row is too tall to fit on the rest of a page (many stores, big teams)', async () => {
+    const week = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'] as const;
+    const dates = ['2026-11-09', '2026-11-10', '2026-11-11', '2026-11-12', '2026-11-13', '2026-11-14', '2026-11-15'];
+    const stores = Array.from({ length: 9 }, (_, i) => ({
+      id: i + 1, name: 'Store ' + (i + 1), code: 'S' + (i + 1), label: 'S' + (i + 1), minStaffPerDay: 2,
+      color: '#2563EB', address: (100 + i) + ' Main St',
+      hours: week.map((day) => ({ day, opensAt: '10:00:00', closesAt: '20:00:00', closed: false })),
+    }));
+    // 45 people over 9 stores: five names in every store cell makes the rows tall enough to reach a page end.
+    const rows = Array.from({ length: 45 }, (_, k) => ({
+      employeeName: 'Person ' + k + ' Test', role: 'EMPLOYEE', trainee: false,
+      days: dates.map((date) => cell({ date, storeId: (k % 9) + 1, storeName: 'Store ' + ((k % 9) + 1) })),
+    }));
+    const s = { areaName: 'Big Area', weekStart: dates[0], status: 'DRAFT', dates, stores, rows } as unknown as Schedule;
+    const pdf = await buildSchedulePdf(s);
+    expect(pdf.size).toBeGreaterThan(1000);
+  });
 });
