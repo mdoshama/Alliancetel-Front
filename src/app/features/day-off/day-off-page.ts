@@ -640,6 +640,9 @@ export class DayOffPage implements OnInit {
             previousStatus: null,
             decisionChangeReason: null,
             weekDaysOff: null,
+            reviewedBy: null,
+            reviewedAt: null,
+            createdAt: '',
             companion: w.kind,
           });
         }
@@ -648,6 +651,21 @@ export class DayOffPage implements OnInit {
     }
     return groups;
   });
+
+  /** "Thu, Nov 12, 3:04 PM" */
+  protected stamp(iso: string | null | undefined): string {
+    if (!iso) return '';
+    return new Date(iso).toLocaleString('en-US', {
+      weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+    });
+  }
+
+  /** "Approved by the system" / "Rejected by Maria Garcia" / null while waiting. */
+  protected decidedBy(r: DayOffRequest): string | null {
+    if (r.status === 'PENDING' || !r.reviewedBy) return null;
+    const what = r.status === 'APPROVED' ? 'Approved' : 'Rejected';
+    return r.reviewedBy === 'System' ? `${what} by the system` : `${what} by ${r.reviewedBy}`;
+  }
 
   /** A day shown next to an emergency: why they have it. */
   protected companionLabel(kind: DayOffRequest['companion']): string {

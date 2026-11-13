@@ -5962,3 +5962,17 @@ tr.is-regular-row {
   &.is-extra { background: #fee2e2; color: #991b1b; font-weight: 600; }
 }
 .extra-chip.is-dropped { background: #f1f5f9; color: #475569; text-decoration: line-through; }
+
+/* Day-off requests: when it was sent and who decided */
+.req-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.15rem 0.85rem;
+  margin-top: 0.3rem;
+  font-size: 0.75rem;
+  color: var(--at-muted);
+
+  span { display: inline-flex; align-items: center; gap: 0.3rem; }
+  .is-system { color: #0f766e; }
+  .is-rejected { color: #b91c1c; }
+}

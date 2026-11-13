@@ -413,6 +413,8 @@ export interface DayOffRequest {
   regular?: boolean;
   /** Emergencies (managers and admins): the person's other days off that same week. */
   weekDaysOff?: WeekDayOff[] | null;
+  /** Who decided: a manager's or admin's name, "System" when it was automatic, null while waiting. */
+  reviewedBy?: string | null;
   /** Screen only: another day off that week shown next to their emergency (from weekDaysOff). */
   companion?: WeekDayOff['kind'];
 }
