@@ -170,8 +170,7 @@ export class DayOffPage implements OnInit {
     if (!this.formWeekLoaded()) return false;
     const w = this.window();
     const mine = this.formMine();
-    const normal = mine.filter((r) => !r.emergency && !r.reserved && r.status !== 'REJECTED').length
-      + this.fixedDays().length;
+    const normal = mine.filter((r) => !r.emergency && !r.reserved && r.status !== 'REJECTED').length;
     if (normal >= this.maxDaysPerWeek()) return true;
     return !this.formWeekDates().some(
       (d) => d >= this.todayIso && (!w?.enabled || this.isOpenDay(d)) && !this.takenBy(d)
@@ -188,23 +187,9 @@ export class DayOffPage implements OnInit {
   /** Extra days picked past the weekly limit, sent as an emergency request (after the normal days). */
   protected readonly formEmergencyDays = signal<Set<string>>(new Set());
 
-  /** The week being picked is already published for them: the day off the schedule gives stays as it is. */
-  protected readonly weekPublished = computed(
-    () => this.selfService() && (this.window()?.publishedWeeks ?? []).includes(this.formWeek()),
-  );
-
-  /** On a published week: the days off the schedule already gives them (regular or from the system). */
-  protected readonly fixedDays = computed(() =>
-    this.weekPublished() ? this.formMine().filter((r) => r.reserved && !r.emergency && r.status !== 'REJECTED') : [],
-  );
-
-  /**
-   * Normal days off they already have this week (asked for, not reserved or emergency). On a published week the
-   * day the schedule gives them counts too: it can't be swapped any more, so another day is an emergency.
-   */
+  /** Normal days off they already have this week (asked for, not reserved or emergency). */
   protected readonly existingNormal = computed(
-    () => this.formMine().filter((r) => !r.emergency && !r.reserved && r.status !== 'REJECTED').length
-      + this.fixedDays().length,
+    () => this.formMine().filter((r) => !r.emergency && !r.reserved && r.status !== 'REJECTED').length,
   );
 
   /** Normal days still left to pick this week. */
@@ -346,7 +331,12 @@ export class DayOffPage implements OnInit {
   protected readonly myRegularDates = computed(() => {
     if (!this.selfService()) return [];
     const weekdays = new Set(this.auth.user()?.regularDaysOff ?? []);
-    const held = new Set(this.myReserved().filter((r) => r.regular).map((r) => r.date));
+    // Their regular weekday, and any day held for them that week (regular, or picked by the system): picking
+    // another day swaps it, they work that day instead.
+    const held = new Set([
+      ...this.myReserved().filter((r) => r.regular).map((r) => r.date),
+      ...this.formMine().filter((r) => r.reserved && !r.emergency && r.status !== 'REJECTED').map((r) => r.date),
+    ]);
     return this.formWeekDates().filter((d) => weekdays.has(weekdayOf(d)) || held.has(d));
   });
 
@@ -363,8 +353,7 @@ export class DayOffPage implements OnInit {
    */
   protected readonly regularReplaced = computed(() => {
     const regular = this.myRegularDates();
-    // A published week keeps its days off: nothing is swapped.
-    if (this.formEmergency() || regular.length === 0 || this.weekPublished()) return [];
+    if (this.formEmergency() || regular.length === 0) return [];
     const picked = [...this.formDays()].filter((d) => !regular.includes(d)).length;
     const keptRegular = regular.filter((d) => !this.formDays().has(d));
     const extra = picked + regular.length - this.usualDaysOff();
@@ -927,8 +916,7 @@ export class DayOffPage implements OnInit {
     // A day they already asked for (a reserved or regular day can be picked: that just keeps it).
     const mine = this.myRequestOn(date);
     // A day turned down can be asked for again.
-    // On a published week their day off is fixed: it's shown as theirs, nothing to pick.
-    if (mine && mine.status !== 'REJECTED' && (!mine.reserved || this.weekPublished()) && !(this.formOverride() && this.canOverride())) {
+    if (mine && mine.status !== 'REJECTED' && !mine.reserved && !(this.formOverride() && this.canOverride())) {
       return true;
     }
     // A full or taken day can be clicked: it asks about an emergency request.
@@ -1042,15 +1030,10 @@ export class DayOffPage implements OnInit {
     const limit = this.maxDaysPerWeek();
     const when = formatDay(date, { weekday: 'long', month: 'short', day: 'numeric' });
     const already = this.existingNormal() > 0 && this.normalPicks() === 0;
-    const fixed = this.fixedDays().map((r) => formatDay(r.date, { weekday: 'long' }));
     const ok = await this.confirm.ask({
       title: 'Send an emergency request?',
       message: full
         ? `${when} is ${this.fullReason(date, me)}. Do you want to ask for it as an emergency day off?`
-        : fixed.length
-          ? `This week's schedule is already published with ${me ? 'you' : 'them'} off on ${fixed.join(' and ')}, and ` +
-            `${me ? 'you' : 'they'} can take ${limit} day${limit === 1 ? '' : 's'} off a week. Do you want to ask for ` +
-            `${when} as an emergency day off as well?`
         : `${me ? 'You' : 'They'} can take ${limit} day${limit === 1 ? '' : 's'} off a week` +
         `${already ? `, and ${me ? 'you' : 'they'} already have ${limit === 1 ? 'it' : 'them'}` : ''}. ` +
         `Do you want to ask for ${when} as an emergency day off?`,
