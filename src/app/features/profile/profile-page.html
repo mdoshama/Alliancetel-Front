@@ -68,7 +68,7 @@
           <dt class="col-sm-4 text-muted-2 fw-normal">NTID</dt>
           <dd class="col-sm-8"><code>{{ user.employeeCode }}</code></dd>
           <dt class="col-sm-4 text-muted-2 fw-normal">Sign-in email</dt>
-          <dd class="col-sm-8 text-break">{{ user.email }}</dd>
+          <dd class="col-sm-8 text-break">{{ user.email || '—' }}</dd>
           <dt class="col-sm-4 text-muted-2 fw-normal">Role</dt>
           <dd class="col-sm-8">{{ roleLabels[user.role] }}</dd>
           <dt class="col-sm-4 text-muted-2 fw-normal">Area</dt>
@@ -91,7 +91,7 @@
           <div class="card-header fw-semibold"><i class="bi bi-bell me-1 text-primary"></i>Schedule updates</div>
           <div class="card-body">
             <div class="d-flex flex-wrap gap-2 mb-2">
-              <span class="msg-reach-chip" [class.is-on]="user.emailOptIn !== false"><i class="bi bi-envelope"></i>Email</span>
+              <span class="msg-reach-chip" [class.is-on]="!!user.email && user.emailOptIn !== false"><i class="bi bi-envelope"></i>Email</span>
               <span class="msg-reach-chip" [class.is-on]="!!user.whatsappOptIn"><i class="bi bi-whatsapp"></i>WhatsApp</span>
               <span class="msg-reach-chip" [class.is-on]="!!user.smsOptIn"><i class="bi bi-chat-text"></i>Text</span>
             </div>

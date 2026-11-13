@@ -87,7 +87,8 @@ export interface Employee {
   firstName: string;
   lastName: string;
   fullName: string;
-  email: string;
+  /** Null when they sign in with their phone number. */
+  email: string | null;
   phone: string | null;
   role: Role;
   areaId: number | null;
@@ -296,7 +297,8 @@ export interface Me {
   id: number;
   employeeCode: string;
   fullName: string;
-  email: string;
+  /** Null when they sign in with their phone number. */
+  email: string | null;
   role: Role;
   areaId: number | null;
   areaName: string | null;
@@ -332,7 +334,7 @@ export interface EmployeeRequest {
   employeeCode: string;
   firstName: string;
   lastName: string;
-  email: string;
+  email: string | null;
   phone: string | null;
   role: Role;
   areaId: number | null;

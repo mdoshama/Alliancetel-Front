@@ -126,7 +126,7 @@
                 </div>
                 <div class="small text-muted-2">{{ e.employeeCode }}</div>
                 <div class="small text-muted-2 text-break">
-                  <i class="bi bi-envelope me-1"></i>{{ e.email }}
+                  @if (e.email) { <i class="bi bi-envelope me-1"></i>{{ e.email }} } @else { <i class="bi bi-phone me-1"></i>{{ formatPhone(e.phone) }} }
                   @if (e.phone) {
                     <br /><i class="bi bi-telephone me-1"></i>{{ formatPhone(e.phone) }}
                     @if (e.whatsappOptIn) { <i class="bi bi-whatsapp text-success ms-1" title="Gets schedule updates on WhatsApp"></i> }
@@ -286,10 +286,15 @@
         <div class="invalid-feedback">{{ fieldError(form.controls.lastName, 'Last name') }}</div>
       </div>
       <div class="col-md-7">
-        <label class="form-label" for="eEmail">Email</label>
+        <label class="form-label" for="eEmail">Email <span class="text-muted-2 fw-normal small">(or phone)</span></label>
         <input id="eEmail" type="email" class="form-control" formControlName="email" maxlength="120" autocomplete="off"
                [class.is-invalid]="fieldError(form.controls.email, 'Email')" />
         <div class="invalid-feedback">{{ fieldError(form.controls.email, 'Email') }}</div>
+        @if (form.hasError('emailOrPhone') && (form.controls.email.touched || form.controls.phone.touched)) {
+          <div class="small text-danger mt-1">Add an email or a phone number: they sign in with one of them.</div>
+        } @else {
+          <div class="form-text">They sign in with their email or their phone number.</div>
+        }
         <div class="form-check form-switch mt-2">
           <input class="form-check-input" type="checkbox" id="eEmailOptIn" formControlName="emailOptIn" />
           <label class="form-check-label small" for="eEmailOptIn">
@@ -504,8 +509,8 @@
       }
     </p>
     <dl class="row small mb-2">
-      <dt class="col-4 text-muted-2 fw-normal">Email</dt>
-      <dd class="col-8 mb-1">{{ c.employee.email }}</dd>
+      <dt class="col-4 text-muted-2 fw-normal">Signs in with</dt>
+      <dd class="col-8 mb-1">{{ c.employee.email || formatPhone(c.employee.phone) }}</dd>
     </dl>
     <div class="temp-password mb-2">{{ c.temporaryPassword }}</div>
     <p class="small text-muted-2 mb-0">

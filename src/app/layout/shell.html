@@ -50,7 +50,7 @@
           @if (menuOpen()) {
             <div class="user-menu-backdrop" (click)="menuOpen.set(false)"></div>
             <div class="dropdown-menu dropdown-menu-end show user-menu-panel">
-              <div class="px-3 py-2 small text-muted-2 border-bottom mb-1">{{ user.email }}</div>
+              <div class="px-3 py-2 small text-muted-2 border-bottom mb-1">{{ user.email || user.phone }}</div>
               
               <a class="dropdown-item" routerLink="/profile" (click)="menuOpen.set(false)"><i class="bi bi-person-circle me-2"></i>My profile</a>
               <a class="dropdown-item" routerLink="/change-password"><i class="bi bi-key me-2"></i>Change password</a>

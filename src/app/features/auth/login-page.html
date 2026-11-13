@@ -22,7 +22,7 @@
         <span class="brand-text text-body">AllianceTel</span>
       </div>
       <h1 class="h4 fw-bold mb-1">Sign in</h1>
-      <p class="text-muted-2 mb-4">Use the email your administrator registered for you.</p>
+      <p class="text-muted-2 mb-4">Use the email or phone number your administrator registered for you.</p>
 
       @if (reason() === 'expired' && !error()) {
         <div class="alert alert-info py-2 small">Your session ended. Please sign in again.</div>
@@ -34,11 +34,12 @@
       }
 
       <div class="mb-3">
-        <label class="form-label" for="email">Email</label>
-        <input id="email" type="email" class="form-control form-control-lg" formControlName="email" autocomplete="username" maxlength="120"
+        <label class="form-label" for="email">Email or phone number</label>
+        <input id="email" type="text" class="form-control form-control-lg" formControlName="email" autocomplete="username" maxlength="120"
+               autocapitalize="off" spellcheck="false"
                placeholder="name@alliancetel.com"
                [class.is-invalid]="form.controls.email.touched && form.controls.email.invalid" />
-        <div class="invalid-feedback">Enter a valid email.</div>
+        <div class="invalid-feedback">Enter your email or phone number.</div>
       </div>
       <div class="mb-4">
         <label class="form-label" for="password">Password</label>

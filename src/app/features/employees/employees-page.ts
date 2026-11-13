@@ -116,11 +116,18 @@ export class EmployeesPage implements OnInit {
   protected readonly storeRoleLabels = STORE_ROLE_LABELS;
   protected readonly storeRoleHelp = STORE_ROLE_HELP;
 
+  /** Sign-in needs an email or a phone number. */
+  private static readonly emailOrPhone = (g: import('@angular/forms').AbstractControl) => {
+    const v = g.value as { email?: string; phone?: string };
+    return (v.email ?? '').trim() || (v.phone ?? '').trim() ? null : { emailOrPhone: true };
+  };
+
   protected readonly form = this.fb.nonNullable.group({
     employeeCode: ['', [Validators.required, notBlank, Validators.maxLength(20), codeRule]],
     firstName: ['', [Validators.required, notBlank, Validators.maxLength(60), personName]],
     lastName: ['', [Validators.required, notBlank, Validators.maxLength(60), personName]],
-    email: ['', [Validators.required, notBlank, Validators.maxLength(120), emailRule]],
+    /** Email or phone (or both): they sign in with either. */
+    email: ['', [Validators.maxLength(120), emailRule]],
     phone: ['', [Validators.maxLength(30), phoneRule]],
     role: ['EMPLOYEE' as Role | 'TRAINEE', Validators.required],
     areaId: [null as number | null],
@@ -138,7 +145,7 @@ export class EmployeesPage implements OnInit {
     onSchedule: [true],
     /** Text-message updates: an admin turns them on once the person agreed. */
     smsOptIn: [false],
-  });
+  }, { validators: EmployeesPage.emailOrPhone });
 
   /** Date picker limits, same as the server's. */
   protected readonly birthDateMax = yearsAgo(BIRTH_MIN_AGE);
@@ -278,7 +285,7 @@ export class EmployeesPage implements OnInit {
       employeeCode: e.employeeCode,
       firstName: e.firstName,
       lastName: e.lastName,
-      email: e.email,
+      email: e.email ?? '',
       phone: formatPhone(e.phone),
       role: e.trainee ? 'TRAINEE' : e.role,
       areaId: e.areaId,
@@ -315,7 +322,7 @@ export class EmployeesPage implements OnInit {
       employeeCode: v.employeeCode.trim().toUpperCase(),
       firstName: clean(v.firstName) ?? '',
       lastName: clean(v.lastName) ?? '',
-      email: v.email.trim().toLowerCase(),
+      email: v.email.trim().toLowerCase() || null,
       phone: normalizePhone(v.phone),
       // No phone, no WhatsApp.
       whatsappOptIn: !!v.phone.trim() && v.whatsappOptIn,

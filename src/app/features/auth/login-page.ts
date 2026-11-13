@@ -1,4 +1,3 @@
-import { emailRule } from '../../core/validation';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, inject, input, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
@@ -26,7 +25,8 @@ export class LoginPage {
   protected readonly showPassword = signal(false);
 
   protected readonly form = this.fb.nonNullable.group({
-    email: ['', [Validators.required, Validators.maxLength(120), emailRule]],
+    /** Their email or their phone number. */
+    email: ['', [Validators.required, Validators.maxLength(120)]],
     password: ['', Validators.required],
   });
 
@@ -50,7 +50,7 @@ export class LoginPage {
       },
       error: (err: HttpErrorResponse) => {
         this.submitting.set(false);
-        this.error.set(err.status === 401 ? 'Invalid email or password.' : describeError(err));
+        this.error.set(err.status === 401 ? 'Wrong email, phone number or password.' : describeError(err));
       },
     });
   }
