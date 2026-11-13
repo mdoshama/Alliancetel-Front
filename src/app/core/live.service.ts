@@ -1,6 +1,7 @@
 import { DestroyRef, Injectable, effect, inject, signal } from '@angular/core';
 import { Observable, Subject, debounceTime, filter } from 'rxjs';
 import { AuthService } from './auth.service';
+import { apiOrigin } from './api-base';
 
 /** What kind of data changed on another screen. "resync" means: we may have missed changes, reload anyway. */
 export type LiveTopic = 'schedule' | 'dayoff' | 'people' | 'timeclock' | 'resync';
@@ -121,7 +122,7 @@ export class LiveService {
     this.controller = controller;
     this.status.set(this.hasConnectedBefore ? 'retrying' : 'connecting');
     try {
-      const res = await fetch(`/api/live?client=${encodeURIComponent(TAB_ID)}`, {
+      const res = await fetch(`${apiOrigin()}/api/live?client=${encodeURIComponent(TAB_ID)}`, {
         headers: { Authorization: `Bearer ${token}`, Accept: 'text/event-stream', 'X-Client-Id': TAB_ID },
         signal: controller.signal,
         cache: 'no-store',

@@ -6017,3 +6017,31 @@ tr.is-regular-row {
     gap: 0.4rem;
   }
 }
+
+/* ---------- Phone notches and home bars (iOS / Android app, iPhone Safari) ----------
+   env(safe-area-inset-*) is 0 on ordinary screens, so this changes nothing on desktop. Kept last so it wins over the
+   padding shorthands above. */
+.topbar {
+  height: calc(var(--at-topbar-height) + env(safe-area-inset-top, 0px));
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+.sidebar {
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.app-content {
+  padding-bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px));
+}
+
+@media (max-width: 991.98px) {
+  .app-content {
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+.auth-page {
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}

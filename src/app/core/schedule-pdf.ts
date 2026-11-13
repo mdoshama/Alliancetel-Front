@@ -1,3 +1,4 @@
+import { isNativeApp } from './api-base';
 import { DayHours, Schedule } from './models';
 import { formatDay, formatWeekRange } from './date-utils';
 import { formatTime, minOn } from './store-hours';
@@ -476,8 +477,15 @@ export function shade(hex: string | null | undefined, amount = 0.55): Rgb {
   return [mix(r), mix(g), mix(b)];
 }
 
-/** Saves the PDF to the device. */
-export function downloadBlob(blob: Blob, fileName: string): void {
+/**
+ * Saves the PDF to the device. In the iOS / Android app a download link does nothing, so the PDF is written to the
+ * app's cache and the share sheet opens, where "Save to Files" / "Save to device" (or any app) can take it.
+ */
+export async function downloadBlob(blob: Blob, fileName: string): Promise<void> {
+  if (isNativeApp()) {
+    await nativeSharePdf(blob, fileName, fileName);
+    return;
+  }
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -493,6 +501,9 @@ export function downloadBlob(blob: Blob, fileName: string): void {
  * Resolves 'shared', 'cancelled', or 'unsupported' when the browser can't share files.
  */
 export async function sharePdf(blob: Blob, fileName: string, title: string): Promise<'shared' | 'cancelled' | 'unsupported'> {
+  if (isNativeApp()) {
+    return nativeSharePdf(blob, fileName, title);
+  }
   const file = new File([blob], fileName, { type: 'application/pdf' });
   const nav = navigator as Navigator & { canShare?: (data: ShareData) => boolean };
   if (!nav.share || !nav.canShare?.({ files: [file] })) {
@@ -507,4 +518,37 @@ export async function sharePdf(blob: Blob, fileName: string, title: string): Pro
     }
     throw e;
   }
+}
+
+/** iOS / Android app: write the PDF to the app's cache folder and open the native share sheet with it. */
+async function nativeSharePdf(blob: Blob, fileName: string, title: string): Promise<'shared' | 'cancelled'> {
+  // Loaded only in the app, so the website doesn't download these plugins.
+  const [{ Filesystem, Directory }, { Share }] = await Promise.all([
+    import('@capacitor/filesystem'),
+    import('@capacitor/share'),
+  ]);
+  const { uri } = await Filesystem.writeFile({
+    path: fileName,
+    data: await blobToBase64(blob),
+    directory: Directory.Cache,
+  });
+  try {
+    await Share.share({ title, dialogTitle: title, files: [uri] });
+    return 'shared';
+  } catch (e) {
+    // The plugin rejects with "Share canceled" when the person closes the sheet.
+    if (/cancel/i.test(String((e as Error)?.message ?? e))) {
+      return 'cancelled';
+    }
+    throw e;
+  }
+}
+
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(',')[1] ?? '');
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
 }

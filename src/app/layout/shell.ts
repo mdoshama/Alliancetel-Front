@@ -2,6 +2,7 @@ import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { filter } from 'rxjs';
+import { siteUrl } from '../core/api-base';
 import { AuthService } from '../core/auth.service';
 import { ConfirmService } from '../core/confirm.service';
 import { ToastService } from '../core/toast.service';
@@ -65,6 +66,7 @@ const DESKTOP_MIN_WIDTH = 992;
   templateUrl: './shell.html',
 })
 export class Shell {
+  protected readonly siteUrl = siteUrl;
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   protected readonly auth = inject(AuthService);

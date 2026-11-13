@@ -2,6 +2,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Component, inject, input, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
+import { siteUrl } from '../../core/api-base';
 import { AuthService } from '../../core/auth.service';
 import { describeError } from '../../core/error.interceptor';
 
@@ -12,6 +13,7 @@ import { describeError } from '../../core/error.interceptor';
 })
 export class LoginPage {
   protected readonly year = new Date().getFullYear();
+  protected readonly siteUrl = siteUrl;
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly fb = inject(FormBuilder);

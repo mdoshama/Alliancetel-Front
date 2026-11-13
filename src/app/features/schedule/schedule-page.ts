@@ -1213,7 +1213,7 @@ export class SchedulePage implements OnInit {
     }
     this.pdfBusy.set('download');
     try {
-      downloadBlob(await buildSchedulePdf(s), schedulePdfName(s));
+      await downloadBlob(await buildSchedulePdf(s), schedulePdfName(s));
     } catch {
       this.toast.error("Couldn't create the PDF. Please try again.");
     } finally {
@@ -1233,7 +1233,7 @@ export class SchedulePage implements OnInit {
       const name = schedulePdfName(s);
       const result = await sharePdf(blob, name, `${s.areaName} schedule · ${this.weekLabel()}`);
       if (result === 'unsupported') {
-        downloadBlob(blob, name);
+        await downloadBlob(blob, name);
         this.toast.info("This browser can't share files directly, so the PDF was downloaded. Attach it to your message.");
       }
     } catch {
