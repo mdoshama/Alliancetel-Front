@@ -60,6 +60,27 @@ export class AuthService {
       .pipe(tap((res) => this.store(res)));
   }
 
+  /**
+   * "Forgot password?": asks for a set-password link to be emailed (or texted when there's no email). The answer is
+   * the same whether or not the account exists.
+   */
+  forgotPassword(login: string): Observable<void> {
+    return this.http.post<void>('/api/auth/forgot-password', { login });
+  }
+
+  /**
+   * Deletes your own account for good (your password confirms it). Personal details and messages are erased on the
+   * server and every device is signed out; this one goes back to sign-in.
+   */
+  deleteAccount(password: string): Observable<void> {
+    return this.http.post<void>('/api/auth/me/delete', { password }).pipe(
+      tap(() => {
+        this.clear();
+        this.router.navigate(['/login'], { queryParams: { reason: 'deleted' } });
+      }),
+    );
+  }
+
   /** Saves your own phone number and birth date (everything else is kept by admins). */
   updateProfile(phone: string | null, birthDate: string | null): Observable<Me> {
     return this.http.put<Me>('/api/auth/me/profile', { phone, birthDate }).pipe(

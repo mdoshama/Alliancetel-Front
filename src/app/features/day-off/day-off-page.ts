@@ -640,9 +640,9 @@ export class DayOffPage implements OnInit {
             previousStatus: null,
             decisionChangeReason: null,
             weekDaysOff: null,
-            reviewedBy: null,
-            reviewedAt: null,
-            createdAt: '',
+            reviewedBy: w.reviewedBy ?? null,
+            reviewedAt: w.reviewedAt ?? null,
+            createdAt: w.createdAt ?? '',
             companion: w.kind,
           });
         }

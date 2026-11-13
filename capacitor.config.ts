@@ -17,6 +17,15 @@ const config: CapacitorConfig = {
   android: {
     allowMixedContent: false,
   },
+  plugins: {
+    // Built into Capacitor 8: dark status-bar text on the white top bar. "native" keeps env(safe-area-inset-*) right
+    // on every Android WebView version (styles.scss pads the top bar, sidebar and page with it).
+    SystemBars: {
+      insetsHandling: 'native',
+      style: 'LIGHT',
+      initialViewportFitValueHint: 'cover',
+    },
+  },
 };
 
 export default config;

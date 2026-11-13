@@ -1,7 +1,9 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
+import { HttpErrorResponse } from '@angular/common/http';
 import { AuthService } from '../../core/auth.service';
+import { describeError } from '../../core/error.interceptor';
 import { ConfirmService } from '../../core/confirm.service';
 import { formatDay } from '../../core/date-utils';
 import { ROLE_LABELS } from '../../core/models';
@@ -169,6 +171,45 @@ export class ProfilePage implements OnInit {
           const box = event.target as HTMLInputElement;
           box.checked = !box.checked;
         }
+      },
+    });
+  }
+
+  // ---------- Delete account (App Store / Google Play: people can delete their own account in the app) ----------
+
+  protected readonly deleteOpen = signal(false);
+  protected readonly deleting = signal(false);
+  protected readonly deleteError = signal<string | null>(null);
+  protected readonly deletePassword = signal('');
+
+  protected async deleteAccount(): Promise<void> {
+    const password = this.deletePassword();
+    if (!password) {
+      this.deleteError.set('Enter your password to confirm.');
+      return;
+    }
+    const sure = await this.confirm.ask({
+      title: 'Delete your account?',
+      message: 'This permanently deletes your AllianceTel account. It can\'t be undone.',
+      icon: 'bi-person-x',
+      tone: 'danger',
+      notes: [
+        'Your name, NTID, email, phone number, birth date and messages are erased.',
+        'You are signed out on every device and can no longer sign in.',
+        'Past schedules and time records stay with the company, shown as "Deleted user".',
+      ],
+      confirmText: 'Delete my account',
+    });
+    if (!sure) {
+      return;
+    }
+    this.deleting.set(true);
+    this.deleteError.set(null);
+    this.auth.deleteAccount(password).subscribe({
+      next: () => this.deleting.set(false),
+      error: (err: HttpErrorResponse) => {
+        this.deleting.set(false);
+        this.deleteError.set(describeError(err));
       },
     });
   }

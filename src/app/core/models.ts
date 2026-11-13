@@ -445,6 +445,11 @@ export interface WeekDayOff {
   /** REGULAR (usual day), SYSTEM (the system gave it), ASKED (they asked for it) or EMERGENCY. */
   kind: 'REGULAR' | 'SYSTEM' | 'ASKED' | 'EMERGENCY';
   status: DayOffStatus;
+  /** Who decided: "System", a manager's / admin's name, or null while waiting. */
+  reviewedBy?: string | null;
+  reviewedAt?: string | null;
+  /** When it was asked for (or reserved). */
+  createdAt?: string | null;
 }
 
 export type ImpactLevel = 'OK' | 'TIGHT' | 'SHORT';

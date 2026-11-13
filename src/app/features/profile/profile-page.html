@@ -109,7 +109,29 @@
           <button type="button" class="list-group-item list-group-item-action d-flex align-items-center" (click)="signOutEverywhere()">
             <i class="bi bi-phone me-2"></i>Sign out everywhere <i class="bi bi-chevron-right ms-auto text-muted-2"></i>
           </button>
+          <button type="button" class="list-group-item list-group-item-action d-flex align-items-center text-danger"
+                  (click)="deleteOpen.set(!deleteOpen()); deleteError.set(null)" [attr.aria-expanded]="deleteOpen()">
+            <i class="bi bi-person-x me-2"></i>Delete my account
+            <i class="bi ms-auto text-muted-2" [class]="deleteOpen() ? 'bi-chevron-up' : 'bi-chevron-down'"></i>
+          </button>
         </div>
+        @if (deleteOpen()) {
+          <div class="card-body border-top">
+            <p class="small mb-2">
+              Deleting your account erases your personal details (name, NTID, email, phone, birth date) and your messages,
+              and signs you out everywhere. Past schedules and time records stay with the company as "Deleted user".
+              This can't be undone.
+            </p>
+            <label class="form-label small fw-semibold" for="deletePassword">Your password</label>
+            <input id="deletePassword" type="password" class="form-control" autocomplete="current-password" maxlength="100"
+                   [value]="deletePassword()" (input)="deletePassword.set($any($event.target).value)"
+                   (keydown.enter)="$event.preventDefault(); deleteAccount()" />
+            @if (deleteError()) { <div class="small text-danger mt-1">{{ deleteError() }}</div> }
+            <button type="button" class="btn btn-danger btn-sm mt-2" [disabled]="deleting()" (click)="deleteAccount()">
+              @if (deleting()) { <span class="spinner-border spinner-border-sm me-1"></span> } Delete my account
+            </button>
+          </div>
+        }
       </div>
     </div>
   </div>

@@ -11,7 +11,8 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
       // Sign-in and password problems are shown on those pages themselves, and an expired session redirects to sign-in.
       const silent =
         err.status === 401 ||
-        ['/api/auth/login', '/api/auth/logout', '/api/auth/change-password'].some((path) => req.url.endsWith(path));
+        ['/api/auth/login', '/api/auth/logout', '/api/auth/change-password', '/api/auth/forgot-password', '/api/auth/me/delete']
+          .some((path) => req.url.endsWith(path));
       if (!silent) {
         toast.error(describeError(err));
       }
@@ -22,7 +23,7 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
 
 export function describeError(err: HttpErrorResponse): string {
   if (err.status === 0) {
-    return 'Cannot reach the server. Is the backend running on port 8080?';
+    return "Can't reach AllianceTel right now. Check your internet connection and try again.";
   }
   const body = err.error;
   if (body && typeof body === 'object') {

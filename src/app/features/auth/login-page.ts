@@ -26,6 +26,34 @@ export class LoginPage {
   protected readonly error = signal<string | null>(null);
   protected readonly showPassword = signal(false);
 
+  /** "Forgot password?" panel: closed, open, sending, or sent. */
+  protected readonly forgot = signal<'closed' | 'open' | 'sending' | 'sent'>('closed');
+  protected readonly forgotError = signal<string | null>(null);
+  protected readonly forgotLogin = signal('');
+
+  protected openForgot(): void {
+    this.forgotLogin.set(this.form.controls.email.value.trim());
+    this.forgotError.set(null);
+    this.forgot.set('open');
+  }
+
+  protected sendForgot(): void {
+    const login = this.forgotLogin().trim();
+    if (!login) {
+      this.forgotError.set('Enter the email or phone number you sign in with.');
+      return;
+    }
+    this.forgot.set('sending');
+    this.forgotError.set(null);
+    this.auth.forgotPassword(login).subscribe({
+      next: () => this.forgot.set('sent'),
+      error: (err: HttpErrorResponse) => {
+        this.forgot.set('open');
+        this.forgotError.set(describeError(err));
+      },
+    });
+  }
+
   protected readonly form = this.fb.nonNullable.group({
     /** Their email or their phone number. */
     email: ['', [Validators.required, Validators.maxLength(120)]],
