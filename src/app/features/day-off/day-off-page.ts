@@ -1048,6 +1048,14 @@ export class DayOffPage implements OnInit {
     const limit = this.maxDaysPerWeek();
     const when = formatDay(date, { weekday: 'long', month: 'short', day: 'numeric' });
     const already = this.existingNormal() > 0 && this.normalPicks() === 0;
+    // A full day stays full: point them to the days that still have room first (emergency is for urgent cases).
+    const w = this.window();
+    const stillOpen = full && this.normalPicks() < this.formMaxDays()
+      ? this.formWeekDates().filter((d) => d !== date && d >= this.todayIso && (!w?.enabled || this.isOpenDay(d))
+        && !this.takenBy(d) && !this.formDays().has(d)
+        && !this.formMine().some((r) => r.date === d && r.status !== 'REJECTED'))
+      : [];
+    const openList = stillOpen.map((d) => formatDay(d, { weekday: 'short', month: 'short', day: 'numeric' })).join(', ');
     const ok = await this.confirm.ask({
       title: 'Send an emergency request?',
       message: full
@@ -1058,10 +1066,14 @@ export class DayOffPage implements OnInit {
       icon: 'bi-exclamation-octagon',
       tone: 'danger',
       notes: [
-        'A manager or admin approves or rejects it.',
+        ...(stillOpen.length
+          ? [`These days still have room for a normal day off: ${openList}. Please pick one of those instead.`]
+          : []),
+        'An emergency request is only for something urgent. A manager or admin approves or rejects it.',
         ...(this.window()?.oneEmergencyPerMonth ? ['Only one emergency request is allowed each month.'] : []),
       ],
-      confirmText: 'Yes, emergency request',
+      confirmText: stillOpen.length ? 'It\'s urgent: send emergency' : 'Yes, emergency request',
+      cancelText: stillOpen.length ? 'Pick another day' : undefined,
     });
     if (ok) {
       this.formEmergencyDays.update((set) => new Set(set).add(date));

@@ -285,8 +285,14 @@
             <span class="contact-icon"><i class="bi bi-person-exclamation"></i></span>
             <div class="flex-grow-1">
               <h2 class="contact-title">Haven't picked a day off · {{ notPicked().length }}</h2>
-              <p class="contact-sub">No regular day off and no request yet. Call or message them; if they don't pick, the
-                system picks a day when the week is generated.</p>
+              @if (schedule()) {
+                <p class="contact-sub">The week is made, so the system already gave each of them a day (see "Off
+                  assigned by system"). If they'd rather have another day, they can still ask for it: the system's pick
+                  moves to make room.</p>
+              } @else {
+                <p class="contact-sub">No regular day off and no request yet. Call or message them; if they don't pick,
+                  the system picks a day when the week is generated.</p>
+              }
             </div>
           </div>
           <ul class="contact-list">
