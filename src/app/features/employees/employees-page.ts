@@ -2,6 +2,7 @@ import { DestroyRef, Component, OnInit, computed, inject, input, signal } from '
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { DatePipe } from '@angular/common';
 import { Observable } from 'rxjs';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ApiService } from '../../core/api.service';
 import { LiveService } from '../../core/live.service';
 import { AuthService } from '../../core/auth.service';
@@ -157,6 +158,9 @@ export class EmployeesPage implements OnInit {
   private searchTimer?: ReturnType<typeof setTimeout>;
 
   ngOnInit(): void {
+    // The email-updates switch only makes sense with an email to send to.
+    this.form.controls.email.valueChanges.pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.syncEmailOptIn());
     const fromQuery = Number(this.area());
     this.areaFilter = Number.isFinite(fromQuery) && fromQuery > 0 ? fromQuery : null;
     this.areaFilterSignal.set(this.areaFilter);
@@ -276,6 +280,7 @@ export class EmployeesPage implements OnInit {
       onSchedule: true,
       smsOptIn: false,
     });
+    this.saveTried.set(false);
     this.modalOpen.set(true);
   }
 
@@ -300,6 +305,7 @@ export class EmployeesPage implements OnInit {
       onSchedule: e.onSchedule ?? true,
       smsOptIn: e.smsOptIn,
     });
+    this.saveTried.set(false);
     this.modalOpen.set(true);
   }
 
@@ -311,6 +317,7 @@ export class EmployeesPage implements OnInit {
   protected save(): void {
     const v = this.form.getRawValue();
     if (this.form.invalid || (this.areaRequired() && v.areaId == null)) {
+      this.saveTried.set(true);
       this.form.markAllAsTouched();
       return;
     }
@@ -365,6 +372,24 @@ export class EmployeesPage implements OnInit {
 
   protected readonly fieldError = fieldError;
   protected readonly formatPhone = formatPhone;
+
+  /** Neither an email nor a phone, shown once they tried to save. */
+  protected signInMissing(): boolean {
+    return this.form.hasError('emailOrPhone') && this.saveTried();
+  }
+
+  private syncEmailOptIn(): void {
+    const optIn = this.form.controls.emailOptIn;
+    if (this.hasEmail()) optIn.enable({ emitEvent: false });
+    else optIn.disable({ emitEvent: false });
+  }
+
+  protected hasEmail(): boolean {
+    return !!this.form.controls.email.value.trim();
+  }
+
+  /** Save was pressed (problems show from then on). */
+  protected readonly saveTried = signal(false);
 
   /** Shows a typed phone number in the usual format once the field is left, e.g. (619) 555-0142. */
   /** The phone number differs from the one saved (texts need agreeing again for a new number). */

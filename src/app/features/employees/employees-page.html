@@ -285,63 +285,78 @@
                [class.is-invalid]="fieldError(form.controls.lastName, 'Last name')" />
         <div class="invalid-feedback">{{ fieldError(form.controls.lastName, 'Last name') }}</div>
       </div>
-      <div class="col-md-7">
-        <label class="form-label" for="eEmail">Email <span class="text-muted-2 fw-normal small">(or phone)</span></label>
-        <input id="eEmail" type="email" class="form-control" formControlName="email" maxlength="120" autocomplete="off"
-               [class.is-invalid]="fieldError(form.controls.email, 'Email')" />
-        <div class="invalid-feedback">{{ fieldError(form.controls.email, 'Email') }}</div>
-        @if (form.hasError('emailOrPhone') && (form.controls.email.touched || form.controls.phone.touched)) {
-          <div class="small text-danger mt-1">Add an email or a phone number: they sign in with one of them.</div>
-        } @else {
-          <div class="form-text">They sign in with their email or their phone number.</div>
-        }
-        <div class="form-check form-switch mt-2">
-          <input class="form-check-input" type="checkbox" id="eEmailOptIn" formControlName="emailOptIn" />
-          <label class="form-check-label small" for="eEmailOptIn">
-            <i class="bi bi-envelope text-primary"></i> Email schedule updates
-          </label>
-        </div>
-      </div>
-      <div class="col-md-5">
-        <label class="form-label" for="ePhone">Phone</label>
-        <input id="ePhone" type="tel" inputmode="tel" class="form-control" formControlName="phone" maxlength="30"
-               placeholder="(619) 555-0142" autocomplete="off" (blur)="tidyPhone()"
-               [class.is-invalid]="fieldError(form.controls.phone, 'Phone')" />
-        @if (fieldError(form.controls.phone, 'Phone'); as msg) {
-          <div class="invalid-feedback">{{ msg }}</div>
-        } @else {
-          <div class="form-text">US number, or + and the country code.</div>
-        }
-        <div class="form-check form-switch mt-2">
-          <input class="form-check-input" type="checkbox" id="eWhatsapp" formControlName="whatsappOptIn"
-                 [attr.disabled]="!form.controls.phone.value.trim() ? true : null" />
-          <label class="form-check-label small" for="eWhatsapp">
-            <i class="bi bi-whatsapp text-success"></i> Agreed to get schedule updates on WhatsApp
-          </label>
-        </div>
-        <div class="form-check form-switch mt-1">
-          <input class="form-check-input" type="checkbox" id="eSms" formControlName="smsOptIn"
-                 [attr.disabled]="smsSwitchDisabled() ? true : null" />
-          <label class="form-check-label small" for="eSms">
-            <i class="bi bi-chat-text text-info"></i> Agreed to get schedule updates by text message
-          </label>
-        </div>
-        @if (form.controls.smsOptIn.value && phoneChanged() && editing()?.smsOptIn) {
-          <div class="form-text text-warning-emphasis">New number: texts stay off until they agree again for it.</div>
-        } @else if (form.controls.smsOptIn.value && !editing()?.smsOptIn) {
-          <div class="form-text">
-            Only turn on if they agreed to get texts. Your name is recorded with their agreement, and they get a text
-            confirming it (they can reply STOP anytime).
+      <!-- Sign-in: email, phone or both (at least one). -->
+      <div class="col-12">
+        <fieldset class="signin-box" [class.is-missing]="signInMissing()">
+          <legend class="signin-head">
+            <i class="bi bi-box-arrow-in-right"></i> How they sign in
+            <span class="signin-sub">Email, phone number, or both. One is enough.</span>
+          </legend>
+          <div class="row g-3">
+            <div class="col-md-7">
+              <label class="form-label" for="eEmail">Email</label>
+              <div class="input-group has-validation">
+                <span class="input-group-text"><i class="bi bi-envelope"></i></span>
+                <input id="eEmail" type="email" class="form-control" formControlName="email" maxlength="120" autocomplete="off"
+                       placeholder="name@example.com" [class.is-invalid]="fieldError(form.controls.email, 'Email') || signInMissing()" />
+                @if (fieldError(form.controls.email, 'Email'); as msg) { <div class="invalid-feedback">{{ msg }}</div> }
+              </div>
+              <div class="form-check form-switch mt-2">
+                <input class="form-check-input" type="checkbox" id="eEmailOptIn" formControlName="emailOptIn" />
+                <label class="form-check-label small" for="eEmailOptIn" [class.text-muted-2]="!hasEmail()">
+                  <i class="bi bi-envelope text-primary"></i> Email schedule updates
+                  @if (!hasEmail()) { <span class="text-muted-2">(needs an email)</span> }
+                </label>
+              </div>
+            </div>
+            <div class="col-md-5">
+              <label class="form-label" for="ePhone">Phone</label>
+              <div class="input-group has-validation">
+                <span class="input-group-text"><i class="bi bi-phone"></i></span>
+                <input id="ePhone" type="tel" inputmode="tel" class="form-control" formControlName="phone" maxlength="30"
+                       placeholder="(619) 555-0142" autocomplete="off" (blur)="tidyPhone()"
+                       [class.is-invalid]="fieldError(form.controls.phone, 'Phone') || signInMissing()" />
+                @if (fieldError(form.controls.phone, 'Phone'); as msg) { <div class="invalid-feedback">{{ msg }}</div> }
+              </div>
+              @if (!fieldError(form.controls.phone, 'Phone')) {
+                <div class="form-text">US number, or + and the country code.</div>
+              }
+              <div class="form-check form-switch mt-2">
+                <input class="form-check-input" type="checkbox" id="eWhatsapp" formControlName="whatsappOptIn"
+                       [attr.disabled]="!form.controls.phone.value.trim() ? true : null" />
+                <label class="form-check-label small" for="eWhatsapp">
+                  <i class="bi bi-whatsapp text-success"></i> Agreed to get schedule updates on WhatsApp
+                </label>
+              </div>
+              <div class="form-check form-switch mt-1">
+                <input class="form-check-input" type="checkbox" id="eSms" formControlName="smsOptIn"
+                       [attr.disabled]="smsSwitchDisabled() ? true : null" />
+                <label class="form-check-label small" for="eSms">
+                  <i class="bi bi-chat-text text-info"></i> Agreed to get schedule updates by text message
+                </label>
+              </div>
+              @if (form.controls.smsOptIn.value && phoneChanged() && editing()?.smsOptIn) {
+                <div class="form-text text-warning-emphasis">New number: texts stay off until they agree again for it.</div>
+              } @else if (form.controls.smsOptIn.value && !editing()?.smsOptIn) {
+                <div class="form-text">
+                  Only turn on if they agreed to get texts. Your name is recorded with their agreement, and they get a text
+                  confirming it (they can reply STOP anytime).
+                </div>
+              } @else if (editing()?.smsOptIn && form.controls.smsOptIn.value) {
+                <div class="form-text">
+                  Agreed
+                  @if (editing()!.smsConsentAt) { on {{ editing()!.smsConsentAt | date: 'MMM d, y' }} }
+                  {{ editing()!.smsConsentBy ? '· recorded by ' + editing()!.smsConsentBy : '· by themselves' }}
+                </div>
+              } @else if (!auth.isAdmin() && !form.controls.smsOptIn.value) {
+                <div class="form-text">They turn this on in their account menu, or an admin can.</div>
+              }
+            </div>
           </div>
-        } @else if (editing()?.smsOptIn && form.controls.smsOptIn.value) {
-          <div class="form-text">
-            Agreed
-            @if (editing()!.smsConsentAt) { on {{ editing()!.smsConsentAt | date: 'MMM d, y' }} }
-            {{ editing()!.smsConsentBy ? '· recorded by ' + editing()!.smsConsentBy : '· by themselves' }}
-          </div>
-        } @else if (!auth.isAdmin() && !form.controls.smsOptIn.value) {
-          <div class="form-text">They turn this on in their account menu, or an admin can.</div>
-        }
+          @if (signInMissing()) {
+            <div class="signin-error"><i class="bi bi-exclamation-circle-fill"></i> Add an email or a phone number so they can sign in.</div>
+          }
+        </fieldset>
       </div>
       <div class="col-md-4">
         <label class="form-label" for="eRole">Role</label>
