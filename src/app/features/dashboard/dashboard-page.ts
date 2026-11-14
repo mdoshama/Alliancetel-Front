@@ -82,7 +82,7 @@ export class DashboardPage implements OnInit {
   });
 
   protected readonly scopeName = computed(() =>
-    this.auth.isAdmin() ? 'AllianceTel' : (this.auth.user()?.areaName ?? 'your area'),
+    this.auth.isAdmin() ? 'AllianceTel' : (this.auth.areaName() ?? 'your area'),
   );
 
   // ---------- Today's numbers, across the areas shown ----------
@@ -204,7 +204,7 @@ export class DashboardPage implements OnInit {
   private myAreas(areas: Area[]): Area[] {
     const active = areas.filter((a) => a.active);
     if (this.auth.isAdmin()) return active.sort((a, b) => a.name.localeCompare(b.name));
-    const mine = this.auth.user()?.areaId;
+    const mine = this.auth.areaId();
     return active.filter((a) => a.id === mine);
   }
 

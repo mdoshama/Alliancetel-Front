@@ -258,7 +258,7 @@ export class DayOffPage implements OnInit {
   /** The area whose request window is shown: the manager's own, or the one an admin picked. */
   protected readonly owAreaId = signal<number | null>(null);
   protected readonly owArea = computed(() => {
-    const id = this.auth.isAdmin() ? (this.owAreaId() ?? this.areas().find((a) => a.active)?.id ?? null) : this.auth.user()?.areaId;
+    const id = this.auth.isAdmin() ? (this.owAreaId() ?? this.areas().find((a) => a.active)?.id ?? null) : this.auth.areaId();
     return this.areas().find((a) => a.id === id) ?? null;
   });
   protected readonly owEditing = signal(false);
@@ -581,7 +581,7 @@ export class DayOffPage implements OnInit {
   /** A decided request can be changed by a manager/admin until the day has passed. */
   protected canChangeDecision(r: DayOffRequest): boolean {
     return r.status !== 'PENDING' && r.date >= this.todayIso
-      && this.auth.canManage() && (this.auth.isAdmin() || r.employeeId !== this.auth.user()?.id);
+      && this.auth.canManage();
   }
 
   protected async cancel(r: DayOffRequest): Promise<void> {
@@ -693,7 +693,7 @@ export class DayOffPage implements OnInit {
   }
 
   protected canRemoveCompanion(r: DayOffRequest): boolean {
-    return r.date >= this.todayIso && this.auth.canManage() && (this.auth.isAdmin() || r.employeeId !== this.auth.user()?.id);
+    return r.date >= this.todayIso && this.auth.canManage();
   }
 
   /** Takes a day shown next to an emergency back: they work that day (e.g. the manager approves the emergency only). */
@@ -812,9 +812,9 @@ export class DayOffPage implements OnInit {
     });
   }
 
-  /** Approve/reject is for managers and admins, never on one's own request. */
-  protected canReview(r: DayOffRequest): boolean {
-    return this.auth.canManage() && r.employeeId !== this.auth.user()?.id;
+  /** Approve/reject is for managers and admins, their own days off included (no admin needed). */
+  protected canReview(_r: DayOffRequest): boolean {
+    return this.auth.canManage();
   }
 
   protected canWithdraw(r: DayOffRequest): boolean {
@@ -823,7 +823,31 @@ export class DayOffPage implements OnInit {
     return r.status === 'PENDING' && (this.auth.canManage() || r.employeeId === this.auth.user()?.id);
   }
 
-  /** Managers on the schedule can take days off for themselves too (an admin decides their emergencies). */
+  /**
+   * A normal day off they (or, for a manager, someone on their team) can still change: not an emergency, not a day the
+   * system planned, not passed, and in a week that's still open for changes.
+   */
+  protected canMove(r: DayOffRequest): boolean {
+    if (r.emergency || r.reserved || r.companion || r.status === 'REJECTED') return false;
+    if (r.date < this.todayIso || weekStartOf(r.date) < this.firstWeek()) return false;
+    return r.employeeId === this.auth.user()?.id || (this.auth.canManage() && !this.auth.isEmployee());
+  }
+
+  /** Opens the request form on that week: tapping a day with room moves this day off there. */
+  protected openChange(r: DayOffRequest): void {
+    const mine = r.employeeId === this.auth.user()?.id;
+    this.openCreate(mine && this.auth.isManager(), weekStartOf(r.date));
+    if (!mine) {
+      this.formArea.set(r.areaId ?? this.formArea());
+      this.loadFormEmployees();
+      this.formEmployeeId.set(r.employeeId);
+      this.loadTaken();
+    }
+    const day = formatDay(r.date, { weekday: 'long', month: 'short', day: 'numeric' });
+    this.toast.info(`Tap the day you'd like instead of ${day}. A day that still has room is given straight away.`);
+  }
+
+  /** Managers on the schedule can take days off for themselves too (they decide their own emergencies too). */
   protected readonly canAskForMe = computed(() => this.auth.isManager() && this.auth.user()?.worksShifts !== false);
   /** Managers: asking for themselves rather than for someone on the team. */
   protected readonly forMe = signal(false);
@@ -840,18 +864,18 @@ export class DayOffPage implements OnInit {
     this.loadTaken();
   }
 
-  protected openCreate(forMe = false): void {
+  protected openCreate(forMe = false, week?: string): void {
     const me = this.auth.user();
     // Employees request for themselves; managers for anyone in their own area, or for themselves.
     this.forMe.set(forMe && this.canAskForMe());
-    this.formArea.set(this.auth.isAdmin() ? this.areaFilter : (me?.areaId ?? null));
+    this.formArea.set(this.auth.isAdmin() ? this.areaFilter : this.auth.areaId());
     this.formEmployeeId.set(this.auth.isEmployee() || this.forMe() ? (me?.id ?? null) : null);
-    this.formWeek.set(addDays(weekStartOf(today()), 7));
+    this.formWeek.set(week ?? addDays(weekStartOf(today()), 7));
     this.api.dayOffWindow().subscribe({
       next: (w) => {
         this.window.set(w);
-        // Start on the week they can ask for.
-        if (w.enabled && this.formDays().size === 0 && (w.openWeeks.length || w.openUntil)) {
+        // Start on the week they can ask for (unless they're changing a day in a given week).
+        if (!week && w.enabled && this.formDays().size === 0 && (w.openWeeks.length || w.openUntil)) {
           this.formWeek.set(w.openWeeks[0] ?? addDays(weekStartOf(today()), 7));
           this.loadTaken();
         }
@@ -1023,6 +1047,8 @@ export class DayOffPage implements OnInit {
       return;
     }
     if (this.overflowsToEmergency() && !this.isMyRegular(date)) {
+      // The day has room: changing a day they already have needs no emergency request.
+      if (await this.offerMove(date)) return;
       await this.askEmergency(date);
       return;
     }
@@ -1036,6 +1062,80 @@ export class DayOffPage implements OnInit {
         return next;
       });
     }
+  }
+
+  /**
+   * Their days off this week are used up but this day still has room: they changed their mind, so offer to move a day
+   * they have (one picked here, or one already given) instead of sending an emergency request. One question per day
+   * they could give up; saying no to all of them goes on to the emergency question.
+   */
+  private async offerMove(date: string): Promise<boolean> {
+    if (this.formEmergency() || (this.formOverride() && this.canOverride())) return false;
+    const me = this.selfService() || this.auth.isEmployee();
+    const picked = [...this.formDays()].filter((d) => !this.isMyRegular(d)).sort();
+    const given = this.formMine()
+      .filter((r) => !r.emergency && !r.reserved && r.status !== 'REJECTED' && r.date >= this.todayIso && r.date !== date)
+      .sort((a, b) => a.date.localeCompare(b.date));
+    const choices: { date: string; request?: DayOffRequest }[] = [
+      ...picked.map((d) => ({ date: d })),
+      ...given.map((r) => ({ date: r.date, request: r })),
+    ];
+    const long = (d: string) => formatDay(d, { weekday: 'long', month: 'short', day: 'numeric' });
+    const short = (d: string) => formatDay(d, { weekday: 'short' });
+    for (const [i, c] of choices.entries()) {
+      const last = i === choices.length - 1;
+      const ok = await this.confirm.ask({
+        title: me ? 'Change your day off?' : 'Change their day off?',
+        message: c.request
+          ? `${me ? "You're" : "They're"} off ${long(c.date)}. Move that day off to ${long(date)}?`
+          : `${me ? 'You' : 'They'} picked ${long(c.date)}. Take ${long(date)} instead?`,
+        icon: 'bi-arrow-left-right',
+        tone: 'primary',
+        notes: [
+          `${long(date)} still has room, so ${c.request ? "it's given straight away" : 'it can be a normal day off'}: `
+            + 'no emergency request needed.',
+          ...(c.request ? [`${long(c.date)} becomes a work day.`] : []),
+          ...(last ? [`Need both days off? Choose "Keep ${short(c.date)}" to send ${short(date)} as an emergency request.`] : []),
+        ],
+        confirmText: `Move to ${short(date)}`,
+        cancelText: `Keep ${short(c.date)}`,
+      });
+      if (!ok) continue;
+      if (c.request) {
+        this.moveTo(c.request, date);
+      } else {
+        this.formDays.update((set) => {
+          const next = new Set(set);
+          next.delete(c.date);
+          next.add(date);
+          return next;
+        });
+      }
+      return true;
+    }
+    return false;
+  }
+
+  /** Moves a day off they already have to another day of the same week (the server checks the day still has room). */
+  private moveTo(r: DayOffRequest, date: string): void {
+    const fmt = (d: string) => formatDay(d, { weekday: 'short', month: 'short', day: 'numeric' });
+    this.saving.set(true);
+    this.api.moveDayOff(r.id, date).subscribe({
+      next: (moved) => {
+        this.saving.set(false);
+        const mine = moved.employeeId === this.auth.user()?.id;
+        const who = mine ? "You're" : `${moved.employeeName.split(' ')[0]} is`;
+        this.toast.success(`${who} now off ${fmt(moved.date)} instead of ${fmt(r.date)}.`);
+        this.modalOpen.set(false);
+        this.status.set('APPROVED');
+        this.load();
+      },
+      // Not moved (the reason is shown): they keep their day. Refresh the week, it may have changed.
+      error: () => {
+        this.saving.set(false);
+        this.loadTaken();
+      },
+    });
   }
 
   /** A full day, or past the weekly limit: asks whether this day should be sent as an emergency request. */

@@ -77,7 +77,7 @@ export class Shell {
     return SECTIONS.map((s) => ({
       title: s.title,
       items: s.items
-        .filter((i) => role !== null && i.roles.includes(role))
+        .filter((i) => role !== null && this.auth.hasRole(...i.roles))
         .map((i) => ({ ...i, label: role === 'EMPLOYEE' && i.employeeLabel ? i.employeeLabel : i.label })),
     })).filter((s) => s.items.length > 0);
   });
@@ -117,6 +117,15 @@ export class Shell {
         this.mobileOpen.set(false);
         this.menuOpen.set(false);
       });
+  }
+
+  /** Market Managers: work in another of their areas. The page reloads for that area. */
+  protected switchArea(value: string): void {
+    const id = Number(value);
+    if (!Number.isFinite(id) || id === this.auth.areaId()) return;
+    this.auth.setArea(id);
+    const url = this.router.url;
+    this.router.navigateByUrl('/', { skipLocationChange: true }).then(() => this.router.navigateByUrl(url));
   }
 
   protected toggleSidebar(): void {

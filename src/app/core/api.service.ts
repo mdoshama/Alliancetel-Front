@@ -3,6 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable, map } from 'rxjs';
 import {
   DirectMessageResult,
+  MessageManyResult,
   NotificationItem,
   NotificationChannel,
   NotificationStatus,
@@ -172,6 +173,10 @@ export class ApiService {
   messagePerson(employeeId: number, message: string): Observable<DirectMessageResult> {
     return this.http.post<DirectMessageResult>(`${this.base}/notifications/direct`, { employeeId, message });
   }
+  /** One message to several people ("{first}" becomes each one's first name). */
+  messageMany(employeeIds: number[], message: string): Observable<MessageManyResult> {
+    return this.http.post<MessageManyResult>(`${this.base}/notifications/direct-many`, { employeeIds, message });
+  }
   announce(areaId: number, message: string): Observable<{ recipients: number; reachable: number }> {
     return this.http.post<{ recipients: number; reachable: number }>(`${this.base}/notifications/announce`, { areaId, message });
   }
@@ -200,6 +205,14 @@ export class ApiService {
   }
   changeDayOffDecision(id: number, status: 'APPROVED' | 'REJECTED', reason: string): Observable<DayOffRequest> {
     return this.http.post<DayOffRequest>(`${this.base}/day-off-requests/${id}/change-decision`, { status, reason });
+  }
+  /** Admins: the areas a Market Manager manages (besides their home area). */
+  setManagedAreas(employeeId: number, areaIds: number[]): Observable<Employee> {
+    return this.http.put<Employee>(`${this.base}/employees/${employeeId}/managed-areas`, { areaIds });
+  }
+  /** Moves a normal day off to another day of the same week (given straight away if that day has room). */
+  moveDayOff(id: number, date: string): Observable<DayOffRequest> {
+    return this.http.post<DayOffRequest>(`${this.base}/day-off-requests/${id}/move`, { date });
   }
   cancelDayOff(id: number): Observable<void> {
     return this.http.delete<void>(`${this.base}/day-off-requests/${id}`);

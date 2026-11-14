@@ -84,7 +84,7 @@ interface StoreBoardRow {
 
 /** 0 = managers (on top), 1 = employees, 2 = trainees (at the bottom). */
 export function rowGroup(r: { role: string; trainee?: boolean }): number {
-  return r.role === 'MANAGER' ? 0 : r.trainee ? 2 : 1;
+  return (r.role === 'MANAGER' || r.role === 'MARKET_MANAGER') ? 0 : r.trainee ? 2 : 1;
 }
 
 @Component({
@@ -595,7 +595,8 @@ export class SchedulePage implements OnInit {
       const active = list.filter((a) => a.active);
       this.areas.set(active);
       const requested = Number(this.area());
-      const initial = active.find((a) => a.id === requested) ?? active[0];
+      const initial = active.find((a) => a.id === requested)
+        ?? active.find((a) => a.id === this.auth.areaId()) ?? active[0];
       if (initial) {
         this.areaId.set(initial.id);
         this.load();
@@ -1159,6 +1160,43 @@ export class SchedulePage implements OnInit {
         this.toast.success(`Message sent to ${first} by ${r.sentBy.join(', ')}.`);
         if (r.notSentBy.length) {
           this.toast.info(`Not sent by: ${r.notSentBy.join('; ')}.`);
+        }
+      },
+      error: () => this.messageSending.set(false),
+    });
+  }
+
+  /** One message to everyone who hasn't picked, instead of one at a time. */
+  protected readonly messageAllOpen = signal(false);
+  protected messageAllText = '';
+  protected readonly notPickedNames = computed(() => this.notPicked().map((p) => p.name).join(', '));
+  protected messageAllError(): string {
+    return RULES.safeText.re.test(this.messageAllText) ? '' : RULES.safeText.msg;
+  }
+
+  protected openMessageAll(): void {
+    this.messageAllText =
+      `Hi {first}, please pick your day off for the week of ${this.weekLabel()} in the AllianceTel app. ` +
+      `If you don't, the system will pick one for you.`;
+    this.messageAllOpen.set(true);
+  }
+
+  protected sendMessageAll(): void {
+    const people = this.notPicked();
+    if (!people.length || this.messageSending()) {
+      return;
+    }
+    this.messageSending.set(true);
+    this.api.messageMany(people.map((p) => p.employeeId), this.messageAllText.trim()).subscribe({
+      next: (r) => {
+        this.messageSending.set(false);
+        this.messageAllOpen.set(false);
+        if (r.sent.length) {
+          this.toast.success(`Message sent to ${r.sent.length} ${r.sent.length === 1 ? 'person' : 'people'}.`);
+        }
+        if (r.notReached.length) {
+          const names = r.notReached.map((n) => n.name.split(' ')[0]).join(', ');
+          this.toast.error(`Couldn't reach ${r.notReached.length}: ${names}. Call them instead.`);
         }
       },
       error: () => this.messageSending.set(false),

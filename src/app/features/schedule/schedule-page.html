@@ -294,6 +294,11 @@
                   the system picks a day when the week is generated.</p>
               }
             </div>
+            @if (notPicked().length > 1) {
+              <button type="button" class="btn btn-sm btn-primary text-nowrap align-self-start" (click)="openMessageAll()">
+                <i class="bi bi-chat-dots-fill me-1"></i>Message all {{ notPicked().length }}
+              </button>
+            }
           </div>
           <ul class="contact-list">
             @for (p of shownNotPicked(); track p.employeeId) {
@@ -349,6 +354,32 @@
     <button type="button" class="btn btn-primary" [disabled]="messageSending() || !messageText.trim() || !!messageError()" (click)="sendMessage()">
       @if (messageSending()) { <span class="spinner-border spinner-border-sm me-1"></span> } @else { <i class="bi bi-send me-1"></i> }
       Send
+    </button>
+  </ng-container>
+</app-modal>
+
+<app-modal [open]="messageAllOpen()" [title]="'Message all ' + notPicked().length + ' who haven\'t picked'"
+           (closed)="messageAllOpen.set(false)">
+  <p class="small text-muted-2 mb-2">
+    Each person gets it by email, WhatsApp and text: whichever they can get. <code>{{ '{' }}first{{ '}' }}</code> becomes
+    each person's first name.
+  </p>
+  <label class="form-label" for="dmAllText">Message</label>
+  <textarea id="dmAllText" class="form-control" rows="4" maxlength="480" [(ngModel)]="messageAllText"></textarea>
+  <div class="d-flex justify-content-between small text-muted-2 mt-1">
+    <span>{{ messageAllError() }}</span>
+    <span>{{ messageAllText.length }}/480</span>
+  </div>
+  <details class="small mt-2">
+    <summary class="text-muted-2">Who gets it ({{ notPicked().length }})</summary>
+    <div class="mt-1">{{ notPickedNames() }}</div>
+  </details>
+  <ng-container modal-footer>
+    <button type="button" class="btn btn-light" (click)="messageAllOpen.set(false)">Cancel</button>
+    <button type="button" class="btn btn-primary"
+            [disabled]="messageSending() || !messageAllText.trim() || !!messageAllError()" (click)="sendMessageAll()">
+      @if (messageSending()) { <span class="spinner-border spinner-border-sm me-1"></span> } @else { <i class="bi bi-send me-1"></i> }
+      Send to {{ notPicked().length }}
     </button>
   </ng-container>
 </app-modal>
@@ -789,7 +820,7 @@
 
       <ng-template #personChip let-p>
         <button type="button" class="sb-person" [class.is-off]="p.cell.type !== 'WORK'" [class.is-dim]="isSearchMiss(p.row)"
-                [class.is-manager]="p.row.role === 'MANAGER'" [class.is-trainee]="!!p.row.trainee"
+                [class.is-manager]="(p.row.role === 'MANAGER' || p.row.role === 'MARKET_MANAGER')" [class.is-trainee]="!!p.row.trainee"
                 [class.is-requested]="p.cell.type === 'REQUESTED_OFF'" [class.is-auto]="p.cell.autoAssigned"
                 [class.drag-source]="isDragSource(p.row, p.dayIndex)"
                 [class.drop-hover]="dropKey() === 'sp' + p.row.employeeId + '-' + p.dayIndex"
@@ -806,7 +837,7 @@
             @if (p.row.storeRole === 'PRIMARY') { <span class="emp-star"><i class="bi bi-star-fill"></i></span> }
           </span>
           <span class="sb-name">{{ shortName(p.row.employeeName) }}</span>
-          @if (p.row.role === 'MANAGER') { <i class="bi bi-person-badge-fill sb-mgr" title="Manager"></i> }
+          @if ((p.row.role === 'MANAGER' || p.row.role === 'MARKET_MANAGER')) { <i class="bi bi-person-badge-fill sb-mgr" title="Manager"></i> }
           @if (p.row.trainee) { <i class="bi bi-mortarboard-fill sb-trn" title="In training"></i> }
           @if (p.cell.type === 'REQUESTED_OFF' && p.cell.offSource) {
             <span class="off-source is-icon src-{{ p.cell.offSource }}" [attr.title]="offSource(p.cell).title">
@@ -841,7 +872,7 @@
           </thead>
           <tbody>
             @for (row of visibleRows(); track row.employeeId) {
-              <tr [class.is-me]="row.employeeId === auth.user()?.id" [class.is-manager-row]="row.role === 'MANAGER'"
+              <tr [class.is-me]="row.employeeId === auth.user()?.id" [class.is-manager-row]="(row.role === 'MANAGER' || row.role === 'MARKET_MANAGER')"
                   [class.is-trainee-row]="!!row.trainee">
                 <td>
                   <div class="emp-cell" [attr.title]="auth.isEmployee() ? row.employeeName : personTitle(row)">
@@ -855,7 +886,7 @@
                     <div class="emp-text">
                       <div class="emp-name">
                         {{ row.employeeName }}
-                        @if (row.role === 'MANAGER') { <span class="emp-manager"><i class="bi bi-person-badge-fill"></i> Manager</span> }
+                        @if ((row.role === 'MANAGER' || row.role === 'MARKET_MANAGER')) { <span class="emp-manager"><i class="bi bi-person-badge-fill"></i> Manager</span> }
                         @if (row.trainee) { <span class="emp-trainee"><i class="bi bi-mortarboard-fill"></i> In training</span> }
                         @if (row.employeeId === auth.user()?.id) { <span class="you-tag">You</span> }
                       </div>

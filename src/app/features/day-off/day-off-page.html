@@ -278,7 +278,7 @@
                       <i class="bi bi-x-lg"></i><span class="d-none d-md-inline ms-1">Reject</span>
                     </button>
                   } @else {
-                    <span class="small text-muted-2">{{ auth.isManager() && r.employeeId === auth.user()?.id ? 'An admin decides' : 'Awaiting manager' }}</span>
+                    <span class="small text-muted-2">Awaiting manager</span>
                   }
                 } @else if (canChangeDecision(r) && r.status === 'REJECTED') {
                   <button type="button" class="btn btn-sm btn-outline-success" [disabled]="busyId() === r.id" (click)="changeDecision(r)" title="Give this day off after all">
@@ -356,6 +356,12 @@
                   <button type="button" class="btn btn-sm btn-outline-success" [disabled]="busyId() === r.id"
                           (click)="changeDecision(r)" title="Give this day off after all">
                     <i class="bi bi-arrow-repeat me-1"></i>Give it
+                  </button>
+                }
+                @if (canMove(r)) {
+                  <button type="button" class="btn btn-sm btn-outline-primary" (click)="openChange(r)"
+                          title="Move this day off to another day of the same week">
+                    <i class="bi bi-arrow-left-right me-1"></i>Change day
                   </button>
                 }
                 @if (canWithdraw(r)) {

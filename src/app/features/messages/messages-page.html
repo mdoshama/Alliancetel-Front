@@ -102,7 +102,7 @@
       <select id="msgPerson" class="form-select mb-1" [ngModel]="personId()" (ngModelChange)="personId.set($event)">
         <option [ngValue]="null">Select a person…</option>
         @for (e of personChoices(); track e.id) {
-          <option [ngValue]="e.id">{{ e.fullName }}{{ e.trainee ? ' (Trainee)' : e.role === 'MANAGER' ? ' (Manager)' : '' }}</option>
+          <option [ngValue]="e.id">{{ e.fullName }}{{ e.trainee ? ' (Trainee)' : (e.role === 'MANAGER' || e.role === 'MARKET_MANAGER') ? ' (Manager)' : '' }}</option>
         }
       </select>
       @if (person(); as p) {

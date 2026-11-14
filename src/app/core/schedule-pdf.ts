@@ -52,7 +52,7 @@ const GRID: Rgb = [203, 213, 225];
 export async function buildSchedulePdf(s: Schedule): Promise<Blob> {
   // Team members A to Z, the same order as the schedule page.
   // Managers first, then employees, then trainees; A to Z within each (the same order as the schedule page).
-  const group = (r: { role: string; trainee?: boolean }) => (r.role === 'MANAGER' ? 0 : r.trainee ? 2 : 1);
+  const group = (r: { role: string; trainee?: boolean }) => ((r.role === 'MANAGER' || r.role === 'MARKET_MANAGER') ? 0 : r.trainee ? 2 : 1);
   s = {
     ...s,
     rows: [...s.rows].sort(
@@ -170,7 +170,7 @@ export async function buildSchedulePdf(s: Schedule): Promise<Blob> {
   autoTable(doc, {
     head: [['TEAM MEMBER', ...heads]],
     body: s.rows.map((r) => [
-      r.employeeName + (r.role === 'MANAGER' ? ' (Manager)' : r.trainee ? ' (In training)' : ''),
+      r.employeeName + ((r.role === 'MANAGER' || r.role === 'MARKET_MANAGER') ? ' (Manager)' : r.trainee ? ' (In training)' : ''),
       ...r.days.map(() => ''),
     ]),
     startY: top + 6,

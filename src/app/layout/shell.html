@@ -35,13 +35,25 @@
         <h1 class="topbar-title">{{ heading() }}</h1>
       </div>
 
+      @if (auth.isMarketManager() && auth.managedAreas().length > 1) {
+        <!-- Market Managers work in one of their areas at a time. -->
+        <label class="area-switch ms-auto" title="The area you're working in">
+          <i class="bi bi-geo-alt-fill"></i>
+          <span class="visually-hidden">Area</span>
+          <select class="form-select form-select-sm" (change)="switchArea($any($event.target).value)">
+            @for (a of auth.managedAreas(); track a.id) {
+              <option [value]="a.id" [selected]="a.id === auth.areaId()">{{ a.name }}</option>
+            }
+          </select>
+        </label>
+      }
       @if (auth.user(); as user) {
-        <div class="ms-auto user-menu">
+        <div class="user-menu" [class.ms-auto]="!(auth.isMarketManager() && auth.managedAreas().length > 1)">
           <button type="button" class="user-menu-toggle" (click)="toggleMenu()" [attr.aria-expanded]="menuOpen()">
             <span class="d-none d-sm-flex flex-column align-items-end lh-sm">
               <span class="fw-semibold small">{{ user.fullName }}</span>
               <span class="text-muted-2" style="font-size: 0.75rem">
-                {{ roleLabels[user.role] }}@if (user.areaName) { · {{ user.areaName }} }
+                {{ roleLabels[user.role] }}@if (auth.areaName()) { · {{ auth.areaName() }} }
               </span>
             </span>
             <span class="avatar">{{ initials() }}</span>

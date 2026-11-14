@@ -5,6 +5,16 @@ import { Observable, tap } from 'rxjs';
 import { LoginResponse, Me, Role, SetupLinkInfo } from './models';
 
 const STORAGE_KEY = 'alliancetel.session';
+const AREA_KEY = 'alliancetel.area';
+
+function readChosenArea(): number | null {
+  try {
+    const v = Number(localStorage.getItem(AREA_KEY));
+    return Number.isFinite(v) && v > 0 ? v : null;
+  } catch {
+    return null;
+  }
+}
 
 interface StoredSession {
   token: string;
@@ -23,7 +33,29 @@ export class AuthService {
   readonly isLoggedIn = computed(() => this.session() !== null);
   readonly role = computed<Role | null>(() => this.user()?.role ?? null);
   readonly isAdmin = computed(() => this.role() === 'ADMIN');
-  readonly isManager = computed(() => this.role() === 'MANAGER');
+  /** A manager of either kind: of one area, or a Market Manager of several. */
+  readonly isManager = computed(() => this.role() === 'MANAGER' || this.role() === 'MARKET_MANAGER');
+  readonly isMarketManager = computed(() => this.role() === 'MARKET_MANAGER');
+  /** The areas they manage (empty for admins, who manage all, and for staff). */
+  readonly managedAreas = computed(() => this.user()?.managedAreas ?? []);
+  /** A Market Manager works in one of their areas at a time, chosen at the top of the app (kept on this device). */
+  private readonly chosenArea = signal<number | null>(readChosenArea());
+  /** The area the app is working in: a Market Manager's chosen one, everyone else's own area. */
+  readonly areaId = computed<number | null>(() => {
+    const u = this.user();
+    if (!u) return null;
+    if (u.role === 'MARKET_MANAGER') {
+      const areas = u.managedAreas ?? [];
+      const chosen = this.chosenArea();
+      return areas.some((a) => a.id === chosen) ? chosen : (u.areaId ?? areas[0]?.id ?? null);
+    }
+    return u.areaId;
+  });
+  readonly areaName = computed(() => {
+    const u = this.user();
+    if (u?.role === 'MARKET_MANAGER') return this.managedAreas().find((a) => a.id === this.areaId())?.name ?? null;
+    return u?.areaName ?? null;
+  });
   readonly isEmployee = computed(() => this.role() === 'EMPLOYEE');
   readonly isBackOffice = computed(() => this.role() === 'BACK_OFFICE');
   /** Admins and managers can build schedules and decide on requests. */
@@ -38,9 +70,20 @@ export class AuthService {
     return s?.token ?? null;
   }
 
+  /** A Market Manager can go wherever a manager can. */
   hasRole(...roles: Role[]): boolean {
     const role = this.role();
-    return role !== null && roles.includes(role);
+    return role !== null && (roles.includes(role) || (role === 'MARKET_MANAGER' && roles.includes('MANAGER')));
+  }
+
+  /** Market Managers: switch the area the app works in. */
+  setArea(id: number): void {
+    this.chosenArea.set(id);
+    try {
+      localStorage.setItem(AREA_KEY, String(id));
+    } catch {
+      // Storage unavailable: the choice lasts until the app is closed.
+    }
   }
 
   /** Where someone lands after signing in. */

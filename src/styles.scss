@@ -433,6 +433,11 @@ body {
     color: #1b45ad;
   }
 
+  &.role-MARKET_MANAGER {
+    background: #dcfce7;
+    color: #166534;
+  }
+
   &.role-EMPLOYEE {
     background: #eef0f3;
     color: #4a5263;
@@ -3959,7 +3964,7 @@ tr.is-regular-row {
   border-left: 4px solid #f79009;
   border-radius: 12px;
 
-  .contact-head { display: flex; align-items: flex-start; gap: 0.75rem; }
+  .contact-head { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 0.75rem; }
 
   .contact-icon {
     display: inline-flex; align-items: center; justify-content: center;
@@ -6044,4 +6049,61 @@ tr.is-regular-row {
 .auth-page {
   padding-top: env(safe-area-inset-top, 0px);
   padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* ---------- Touch screens (iPhone / Android app, phones and tablets) ----------
+   Apple and Google ask for tap targets of about 44pt / 48dp. The desktop sizes stay as they are: these only apply
+   where the main pointer is a finger. */
+@media (pointer: coarse) {
+  .btn-sm,
+  .form-select-sm,
+  .form-control-sm,
+  .page-link {
+    min-height: 40px;
+  }
+
+  // Icon-only small buttons (edit, reset password, deactivate…) get a square finger-sized target.
+  .btn-sm:has(> .bi:only-child) {
+    min-width: 40px;
+  }
+
+  .regular-days {
+    gap: 4px;
+
+    .regular-day {
+      width: 34px;
+      height: 34px;
+      font-size: 0.8rem;
+    }
+  }
+
+  .role-switch > button {
+    min-height: 34px;
+  }
+
+  .area-chip,
+  .msg-chip {
+    min-height: 38px;
+  }
+
+  .msg-more {
+    min-height: 34px;
+    padding-top: 0.4rem;
+    padding-bottom: 0.4rem;
+  }
+}
+
+/* Market Managers: the area they're working in, at the top of every page. */
+.area-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0 0.75rem 0 0;
+  color: var(--bs-primary, #2563eb);
+
+  .form-select {
+    min-width: 8.5rem;
+    max-width: 12rem;
+    font-weight: 600;
+  }
 }

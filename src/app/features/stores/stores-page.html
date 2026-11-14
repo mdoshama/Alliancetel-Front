@@ -1,6 +1,6 @@
 @if (!auth.isAdmin()) {
   <p class="text-muted-2 small mb-3">
-    <i class="bi bi-geo-alt me-1"></i>Stores in {{ auth.user()?.areaName }}. Your schedule shows which one you work at each day.
+    <i class="bi bi-geo-alt me-1"></i>Stores in {{ auth.areaName() }}. Your schedule shows which one you work at each day.
   </p>
   @if (stores().length > 6) {
     <div class="mb-3" style="max-width: 360px">

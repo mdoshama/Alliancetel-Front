@@ -14,6 +14,9 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
   // The tab id lets the server skip sending our own changes back to us as live updates.
   const headers: Record<string, string> = isApi ? { 'X-Client-Id': TAB_ID } : {};
   if (token) headers['Authorization'] = `Bearer ${token}`;
+  // Market Managers: the area they're working in, used when a request doesn't name one.
+  const area = isApi && auth.isMarketManager() ? auth.areaId() : null;
+  if (area != null) headers['X-Area-Id'] = String(area);
   const request = Object.keys(headers).length ? req.clone({ setHeaders: headers }) : req;
 
   return next(request).pipe(

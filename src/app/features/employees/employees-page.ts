@@ -1,12 +1,12 @@
 import { DestroyRef, Component, OnInit, computed, inject, input, signal } from '@angular/core';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { DatePipe } from '@angular/common';
-import { Observable } from 'rxjs';
+import { Observable, map, of, switchMap } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ApiService } from '../../core/api.service';
 import { LiveService } from '../../core/live.service';
 import { AuthService } from '../../core/auth.service';
-import { Area, Credentials, DayOfWeek, Employee, EmployeePageFilter, ROLE_LABELS, Role, Store, STORE_ROLE_HELP, STORE_ROLE_LABELS, StoreRole } from '../../core/models';
+import { Area, Credentials, DayOfWeek, Employee, EmployeePageFilter, ROLE_LABELS, isManagerRole, Role, Store, STORE_ROLE_HELP, STORE_ROLE_LABELS, StoreRole } from '../../core/models';
 import { savePageSize, savedPageSize } from '../../core/paging';
 import { ConfirmService } from '../../core/confirm.service';
 import { ToastService } from '../../core/toast.service';
@@ -49,11 +49,12 @@ export class EmployeesPage implements OnInit {
   /** Optional ?store= query param, e.g. when arriving from the Stores page. */
   readonly store = input<string>();
 
-  protected readonly roles: Role[] = ['ADMIN', 'MANAGER', 'EMPLOYEE', 'BACK_OFFICE'];
+  protected readonly roles: Role[] = ['ADMIN', 'MANAGER', 'MARKET_MANAGER', 'EMPLOYEE', 'BACK_OFFICE'];
   /** Choices in the form: a trainee is an employee in training. */
   protected readonly roleChoices: { value: Role | 'TRAINEE'; label: string }[] = [
     { value: 'ADMIN', label: 'Admin' },
     { value: 'MANAGER', label: 'Manager' },
+    { value: 'MARKET_MANAGER', label: 'Market Manager (several areas)' },
     { value: 'EMPLOYEE', label: 'Employee' },
     { value: 'TRAINEE', label: 'Trainee (in training)' },
     { value: 'BACK_OFFICE', label: 'Back office' },
@@ -258,8 +259,17 @@ export class EmployeesPage implements OnInit {
     this.applyFilters();
   }
 
+  /** Market Managers: the areas picked in the form (their home area is always theirs too). */
+  protected readonly managedPick = signal<number[]>([]);
+  protected readonly isManagerRole = isManagerRole;
+
+  protected toggleManagedArea(id: number, on: boolean): void {
+    this.managedPick.update((list) => (on ? [...new Set([...list, id])] : list.filter((x) => x !== id)));
+  }
+
   protected openCreate(): void {
     this.editing.set(null);
+    this.managedPick.set([]);
     this.textLink.set(true);
     this.form.reset({
       employeeCode: '',
@@ -286,6 +296,7 @@ export class EmployeesPage implements OnInit {
 
   protected openEdit(e: Employee): void {
     this.editing.set(e);
+    this.managedPick.set([...(e.managedAreaIds ?? [])]);
     this.form.reset({
       employeeCode: e.employeeCode,
       firstName: e.firstName,
@@ -311,7 +322,7 @@ export class EmployeesPage implements OnInit {
 
   protected areaRequired(): boolean {
     const role = this.form.controls.role.value;
-    return role === 'MANAGER' || role === 'EMPLOYEE' || role === 'TRAINEE';
+    return role === 'MANAGER' || role === 'MARKET_MANAGER' || role === 'EMPLOYEE' || role === 'TRAINEE';
   }
 
   protected save(): void {
@@ -341,14 +352,24 @@ export class EmployeesPage implements OnInit {
       // The home store is always allowed; only other stores are listed.
       floatStoreIds: v.floatStoreIds.filter((id) => id !== v.homeStoreId),
       // Only managers can be off the schedule.
-      onSchedule: v.role !== 'MANAGER' || v.onSchedule,
+      onSchedule: !isManagerRole(v.role) || v.onSchedule,
       // Agreement to texts is for one number: a new number needs it again.
       smsOptIn: !!v.phone.trim() && v.smsOptIn && !this.phoneChanged(),
     };
     const current = this.editing();
-    const request: Observable<Employee | Credentials> = current
+    const saved: Observable<Employee | Credentials> = current
       ? this.api.updateEmployee(current.id, body)
       : this.api.createEmployee(body, this.textLink() && !!body.phone);
+    // A Market Manager's areas (besides their home area) are saved right after.
+    const areas = this.managedPick().filter((id) => id !== body.areaId);
+    const request = body.role !== 'MARKET_MANAGER' ? saved : saved.pipe(
+      switchMap((result) => {
+        const id = 'temporaryPassword' in result ? result.employee.id : result.id;
+        return this.api.setManagedAreas(id, areas).pipe(
+          map((emp) => ('temporaryPassword' in result ? { ...result, employee: emp } : emp) as Employee | Credentials),
+        );
+      }),
+    );
     this.saving.set(true);
     request.subscribe({
       next: (result) => {

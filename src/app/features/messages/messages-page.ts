@@ -216,7 +216,7 @@ export class MessagesPage implements OnInit, OnDestroy {
         this.announceArea ??= this.areas()[0]?.id ?? null;
       });
     } else {
-      this.announceArea = this.auth.user()?.areaId ?? null;
+      this.announceArea = this.auth.areaId() ?? null;
     }
     this.loadStatus();
     this.load();
@@ -277,7 +277,7 @@ export class MessagesPage implements OnInit, OnDestroy {
   }
 
   protected areaName(id: number | null): string {
-    if (!this.auth.isAdmin()) return this.auth.user()?.areaName ?? 'your area';
+    if (!this.auth.isAdmin()) return this.auth.areaName() ?? 'your area';
     return this.areas().find((a) => a.id === id)?.name ?? '';
   }
 

@@ -1,4 +1,4 @@
-export type Role = 'ADMIN' | 'MANAGER' | 'EMPLOYEE' | 'BACK_OFFICE';
+export type Role = 'ADMIN' | 'MANAGER' | 'MARKET_MANAGER' | 'EMPLOYEE' | 'BACK_OFFICE';
 export type DayOffStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 export type DayType = 'WORK' | 'OFF' | 'REQUESTED_OFF';
 export type ScheduleStatus = 'DRAFT' | 'PUBLISHED';
@@ -121,6 +121,9 @@ export interface Employee {
   regularDaysOff?: DayOfWeek[];
   /** In training: shown as "Trainee" (an employee). */
   trainee?: boolean;
+  /** Market Managers: the areas they manage besides their home area. */
+  managedAreaIds?: number[];
+  managedAreaNames?: string[];
 }
 
 /** A coming birthday, for the dashboard and the staff list (admins: everyone; managers: their area). */
@@ -192,6 +195,12 @@ export interface WeekRequestPerson {
 export interface DirectMessageResult {
   sentBy: string[];
   notSentBy: string[];
+}
+
+/** One message to several people: who got it, and who couldn't be reached (with why). */
+export interface MessageManyResult {
+  sent: string[];
+  notReached: { name: string; reason: string }[];
 }
 
 /** Who has sent their day-off request for a week (managers). */
@@ -322,6 +331,8 @@ export interface Me {
   regularDaysOff?: string[];
   /** On the weekly schedule (false for managers who only manage). */
   worksShifts?: boolean;
+  /** Areas they manage: a manager's own; a Market Manager's home area and the ones an admin assigned. */
+  managedAreas?: { id: number; name: string }[];
 }
 
 export interface LoginResponse {
@@ -655,9 +666,15 @@ export interface Schedule {
   requests: WeekRequest[];
 }
 
+/** Managers of either kind (one area, or a Market Manager of several). */
+export function isManagerRole(role: string | null | undefined): boolean {
+  return role === 'MANAGER' || role === 'MARKET_MANAGER';
+}
+
 export const ROLE_LABELS: Record<Role, string> = {
   ADMIN: 'Admin',
   MANAGER: 'Manager',
+  MARKET_MANAGER: 'Market Manager',
   EMPLOYEE: 'Employee',
   BACK_OFFICE: 'Back office',
 };

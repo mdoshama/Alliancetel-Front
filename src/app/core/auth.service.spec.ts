@@ -38,6 +38,27 @@ describe('AuthService', () => {
     expect(localStorage.getItem('alliancetel.session')).toContain('abc');
   });
 
+  it('lets a Market Manager work in one of their areas at a time', () => {
+    storeTestSession('MARKET_MANAGER', {
+      managedAreas: [{ id: 2, name: 'San Diego' }, { id: 5, name: 'Los Angeles' }],
+    });
+    const { auth } = setup();
+    expect(auth.isManager()).toBe(true);
+    expect(auth.canManage()).toBe(true);
+    // Goes wherever a manager can.
+    expect(auth.hasRole('ADMIN', 'MANAGER')).toBe(true);
+    expect(auth.hasRole('ADMIN')).toBe(false);
+    // Starts in their home area; switching is remembered on this device.
+    expect(auth.areaId()).toBe(2);
+    auth.setArea(5);
+    expect(auth.areaId()).toBe(5);
+    expect(auth.areaName()).toBe('Los Angeles');
+    expect(localStorage.getItem('alliancetel.area')).toBe('5');
+    // An area they don't manage is never used.
+    auth.setArea(99);
+    expect(auth.areaId()).toBe(2);
+  });
+
   it('sends employees to their schedule after sign-in', () => {
     storeTestSession('EMPLOYEE');
     const { auth } = setup();
