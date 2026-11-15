@@ -41,6 +41,16 @@ const ACCENT: Rgb = [37, 99, 235];
 const NAVY_2: Rgb = [30, 41, 59];
 const GRID: Rgb = [203, 213, 225];
 
+/** Row colors by role on the schedule: a pale fill (two shades for alternating rows), a solid edge and tag color. */
+type RoleKind = 'MANAGER' | 'EMPLOYEE' | 'TRAINEE';
+const ROLE_STYLE: Record<RoleKind, { label: string; fill: Rgb; alt: Rgb; edge: Rgb }> = {
+  MANAGER: { label: 'MANAGER', fill: [219, 234, 254], alt: [204, 225, 253], edge: [29, 78, 216] },
+  EMPLOYEE: { label: 'EMPLOYEE', fill: [240, 253, 244], alt: [220, 247, 230], edge: [21, 128, 61] },
+  TRAINEE: { label: 'TRAINEE', fill: [243, 232, 255], alt: [233, 215, 254], edge: [126, 34, 206] },
+};
+const roleKind = (r: { role: string; trainee?: boolean }): RoleKind =>
+  (r.role === 'MANAGER' || r.role === 'MARKET_MANAGER') ? 'MANAGER' : r.trainee ? 'TRAINEE' : 'EMPLOYEE';
+
 /**
  * Builds the week as a landscape PDF for printing and sharing.
  *
@@ -190,7 +200,12 @@ export async function buildSchedulePdf(s: Schedule): Promise<Blob> {
     columnStyles: { 0: { cellWidth: 132 } },
     didParseCell: (data) => {
       if (data.section === 'head' && data.column.index === 0) data.cell.styles.halign = 'left';
-      if (data.section === 'body') data.cell.styles.fillColor = zebra(data.row.index);
+      if (data.section === 'body') {
+        // Each role has its own row color (managers blue, employees green, trainees purple), alternating shades.
+        const r = s.rows[data.row.index];
+        const st = ROLE_STYLE[r ? roleKind(r) : 'EMPLOYEE'];
+        data.cell.styles.fillColor = data.row.index % 2 === 0 ? st.fill : st.alt;
+      }
     },
     willDrawCell: (data) => {
       if (data.column.index === 0 && data.section === 'body') data.cell.text = [];
@@ -202,7 +217,12 @@ export async function buildSchedulePdf(s: Schedule): Promise<Blob> {
       const row = data.row.index >= 0 ? s.rows[data.row.index] : undefined;
       if (!row) return;
       if (data.column.index === 0) {
-        write(row.employeeName, x + 8, y + h / 2, 9.5, INK, true, w - 12);
+        // Solid role-colored edge, the name, and the role under it.
+        const st = ROLE_STYLE[roleKind(row)];
+        doc.setFillColor(...st.edge);
+        doc.rect(x, y, 4, h, 'F');
+        write(row.employeeName, x + 10, y + h / 2 - 4.5, 9.5, INK, true, w - 14);
+        write(st.label, x + 10, y + h / 2 + 6, 6.5, st.edge, true, w - 14);
         return;
       }
       const cell = row.days[data.column.index - 1];
@@ -249,6 +269,13 @@ export async function buildSchedulePdf(s: Schedule): Promise<Blob> {
   doc.setTextColor(...INK);
   doc.text('KEY', kx, ky + 1);
   kx += doc.getTextWidth('KEY') + 12;
+  const kinds: RoleKind[] = ['MANAGER', 'EMPLOYEE', 'TRAINEE'];
+  for (const k of kinds) {
+    if (s.rows.some((r) => roleKind(r) === k)) {
+      const st = ROLE_STYLE[k];
+      key(k === 'MANAGER' ? 'Manager' : k === 'TRAINEE' ? 'Trainee' : 'Employee', st.fill, st.edge);
+    }
+  }
   for (const st of s.stores) {
     key(st.name, wash(st.color), rgb(st.color));
   }
@@ -263,7 +290,7 @@ export async function buildSchedulePdf(s: Schedule): Promise<Blob> {
     // Each cell lists that day's hours and team; the text is drawn by hand below so the hours stand out.
     const teams = s.stores.map((st) => s.dates.map((_, i) => s.rows
       .filter((r) => r.days[i]?.type === 'WORK' && r.days[i]?.storeId === st.id)
-      .map((r) => shortName(r.employeeName))));
+      .map((r) => ({ name: shortName(r.employeeName), color: ROLE_STYLE[roleKind(r)].edge }))));
     autoTable(doc, {
       head: [['STORE', ...heads]],
       body: stores.map((st) => [st.title, ...st.days]),
@@ -326,7 +353,8 @@ export async function buildSchedulePdf(s: Schedule): Promise<Blob> {
         if (team.length === 0) {
           write('Nobody scheduled', x + 8, y + 24, 7.5, RED, true, w - 12);
         }
-        team.forEach((name, k) => write(name, x + 8, y + 24 + k * 10, 7.5, INK_SOFT, false, w - 12));
+        // Names in their role's color (manager blue, employee green, trainee purple), like section 1.
+        team.forEach((m, k) => write(m.name, x + 8, y + 24 + k * 10, 7.5, m.color, true, w - 12));
       },
     });
   }
