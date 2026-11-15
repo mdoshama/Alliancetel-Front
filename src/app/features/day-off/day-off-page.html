@@ -21,21 +21,28 @@
   </div>
 </div>
 
-@if (auth.isAdmin() && portal(); as p) {
+@if (auth.canManage() && portal(); as p) {
   <div class="portal-bar" [class.is-open]="p.openWeeks.length > 0">
     <span class="portal-dot"></span>
     <div class="me-auto">
       @if (p.openWeeks.length) {
-        <strong>Requests are open</strong>
+        <strong>Requests are open@if (!auth.isAdmin() && auth.areaName()) { in {{ auth.areaName() }} }</strong>
         <span class="portal-sub">
           for the week{{ p.openWeeks.length > 1 ? 's' : '' }} of
           @for (w of p.openWeeks; track w; let last = $last) { {{ short(w) }}{{ last ? '' : ' and ' }} }
         </span>
       } @else {
-        <strong>Requests are closed</strong>
+        <strong>Requests are closed@if (!auth.isAdmin() && auth.areaName()) { in {{ auth.areaName() }} }</strong>
         <span class="portal-sub">Only emergency requests can be sent.</span>
       }
+      @if (!auth.isAdmin() && p.areaOwn && p.changedBy) {
+        <span class="portal-sub">· set by {{ p.changedBy }}</span>
+      }
     </div>
+    @if (!auth.isAdmin() && p.areaOwn) {
+      <button type="button" class="btn btn-sm btn-link" [disabled]="portalBusy()" (click)="setPortal('AUTO')"
+              title="Go back to the company-wide setting">Use company setting</button>
+    }
     @if (p.openWeeks.length) {
       <button type="button" class="btn btn-sm btn-outline-danger" [disabled]="portalBusy()" (click)="setPortal('CLOSED')">
         <i class="bi bi-lock me-1"></i>Close requests

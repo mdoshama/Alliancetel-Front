@@ -60,6 +60,17 @@ export class EmployeesPage implements OnInit {
     { value: 'BACK_OFFICE', label: 'Back office' },
   ];
   protected readonly roleLabels = ROLE_LABELS;
+  /** Managers can only switch someone between employee and trainee. */
+  protected formRoleChoices(): { value: Role | 'TRAINEE'; label: string }[] {
+    return this.auth.isAdmin() ? this.roleChoices
+      : this.roleChoices.filter((r) => r.value === 'EMPLOYEE' || r.value === 'TRAINEE');
+  }
+
+  /** Managers edit the employees and trainees of their area (not themselves or other managers); admins anyone. */
+  protected canEdit(e: Employee): boolean {
+    if (this.auth.isAdmin()) return true;
+    return this.auth.canManage() && e.role === 'EMPLOYEE' && e.id !== this.auth.user()?.id;
+  }
 
   protected readonly areas = signal<Area[]>([]);
   protected readonly stores = signal<Store[]>([]);
@@ -271,6 +282,7 @@ export class EmployeesPage implements OnInit {
     this.editing.set(null);
     this.managedPick.set([]);
     this.textLink.set(true);
+    this.form.controls.areaId.enable({ emitEvent: false });
     this.form.reset({
       employeeCode: '',
       firstName: '',
@@ -296,7 +308,8 @@ export class EmployeesPage implements OnInit {
 
   protected openEdit(e: Employee): void {
     this.editing.set(e);
-    this.managedPick.set([...(e.managedAreaIds ?? [])]);
+    // A Market Manager's old home area (from before they had none) stays one of their areas.
+    this.managedPick.set([...new Set([...(e.managedAreaIds ?? []), ...(e.role === 'MARKET_MANAGER' && e.areaId ? [e.areaId] : [])])]);
     this.form.reset({
       employeeCode: e.employeeCode,
       firstName: e.firstName,
@@ -316,18 +329,22 @@ export class EmployeesPage implements OnInit {
       onSchedule: e.onSchedule ?? true,
       smsOptIn: e.smsOptIn,
     });
+    // Managers keep people in their area: the area can't be changed here.
+    if (this.auth.isAdmin()) this.form.controls.areaId.enable({ emitEvent: false });
+    else this.form.controls.areaId.disable({ emitEvent: false });
     this.saveTried.set(false);
     this.modalOpen.set(true);
   }
 
   protected areaRequired(): boolean {
     const role = this.form.controls.role.value;
-    return role === 'MANAGER' || role === 'MARKET_MANAGER' || role === 'EMPLOYEE' || role === 'TRAINEE';
+    return role === 'MANAGER' || role === 'EMPLOYEE' || role === 'TRAINEE';
   }
 
   protected save(): void {
     const v = this.form.getRawValue();
-    if (this.form.invalid || (this.areaRequired() && v.areaId == null)) {
+    const market = v.role === 'MARKET_MANAGER';
+    if (this.form.invalid || (this.areaRequired() && v.areaId == null) || (market && this.managedPick().length === 0)) {
       this.saveTried.set(true);
       this.form.markAllAsTouched();
       return;
@@ -344,15 +361,16 @@ export class EmployeesPage implements OnInit {
       phone: normalizePhone(v.phone),
       // No phone, no WhatsApp.
       whatsappOptIn: !!v.phone.trim() && v.whatsappOptIn,
-      areaId: v.areaId == null ? null : Number(v.areaId),
-      homeStoreId: v.homeStoreId == null ? null : Number(v.homeStoreId),
-      primaryAtStore: v.homeStoreId != null && v.primaryAtStore,
+      // A Market Manager has no home area or store.
+      areaId: market || v.areaId == null ? null : Number(v.areaId),
+      homeStoreId: market || v.homeStoreId == null ? null : Number(v.homeStoreId),
+      primaryAtStore: !market && v.homeStoreId != null && v.primaryAtStore,
       workDaysPerWeek: Number(v.workDaysPerWeek),
       birthDate: v.birthDate.trim() || null,
       // The home store is always allowed; only other stores are listed.
-      floatStoreIds: v.floatStoreIds.filter((id) => id !== v.homeStoreId),
-      // Only managers can be off the schedule.
-      onSchedule: !isManagerRole(v.role) || v.onSchedule,
+      floatStoreIds: market ? [] : v.floatStoreIds.filter((id) => id !== v.homeStoreId),
+      // Only managers can be off the schedule; Market Managers never are on it.
+      onSchedule: !market && (v.role !== 'MANAGER' || v.onSchedule),
       // Agreement to texts is for one number: a new number needs it again.
       smsOptIn: !!v.phone.trim() && v.smsOptIn && !this.phoneChanged(),
     };
@@ -360,8 +378,8 @@ export class EmployeesPage implements OnInit {
     const saved: Observable<Employee | Credentials> = current
       ? this.api.updateEmployee(current.id, body)
       : this.api.createEmployee(body, this.textLink() && !!body.phone);
-    // A Market Manager's areas (besides their home area) are saved right after.
-    const areas = this.managedPick().filter((id) => id !== body.areaId);
+    // A Market Manager's areas are saved right after.
+    const areas = this.managedPick();
     const request = body.role !== 'MARKET_MANAGER' ? saved : saved.pipe(
       switchMap((result) => {
         const id = 'temporaryPassword' in result ? result.employee.id : result.id;

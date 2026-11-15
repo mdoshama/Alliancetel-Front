@@ -171,6 +171,9 @@ export interface RequestWindow {
   lastDate?: string | null;
   /** Weeks (Mondays) whose schedule is already published in their area: the day off it gives stays there. */
   publishedWeeks?: string[];
+  /** The mode is the area's own (its manager or an admin opened or closed it there), and which area. */
+  areaOwn?: boolean;
+  areaId?: number | null;
 }
 
 export type PortalMode = 'AUTO' | 'OPEN' | 'CLOSED';

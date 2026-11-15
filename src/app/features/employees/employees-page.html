@@ -106,6 +106,8 @@
             <th>Status</th>
             @if (auth.isAdmin()) {
               <th>Sign-in</th>
+            }
+            @if (auth.canManage()) {
               <th class="text-end">Actions</th>
             }
           </tr>
@@ -140,13 +142,13 @@
                 } @else {
                   <span class="badge role-badge role-{{ e.role }}">{{ roleLabels[e.role] }}</span>
                   @if (e.role === 'MARKET_MANAGER' && e.managedAreaNames?.length) {
-                    <div class="small text-muted-2 mt-1" title="Areas they manage besides their home area">
-                      Also manages {{ e.managedAreaNames!.join(', ') }}
+                    <div class="small text-muted-2 mt-1" title="Areas they manage">
+                      Manages {{ e.managedAreaNames!.join(', ') }}
                     </div>
                   }
                 }
               </td>
-              <td data-label="Area">{{ e.areaName || '—' }}</td>
+              <td data-label="Area">{{ e.role === 'MARKET_MANAGER' ? (e.managedAreaNames?.join(', ') || '—') : (e.areaName || '—') }}</td>
               <td data-label="Home store">
                 @if (e.areaId && e.active && auth.canManage()) {
                   <div class="d-flex align-items-center gap-2">
@@ -243,6 +245,8 @@
                     <span class="text-warning-emphasis">Never signed in</span>
                   }
                 </td>
+              }
+              @if (auth.isAdmin()) {
                 <td class="td-actions text-end text-nowrap">
                   <button type="button" class="btn btn-sm btn-outline-primary me-1" (click)="openEdit(e)" title="Edit">
                     <i class="bi bi-pencil"></i>
@@ -256,6 +260,15 @@
                         <i class="bi bi-person-dash"></i>
                       </button>
                     }
+                  }
+                </td>
+              } @else if (auth.canManage()) {
+                <!-- Managers: edit their employees and trainees (no deactivating; that's for admins). -->
+                <td class="td-actions text-end text-nowrap">
+                  @if (canEdit(e)) {
+                    <button type="button" class="btn btn-sm btn-outline-primary" (click)="openEdit(e)" title="Edit">
+                      <i class="bi bi-pencil"></i>
+                    </button>
                   }
                 </td>
               }
@@ -366,13 +379,14 @@
       <div class="col-md-4">
         <label class="form-label" for="eRole">Role</label>
         <select id="eRole" class="form-select" formControlName="role">
-          @for (r of roleChoices; track r.value) {
+          @for (r of formRoleChoices(); track r.value) {
             <option [ngValue]="r.value">{{ r.label }}</option>
           }
         </select>
       </div>
+      @if (form.controls.role.value !== 'MARKET_MANAGER') {
       <div class="col-md-5">
-        <label class="form-label" for="eArea">{{ form.controls.role.value === 'MARKET_MANAGER' ? 'Home area' : 'Area' }} @if (!areaRequired()) { <span class="text-muted-2 small">(optional)</span> }</label>
+        <label class="form-label" for="eArea">Area @if (!areaRequired()) { <span class="text-muted-2 small">(optional)</span> }</label>
         <select id="eArea" class="form-select" formControlName="areaId" (change)="onFormAreaChange()"
                 [class.is-invalid]="form.controls.areaId.touched && areaRequired() && form.controls.areaId.value == null">
           <option [ngValue]="null">Select area…</option>
@@ -391,7 +405,8 @@
           }
         </select>
       </div>
-      @if (storesIn(form.controls.areaId.value).length > 1) {
+      }
+      @if (form.controls.role.value !== 'MARKET_MANAGER' && storesIn(form.controls.areaId.value).length > 1) {
         <div class="col-12">
           <span class="form-label d-block mb-1">
             {{ form.controls.homeStoreId.value == null ? 'Stores they can float to' : 'Other stores they can cover' }}
@@ -417,22 +432,23 @@
           <span class="form-label d-block">Areas they manage</span>
           <div class="d-flex flex-wrap gap-2">
             @for (a of areas(); track a.id) {
-              @if (a.id !== form.controls.areaId.value) {
-                <label class="float-store-option" [class.selected]="managedPick().includes(a.id)">
-                  <input type="checkbox" class="form-check-input me-1" [checked]="managedPick().includes(a.id)"
-                         (change)="toggleManagedArea(a.id, $any($event.target).checked)" />
-                  {{ a.name }}
-                </label>
-              }
+              <label class="float-store-option" [class.selected]="managedPick().includes(a.id)">
+                <input type="checkbox" class="form-check-input me-1" [checked]="managedPick().includes(a.id)"
+                       (change)="toggleManagedArea(a.id, $any($event.target).checked)" />
+                {{ a.name }}
+              </label>
             }
           </div>
+          @if (saveTried() && managedPick().length === 0) {
+            <div class="small text-danger mt-1"><i class="bi bi-exclamation-circle-fill"></i> Pick at least one area.</div>
+          }
           <div class="form-text">
-            They manage these areas like each area's manager: schedules, day-off requests, their team and messages.
-            Their home area (above) is always theirs too. They switch between areas at the top of the app.
+            A Market Manager has no home area. They manage these areas like each area's manager: schedules, day-off
+            requests, their team and messages, and switch between them at the top of the app.
           </div>
         </div>
       }
-      @if (isManagerRole(form.controls.role.value)) {
+      @if (form.controls.role.value === 'MANAGER') {
         <div class="col-12">
           <div class="form-check form-switch mb-0">
             <input class="form-check-input" type="checkbox" role="switch" id="eOnSchedule" formControlName="onSchedule" />
@@ -480,6 +496,7 @@
           <div class="form-text"><i class="bi bi-cake2"></i> Admins and managers get a reminder a week before.</div>
         }
       </div>
+      @if (form.controls.role.value !== 'MARKET_MANAGER') {
       <div class="col-12">
         @if (form.controls.homeStoreId.value != null) {
           <span class="form-label d-block mb-2">Role at this store</span>
@@ -508,12 +525,15 @@
           </div>
         }
       </div>
-      <div class="col-12">
-        <div class="form-check form-switch">
-          <input class="form-check-input" type="checkbox" id="eActive" formControlName="active" />
-          <label class="form-check-label" for="eActive">Active</label>
+      }
+      @if (auth.isAdmin()) {
+        <div class="col-12">
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="eActive" formControlName="active" />
+            <label class="form-check-label" for="eActive">Active</label>
+          </div>
         </div>
-      </div>
+      }
     </div>
   </form>
   <ng-container modal-footer>

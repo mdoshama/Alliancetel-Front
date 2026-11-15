@@ -140,9 +140,12 @@ export class ApiService {
     return this.http.put<{ areaId: number; until: string | null; by: string | null }>(
       `${this.base}/day-off-requests/open-until`, { areaId, until });
   }
-  /** Admins: open or close day-off requests, or back to the Friday cycle (AUTO). */
-  setRequestPortal(mode: PortalMode): Observable<RequestWindow> {
-    return this.http.put<RequestWindow>(`${this.base}/day-off-requests/portal`, { mode });
+  /**
+   * Open or close day-off requests, or back to the Friday cycle (AUTO): for one area (managers; AUTO = follow the
+   * company setting) or, without an area, every area (admins).
+   */
+  setRequestPortal(mode: PortalMode, areaId: number | null = null): Observable<RequestWindow> {
+    return this.http.put<RequestWindow>(`${this.base}/day-off-requests/portal`, { mode, areaId });
   }
   createDayOff(body: CreateDayOffRequest): Observable<DayOffRequest[]> {
     return this.http.post<DayOffRequest[]>(`${this.base}/day-off-requests`, body);
