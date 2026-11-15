@@ -43,10 +43,10 @@ const GRID: Rgb = [203, 213, 225];
 
 /** Row colors by role on the schedule: a pale fill (two shades for alternating rows), a solid edge and tag color. */
 type RoleKind = 'MANAGER' | 'EMPLOYEE' | 'TRAINEE';
-const ROLE_STYLE: Record<RoleKind, { label: string; fill: Rgb; alt: Rgb; edge: Rgb }> = {
-  MANAGER: { label: 'MANAGER', fill: [219, 234, 254], alt: [204, 225, 253], edge: [29, 78, 216] },
-  EMPLOYEE: { label: 'EMPLOYEE', fill: [240, 253, 244], alt: [220, 247, 230], edge: [21, 128, 61] },
-  TRAINEE: { label: 'TRAINEE', fill: [243, 232, 255], alt: [233, 215, 254], edge: [126, 34, 206] },
+const ROLE_STYLE: Record<RoleKind, { fill: Rgb; alt: Rgb; edge: Rgb }> = {
+  MANAGER: { fill: [219, 234, 254], alt: [204, 225, 253], edge: [29, 78, 216] },
+  EMPLOYEE: { fill: [240, 253, 244], alt: [220, 247, 230], edge: [21, 128, 61] },
+  TRAINEE: { fill: [243, 232, 255], alt: [233, 215, 254], edge: [126, 34, 206] },
 };
 const roleKind = (r: { role: string; trainee?: boolean }): RoleKind =>
   (r.role === 'MANAGER' || r.role === 'MARKET_MANAGER') ? 'MANAGER' : r.trainee ? 'TRAINEE' : 'EMPLOYEE';
@@ -180,7 +180,7 @@ export async function buildSchedulePdf(s: Schedule): Promise<Blob> {
   autoTable(doc, {
     head: [['TEAM MEMBER', ...heads]],
     body: s.rows.map((r) => [
-      r.employeeName + ((r.role === 'MANAGER' || r.role === 'MARKET_MANAGER') ? ' (Manager)' : r.trainee ? ' (In training)' : ''),
+      r.employeeName,
       ...r.days.map(() => ''),
     ]),
     startY: top + 6,
@@ -217,12 +217,10 @@ export async function buildSchedulePdf(s: Schedule): Promise<Blob> {
       const row = data.row.index >= 0 ? s.rows[data.row.index] : undefined;
       if (!row) return;
       if (data.column.index === 0) {
-        // Solid role-colored edge, the name, and the role under it.
-        const st = ROLE_STYLE[roleKind(row)];
-        doc.setFillColor(...st.edge);
+        // Solid role-colored edge and the name; the color alone shows the role.
+        doc.setFillColor(...ROLE_STYLE[roleKind(row)].edge);
         doc.rect(x, y, 4, h, 'F');
-        write(row.employeeName, x + 10, y + h / 2 - 4.5, 9.5, INK, true, w - 14);
-        write(st.label, x + 10, y + h / 2 + 6, 6.5, st.edge, true, w - 14);
+        write(row.employeeName, x + 10, y + h / 2, 9.5, INK, true, w - 14);
         return;
       }
       const cell = row.days[data.column.index - 1];
