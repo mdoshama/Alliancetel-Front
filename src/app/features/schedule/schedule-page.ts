@@ -1840,7 +1840,9 @@ export class SchedulePage implements OnInit {
   protected readonly dropKey = signal<string | null>(null);
 
   protected canDrag(cell: DayCell): boolean {
-    return this.canEdit() && !this.working() && cell.type !== 'REQUESTED_OFF' && cell.type !== 'UNSET';
+    // On the week's schedule an approved day off can be dragged too: the manager moves it (the old day's request goes).
+    return this.canEdit() && !this.working() && cell.type !== 'UNSET'
+      && (cell.type !== 'REQUESTED_OFF' || !this.isHandDraft());
   }
 
   protected isDragSource(row: EmployeeRow, dayIndex: number): boolean {
@@ -1856,7 +1858,9 @@ export class SchedulePage implements OnInit {
     }
     const from = d.row.days[d.dayIndex];
     const to = row.days[dayIndex];
-    if (to.type === 'REQUESTED_OFF') {
+    const ownMove = d.row.employeeId === row.employeeId && (from.type === 'WORK') !== (to.type === 'WORK');
+    // An approved day off moves only within the person's own week (the manager moving their day off).
+    if ((to.type === 'REQUESTED_OFF' || from.type === 'REQUESTED_OFF') && !(ownMove && !this.isHandDraft())) {
       return false;
     }
     // Between two people only work days trade: nobody who is off gets a shift. (Your own day off can still move.)

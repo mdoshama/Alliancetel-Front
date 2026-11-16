@@ -107,6 +107,11 @@ export class DayOffPage implements OnInit {
   protected readonly formEmergency = signal(false);
   /** The weekly request window (people asking for themselves pick from the open week only). */
   protected readonly window = signal<RequestWindow | null>(null);
+
+  /** That week's schedule is already made: the manager decides there, so only an emergency can be sent. */
+  protected madeWeek(date: string): boolean {
+    return (this.window()?.publishedWeeks ?? []).includes(weekStartOf(date));
+  }
   /** Asking for yourself (admins and managers entering it for someone else can make exceptions). */
   protected readonly selfService = computed(
     () => !this.auth.isAdmin() && this.formEmployeeId() != null && this.formEmployeeId() === this.auth.user()?.id,
@@ -964,6 +969,10 @@ export class DayOffPage implements OnInit {
     if (mine && mine.status !== 'REJECTED' && !mine.reserved && !(this.formOverride() && this.canOverride())) {
       return true;
     }
+    // A week whose schedule is made: any day can be clicked, and asks about an emergency request.
+    if (this.madeWeek(date) && (this.selfService() || this.auth.isEmployee()) && !(mine && mine.status !== 'REJECTED')) {
+      return false;
+    }
     // A rejected day can be clicked while requests are open: it asks about an emergency request.
     if (mine?.status === 'REJECTED' && (this.selfService() || this.auth.isEmployee())) {
       return this.windowApplies() && !this.isOpenDay(date);
@@ -1047,6 +1056,12 @@ export class DayOffPage implements OnInit {
         this.formEmergencyDays.set(new Set());
         this.toast.info('Emergency days cleared: you have a normal day off to pick again.');
       }
+      return;
+    }
+    // The week's schedule is made: the manager decides now, so it can only go as an emergency.
+    const have = this.myRequestOn(date);
+    if ((this.selfService() || this.auth.isEmployee()) && this.madeWeek(date) && !(have && have.status !== 'REJECTED')) {
+      await this.askEmergency(date, false, false, true);
       return;
     }
     // Their request for this day was rejected: while requests are open they can ask again, as an emergency only.
@@ -1152,7 +1167,7 @@ export class DayOffPage implements OnInit {
   }
 
   /** A full day, or past the weekly limit: asks whether this day should be sent as an emergency request. */
-  private async askEmergency(date: string, full = false, rejected = false): Promise<void> {
+  private async askEmergency(date: string, full = false, rejected = false, made = false): Promise<void> {
     const me = this.selfService() || this.auth.isEmployee();
     if (me && this.window()?.oneEmergencyPerMonth && this.window()?.emergencyUsedThisMonth) {
       this.toast.error("You've already used this month's emergency request. Please talk to your manager.");
@@ -1163,7 +1178,7 @@ export class DayOffPage implements OnInit {
     const already = this.existingNormal() > 0 && this.normalPicks() === 0;
     // A full day stays full: point them to the days that still have room first (emergency is for urgent cases).
     const w = this.window();
-    const stillOpen = full && !rejected && this.normalPicks() < this.formMaxDays()
+    const stillOpen = full && !rejected && !made && this.normalPicks() < this.formMaxDays()
       ? this.formWeekDates().filter((d) => d !== date && d >= this.todayIso && (!w?.enabled || this.isOpenDay(d))
         && !this.takenBy(d) && !this.formDays().has(d)
         && !this.formMine().some((r) => r.date === d && r.status !== 'REJECTED'))
@@ -1171,7 +1186,9 @@ export class DayOffPage implements OnInit {
     const openList = stillOpen.map((d) => formatDay(d, { weekday: 'short', month: 'short', day: 'numeric' })).join(', ');
     const ok = await this.confirm.ask({
       title: 'Send an emergency request?',
-      message: rejected
+      message: made
+        ? `The schedule for this week is already made, so ${me ? 'your' : 'their'} manager decides now. Do you want to ask for ${when} as an emergency day off?`
+        : rejected
         ? `${me ? 'Your' : 'Their'} day-off request for ${when} was rejected. Do you want to ask for it again as an emergency day off?`
         : full
         ? `${when} is ${this.fullReason(date, me)}. Do you want to ask for it as an emergency day off?`
