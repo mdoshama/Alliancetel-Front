@@ -39,6 +39,8 @@ import {
   ExtraDaysMoved,
   PastWeekStatus,
   DayOffSuggestion,
+  DraftSummary,
+  ScheduleKind,
 } from './models';
 
 function toParams(filter: object): HttpParams {
@@ -227,6 +229,24 @@ export class ApiService {
     return this.http
       .get<Schedule>(`${this.base}/schedules`, { params: toParams({ areaId, weekStart }), observe: 'response' })
       .pipe(map((res) => (res.status === 204 ? null : res.body)));
+  }
+  /** Managers: the week's schedules (main and drafts built by hand), for the tabs. */
+  scheduleDrafts(areaId: number, weekStart: string): Observable<DraftSummary[]> {
+    return this.http.get<DraftSummary[]>(`${this.base}/schedules/drafts`, { params: toParams({ areaId, weekStart }) });
+  }
+  /** Managers: a draft built by hand (EMPTY or DAYS_OFF); null when it hasn't been started. */
+  scheduleDraft(kind: ScheduleKind, areaId: number, weekStart: string): Observable<Schedule | null> {
+    return this.http
+      .get<Schedule>(`${this.base}/schedules/drafts/${kind}`, { params: toParams({ areaId, weekStart }), observe: 'response' })
+      .pipe(map((res) => (res.status === 204 ? null : res.body)));
+  }
+  /** Starts (or starts over) a draft built by hand; the main schedule isn't touched. */
+  createScheduleDraft(areaId: number, weekStart: string, kind: ScheduleKind): Observable<Schedule> {
+    return this.http.post<Schedule>(`${this.base}/schedules/drafts`, { areaId, weekStart, kind });
+  }
+  /** The system decides every blank day of a draft (same rules as Generate). */
+  fillScheduleBlanks(scheduleId: number): Observable<Schedule> {
+    return this.http.post<Schedule>(`${this.base}/schedules/${scheduleId}/fill-blanks`, {});
   }
   /** The time-clock sheet for a day (default today). */
   timeClock(areaId: number | null, date: string | null): Observable<TimeClockDay> {

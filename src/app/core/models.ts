@@ -1,6 +1,18 @@
 export type Role = 'ADMIN' | 'MANAGER' | 'MARKET_MANAGER' | 'EMPLOYEE' | 'BACK_OFFICE';
 export type DayOffStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
-export type DayType = 'WORK' | 'OFF' | 'REQUESTED_OFF';
+/** UNSET: not decided yet, a blank day in a draft a manager builds by hand. */
+export type DayType = 'WORK' | 'OFF' | 'REQUESTED_OFF' | 'UNSET';
+/** The week's main schedule, or one of the drafts built by hand next to it. */
+export type ScheduleKind = 'MAIN' | 'EMPTY' | 'DAYS_OFF';
+
+/** One of the week's schedules, for the tabs. */
+export interface DraftSummary {
+  id: number;
+  kind: ScheduleKind;
+  status: ScheduleStatus;
+  blankDays: number;
+  updatedAt: string;
+}
 export type ScheduleStatus = 'DRAFT' | 'PUBLISHED';
 export type StoreRole = 'PRIMARY' | 'SECONDARY' | 'FLOATER';
 
@@ -667,6 +679,10 @@ export interface Schedule {
   rows: EmployeeRow[];
   /** Pending day-off requests this week, by day (managers only). */
   requests: WeekRequest[];
+  /** The main schedule, or a draft built by hand. */
+  kind?: ScheduleKind;
+  /** Days still blank (drafts built by hand). */
+  blankDays?: number;
 }
 
 /** Managers of either kind (one area, or a Market Manager of several). */
@@ -687,6 +703,7 @@ export const DAY_TYPE_LABELS: Record<DayType, string> = {
   OFF: 'Off',
   /** An approved day-off request: shown as Off with a check mark, and locked. */
   REQUESTED_OFF: 'Off (approved)',
+  UNSET: 'Empty',
 };
 
 // ---- WhatsApp messages ---------------------------------------------------------------------------------

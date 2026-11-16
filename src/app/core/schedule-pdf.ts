@@ -236,6 +236,14 @@ export async function buildSchedulePdf(s: Schedule): Promise<Blob> {
         chip(px, py, pw, ph, DAY_OFF_FILL, undefined, DAY_OFF_LINE);
         // Just "Day off": where it came from (requested, reserved, …) stays in the app.
         write('DAY OFF', cx, y + h / 2, 8, AMBER_INK, true, pw - 6, 'center');
+      } else if (cell.type === 'UNSET') {
+        // A blank day in a draft built by hand: a dashed empty box.
+        doc.setDrawColor(...FAINT);
+        doc.setLineWidth(0.6);
+        doc.setLineDashPattern([2, 2], 0);
+        doc.roundedRect(px, py, pw, ph, 3, 3, 'S');
+        doc.setLineDashPattern([], 0);
+        write('—', cx, y + h / 2, 9, FAINT, true, pw, 'center');
       } else {
         write('Off', cx, y + h / 2, 8, FAINT, false, pw, 'center');
       }

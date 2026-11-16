@@ -1,4 +1,5 @@
 import { Component, DestroyRef, OnInit, computed, effect, inject, input, signal } from '@angular/core';
+import { firstValueFrom } from 'rxjs';
 import { DatePipe, NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
@@ -24,6 +25,8 @@ import {
   DayOffImpact,
   WeekRequest,
   DayOffSuggestion,
+  DraftSummary,
+  ScheduleKind,
   WeekRequestStatus,
   WeekRequestPerson,
   PastWeekStatus,
@@ -37,6 +40,23 @@ import { Modal } from '../../shared/modal';
 import { buildSchedulePdf, downloadBlob, schedulePdfName, sharePdf, workingVsNeeded } from '../../core/schedule-pdf';
 
 const SCHEDULE_VIEW_KEY = 'alliancetel.scheduleView';
+const SCHEDULE_TAB_KEY = 'alliancetel.scheduleTab';
+
+function readScheduleTab(): ScheduleKind {
+  try {
+    const v = localStorage.getItem(SCHEDULE_TAB_KEY);
+    return v === 'EMPTY' || v === 'DAYS_OFF' ? v : 'MAIN';
+  } catch {
+    return 'MAIN';
+  }
+}
+
+/** The three ways to make a week, shown as tabs to managers and admins. */
+const SCHEDULE_TABS: { kind: ScheduleKind; title: string; icon: string; help: string }[] = [
+  { kind: 'MAIN', title: 'Schedule', icon: 'bi-calendar-check', help: 'Made by the system. Staff see it once published.' },
+  { kind: 'EMPTY', title: 'Empty draft', icon: 'bi-grid-3x3', help: 'Start blank and place everyone yourself.' },
+  { kind: 'DAYS_OFF', title: 'Days-off draft', icon: 'bi-moon-stars', help: 'Days off are filled in. Place the rest, or let the system.' },
+];
 
 function readScheduleView(): 'people' | 'stores' {
   try {
@@ -82,6 +102,11 @@ interface StoreBoardRow {
   cells: { people: StorePerson[]; hours: DayHours | null; closed: boolean; short: boolean; min: number }[];
 }
 
+/** Someone with a day not placed yet (drafts built by hand). */
+function hasBlank(r: EmployeeRow): boolean {
+  return r.days.some((c) => c.type === 'UNSET');
+}
+
 /** 0 = managers (on top), 1 = employees, 2 = trainees (at the bottom). */
 export function rowGroup(r: { role: string; trainee?: boolean }): number {
   return (r.role === 'MANAGER' || r.role === 'MARKET_MANAGER') ? 0 : r.trainee ? 2 : 1;
@@ -111,6 +136,7 @@ export class SchedulePage implements OnInit {
   private readonly busy = computed(
     () =>
       this.editing() !== null ||
+      this.placing() !== null ||
       this.drag() !== null ||
       this.working() ||
       this.deciding() !== null ||
@@ -210,7 +236,7 @@ export class SchedulePage implements OnInit {
   protected readonly storeView = computed(() => {
     const s = this.schedule();
     if (!s) {
-      return { stores: [] as StoreBoardRow[], off: [] as StorePerson[][] };
+      return { stores: [] as StoreBoardRow[], off: [] as StorePerson[][], blank: [] as StorePerson[][] };
     }
     const filter = this.storeFilter();
     // Managers first, trainees last; A to Z within each.
@@ -249,11 +275,18 @@ export class SchedulePage implements OnInit {
       }));
     const off = s.dates.map((_, i) =>
       s.rows
-        .filter((r) => r.days[i].type !== 'WORK')
+        .filter((r) => r.days[i].type !== 'WORK' && r.days[i].type !== 'UNSET')
         .map((r) => ({ row: r, dayIndex: i, cell: r.days[i] }))
         .sort(byName),
     );
-    return { stores, off };
+    // Drafts built by hand: people not placed yet that day.
+    const blank = s.dates.map((_, i) =>
+      s.rows
+        .filter((r) => r.days[i].type === 'UNSET')
+        .map((r) => ({ row: r, dayIndex: i, cell: r.days[i] }))
+        .sort(byName),
+    );
+    return { stores, off, blank };
   });
 
   /** "Maria Garcia" → "Maria G." for the compact store view. */
@@ -384,11 +417,11 @@ export class SchedulePage implements OnInit {
   protected readonly selectedArea = computed(() => this.areas().find((a) => a.id === this.areaId()) ?? null);
   /** People scheduled for fewer days than usual (e.g. two approved days off). */
   protected readonly mismatchCount = computed(
-    () => this.schedule()?.rows.filter((r) => r.scheduledWorkDays < r.expectedWorkDays).length ?? 0,
+    () => this.schedule()?.rows.filter((r) => !hasBlank(r) && r.scheduledWorkDays < r.expectedWorkDays).length ?? 0,
   );
   /** People working more days than usual: nobody has given them a day off yet this week. */
   protected readonly noDayOff = computed(
-    () => this.schedule()?.rows.filter((r) => r.scheduledWorkDays > r.expectedWorkDays) ?? [],
+    () => this.schedule()?.rows.filter((r) => !hasBlank(r) && r.scheduledWorkDays > r.expectedWorkDays) ?? [],
   );
 
   protected noDayOffNames(): string {
@@ -692,9 +725,11 @@ export class SchedulePage implements OnInit {
     const week = this.weekStart();
     this.loadRequestStatus();
     this.loadPastWeek();
-    this.api.schedule(areaId, week).subscribe({
+    this.loadDrafts();
+    const kind = this.tab();
+    this.fetchSchedule(areaId, week).subscribe({
       next: (s) => {
-        if (this.areaId() !== areaId || this.weekStart() !== week) return;
+        if (this.areaId() !== areaId || this.weekStart() !== week || this.tab() !== kind) return;
         this.schedule.set(s);
         if (change.topic !== 'resync') {
           this.remoteNote.set(change.byName ? `Updated just now by ${change.byName}` : 'Updated just now');
@@ -717,13 +752,275 @@ export class SchedulePage implements OnInit {
     this.loading.set(true);
     this.loadRequestStatus();
     this.loadPastWeek();
-    this.api.schedule(areaId, this.weekStart()).subscribe({
+    this.placing.set(null);
+    this.loadDrafts();
+    const week = this.weekStart();
+    const kind = this.tab();
+    this.fetchSchedule(areaId, week).subscribe({
       next: (s) => {
+        if (this.areaId() !== areaId || this.weekStart() !== week || this.tab() !== kind) return;
         this.schedule.set(s);
         this.loading.set(false);
       },
       error: () => this.loading.set(false),
     });
+  }
+
+  // ---------- Tabs: the week's schedule, and drafts built by hand ----------
+
+  protected readonly tabs = SCHEDULE_TABS;
+  /** Which of the week's schedules is shown. Employees only ever see the main one. */
+  protected readonly tab = signal<ScheduleKind>(readScheduleTab());
+  /** The week's schedules that exist (for the tab labels). */
+  protected readonly drafts = signal<DraftSummary[]>([]);
+  /** A draft a manager builds by hand is shown (not the main schedule). */
+  protected readonly isHandDraft = computed(() => this.tab() !== 'MAIN' && this.auth.canManage());
+  protected readonly currentTab = computed(() => SCHEDULE_TABS.find((t) => t.kind === this.tab()) ?? SCHEDULE_TABS[0]);
+
+  /** Main schedule, or the draft of the tab shown. */
+  private fetchSchedule(areaId: number, week: string) {
+    return this.isHandDraft() ? this.api.scheduleDraft(this.tab(), areaId, week) : this.api.schedule(areaId, week);
+  }
+
+  private loadDrafts(): void {
+    const areaId = this.areaId();
+    if (areaId == null || !this.auth.canManage()) {
+      this.drafts.set([]);
+      return;
+    }
+    this.api.scheduleDrafts(areaId, this.weekStart()).subscribe({
+      next: (list) => this.drafts.set(list),
+      error: () => this.drafts.set([]),
+    });
+  }
+
+  protected setTab(kind: ScheduleKind): void {
+    if (kind === this.tab()) return;
+    this.tab.set(kind);
+    try {
+      localStorage.setItem(SCHEDULE_TAB_KEY, kind);
+    } catch {
+      // Storage can be unavailable (private mode); the choice just isn't remembered.
+    }
+    this.schedule.set(null);
+    this.load();
+  }
+
+  /** Under each tab's name: how far along it is. */
+  protected tabStatus(kind: ScheduleKind): string {
+    const d = this.drafts().find((x) => x.kind === kind);
+    if (!d) return kind === 'MAIN' ? 'Not made yet' : 'Not started';
+    if (kind === 'MAIN') return d.status === 'PUBLISHED' ? 'Published' : 'Draft';
+    return d.blankDays > 0 ? `${d.blankDays} empty` : 'Ready';
+  }
+
+  protected tabDone(kind: ScheduleKind): boolean {
+    const d = this.drafts().find((x) => x.kind === kind);
+    return !!d && (kind === 'MAIN' ? d.status === 'PUBLISHED' : d.blankDays === 0);
+  }
+
+  /** Share of the week's days already decided in a draft (0–100). */
+  protected readonly draftProgress = computed(() => {
+    const s = this.schedule();
+    if (!s) return 0;
+    const total = s.rows.length * s.dates.length;
+    return total ? Math.round(((total - (s.blankDays ?? 0)) / total) * 100) : 100;
+  });
+
+  /** Starts the draft of the tab shown. */
+  protected startDraft(): void {
+    const areaId = this.areaId();
+    if (areaId == null || !this.isHandDraft()) return;
+    this.working.set(true);
+    this.api.createScheduleDraft(areaId, this.weekStart(), this.tab()).subscribe({
+      next: (s) => {
+        this.schedule.set(s);
+        this.working.set(false);
+        this.loadDrafts();
+        this.toast.success(this.tab() === 'EMPTY' ? 'Empty draft ready. Tap an empty box to place someone.'
+          : 'Days-off draft ready. Place the rest, or press "Fill the rest".');
+      },
+      error: () => this.working.set(false),
+    });
+  }
+
+  /** Throws the draft away and starts it again (the main schedule isn't touched). */
+  protected async startOver(): Promise<void> {
+    const ok = await this.confirm.ask({
+      title: 'Start this draft over?',
+      message: `Everything placed in the ${this.currentTab().title.toLowerCase()} for ${this.weekLabel()} is cleared.`,
+      icon: 'bi-arrow-counterclockwise',
+      tone: 'danger',
+      notes: ['The week\'s schedule and the other draft are not touched.', 'Approved days off stay.'],
+      confirmText: 'Start over',
+    });
+    if (ok) this.startDraft();
+  }
+
+  protected async deleteDraft(): Promise<void> {
+    const s = this.schedule();
+    if (!s || !this.isHandDraft()) return;
+    const ok = await this.confirm.ask({
+      title: 'Delete this draft?',
+      message: `The ${this.currentTab().title.toLowerCase()} for ${this.weekLabel()} is deleted.`,
+      icon: 'bi-trash3',
+      tone: 'danger',
+      notes: ['The week\'s schedule and the other draft are not touched.'],
+      confirmText: 'Delete draft',
+    });
+    if (!ok) return;
+    this.working.set(true);
+    this.api.resetSchedule(s.id).subscribe({
+      next: () => {
+        this.working.set(false);
+        this.schedule.set(null);
+        this.loadDrafts();
+        this.toast.success('Draft deleted.');
+      },
+      error: () => this.working.set(false),
+    });
+  }
+
+  /** The system decides every empty day: days off first (same rules as Generate), then work at a store. */
+  protected fillBlanks(): void {
+    const s = this.schedule();
+    if (!s) return;
+    this.working.set(true);
+    this.api.fillScheduleBlanks(s.id).subscribe({
+      next: (updated) => {
+        this.schedule.set(updated);
+        this.working.set(false);
+        this.loadDrafts();
+        this.toast.success(updated.coverageGaps.length
+          ? `Filled. ${updated.coverageGaps.length} store-day(s) are still short: not enough people that day.`
+          : 'Filled. Every store has enough people.');
+      },
+      error: () => this.working.set(false),
+    });
+  }
+
+  /** Publishes the draft: it becomes the week's schedule, and staff are told. */
+  protected async publishDraft(): Promise<void> {
+    const s = this.schedule();
+    if (!s) return;
+    if (s.blankDays) {
+      this.toast.error(`${s.blankDays} day${s.blankDays === 1 ? ' is' : 's are'} still empty. Fill them first, or press "Fill the rest".`);
+      return;
+    }
+    const notes: string[] = [];
+    if (this.noDayOff().length > 0) {
+      notes.push(`${this.noDayOff().length} people have no day off this week: ${this.noDayOffNames()}.`);
+    }
+    if (s.coverageGaps.length > 0) {
+      notes.push(`${s.coverageGaps.length} store-day(s) are below their minimum staffing.`);
+    }
+    const main = this.drafts().find((d) => d.kind === 'MAIN');
+    notes.push(main
+      ? 'It replaces the week\'s current schedule' + (main.status === 'PUBLISHED' ? ' (only people whose days change are told).' : '.')
+      : 'It becomes the week\'s schedule.');
+    const ok = await this.confirm.ask({
+      title: 'Publish this draft?',
+      message: `The ${this.currentTab().title.toLowerCase()} for ${this.weekLabel()} becomes the schedule all ${s.rows.length} staff see.`,
+      icon: 'bi-send-check',
+      tone: notes.length > 1 ? 'warning' : 'primary',
+      notes,
+      confirmText: 'Publish',
+    });
+    if (!ok) return;
+    this.working.set(true);
+    this.api.publishSchedule(s.id).subscribe({
+      next: (published) => {
+        this.working.set(false);
+        this.tab.set('MAIN');
+        try {
+          localStorage.setItem(SCHEDULE_TAB_KEY, 'MAIN');
+        } catch {
+          // Not remembered; fine.
+        }
+        this.schedule.set(published);
+        this.loadDrafts();
+        this.toast.success('Draft published. It is now the week\'s schedule.');
+      },
+      error: () => this.working.set(false),
+    });
+  }
+
+  // ---------- Picker for drafts built by hand: big store buttons, Off, Empty ----------
+
+  protected readonly placing = signal<{ row: EmployeeRow; dayIndex: number } | null>(null);
+  /** Also put them at that store on every other empty day of their week. */
+  protected placeAll = false;
+
+  /** The cell being placed, re-read from the latest schedule. */
+  protected readonly placeCell = computed(() => {
+    const p = this.placing();
+    const row = p && this.schedule()?.rows.find((r) => r.employeeId === p.row.employeeId);
+    return p && row ? { row, cell: row.days[p.dayIndex], dayIndex: p.dayIndex } : null;
+  });
+
+  /** Each store that day: open or closed, how many are there against its minimum, and whether it's their home. */
+  protected readonly placeOptions = computed(() => {
+    const p = this.placeCell();
+    const s = this.schedule();
+    if (!p || !s) return [];
+    return s.stores.map((st) => {
+      const c = s.storeCoverage.find((x) => x.storeId === st.id);
+      const count = c?.dailyHeadCount[p.dayIndex] ?? 0;
+      const min = c ? minOn(c, p.dayIndex) : 0;
+      return {
+        store: st,
+        closed: this.storeClosedOn(st, p.dayIndex),
+        count,
+        min,
+        full: min > 0 && count >= min,
+        home: st.id === p.row.homeStoreId,
+        here: p.cell.type === 'WORK' && p.cell.storeId === st.id,
+      };
+    });
+  });
+
+  /** Other empty days in their week (for "every empty day"). */
+  protected readonly otherBlankDays = computed(() => {
+    const p = this.placeCell();
+    return p ? p.row.days.filter((c, i) => i !== p.dayIndex && c.type === 'UNSET').length : 0;
+  });
+
+  /** One dot per day they should work: filled when placed at work, red when over. */
+  protected workDots(row: EmployeeRow): ('on' | 'off' | 'over')[] {
+    const dots: ('on' | 'off' | 'over')[] = [];
+    for (let i = 0; i < Math.max(row.expectedWorkDays, row.scheduledWorkDays); i++) {
+      dots.push(i >= row.expectedWorkDays ? 'over' : i < row.scheduledWorkDays ? 'on' : 'off');
+    }
+    return dots;
+  }
+
+  protected async place(choice: number | 'OFF' | 'UNSET'): Promise<void> {
+    const p = this.placeCell();
+    const s = this.schedule();
+    if (!p || !s) return;
+    const type: DayType = choice === 'OFF' ? 'OFF' : choice === 'UNSET' ? 'UNSET' : 'WORK';
+    const storeId = typeof choice === 'number' ? choice : null;
+    // "Every empty day": the same store on their other empty days that it is open.
+    const store = storeId == null ? null : s.stores.find((x) => x.id === storeId) ?? null;
+    const targets = [p.cell.entryId];
+    if (this.placeAll && store) {
+      p.row.days.forEach((c, i) => {
+        if (i !== p.dayIndex && c.type === 'UNSET' && !this.storeClosedOn(store, i)) targets.push(c.entryId);
+      });
+    }
+    this.working.set(true);
+    let latest: Schedule | null = null;
+    try {
+      for (const entryId of targets) {
+        latest = await firstValueFrom(this.api.updateScheduleEntry(s.id, entryId, type, storeId));
+      }
+    } catch {
+      // The error is shown by the HTTP handler; keep what was saved.
+    }
+    if (latest) this.schedule.set(latest);
+    this.working.set(false);
+    this.placing.set(null);
+    this.loadDrafts();
   }
 
   /** Whether the week shown has passed, and so is locked for managers. */
@@ -1390,6 +1687,17 @@ export class SchedulePage implements OnInit {
 
   protected openCell(row: EmployeeRow, dayIndex: number): void {
     const cell = row.days[dayIndex];
+    if (this.isHandDraft()) {
+      // Drafts built by hand: a simple picker (a store, Off, or Empty). An approved day off stays locked.
+      if (cell.type === 'REQUESTED_OFF') {
+        const day = formatDay(cell.date, { weekday: 'long', month: 'short', day: 'numeric' });
+        this.toast.info(`${row.employeeName.split(' ')[0]} has an approved day off on ${day}. It is locked.`);
+      } else if (this.canEdit()) {
+        this.placeAll = false;
+        this.placing.set({ row, dayIndex });
+      }
+      return;
+    }
     if (cell.type === 'REQUESTED_OFF') {
       if (this.canRevoke(cell)) {
         void this.revokeDayOff(row, cell);
@@ -1526,7 +1834,7 @@ export class SchedulePage implements OnInit {
   protected readonly dropKey = signal<string | null>(null);
 
   protected canDrag(cell: DayCell): boolean {
-    return this.canEdit() && !this.working() && cell.type !== 'REQUESTED_OFF';
+    return this.canEdit() && !this.working() && cell.type !== 'REQUESTED_OFF' && cell.type !== 'UNSET';
   }
 
   protected isDragSource(row: EmployeeRow, dayIndex: number): boolean {
@@ -1772,6 +2080,9 @@ export class SchedulePage implements OnInit {
   protected readonly legendSources: OffSource[] = ['REQUESTED', 'REGULAR', 'RESERVED', 'EMERGENCY', 'MANAGER'];
 
   protected describe(cell: DayCell): string {
+    if (cell.type === 'UNSET') {
+      return 'Empty · not placed yet';
+    }
     if (cell.type === 'REQUESTED_OFF') {
       return cell.offSource ? `Off · ${this.offSource(cell).title}` : 'Day off';
     }
