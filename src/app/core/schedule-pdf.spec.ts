@@ -114,7 +114,9 @@ describe('schedule PDF', () => {
     expect(text).not.toContain('WORKING');
     expect(text).not.toContain('Reserved');
     expect(text).not.toContain('Requested');
-    expect(text).toContain('DAY OFF');
+    expect(text).toContain('OFF');
+    expect(text).not.toContain('DAY OFF');
+    expect(text).not.toContain('Day off');
     expect(text).not.toContain('6 days');
   });
 

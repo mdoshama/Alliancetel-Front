@@ -56,7 +56,7 @@ const roleKind = (r: { role: string; trainee?: boolean }): RoleKind =>
  *
  * Every section starts with the company header (AllianceTel, area, week, status). Section 1, schedule by employee: one
  * row per person, each work day a pale chip with a solid edge in its store's color and days off in amber (just
- * "Day off", not where it came from). Section 2, on its own page: schedule by store (hours and team each day), then a location card per
+ * "OFF", not where it came from). Section 2, on its own page: schedule by store (hours and team each day), then a location card per
  * store. Every page has a footer with page numbers. jsPDF loads only when someone asks for the PDF.
  */
 export async function buildSchedulePdf(s: Schedule): Promise<Blob> {
@@ -232,10 +232,6 @@ export async function buildSchedulePdf(s: Schedule): Promise<Blob> {
         if (cell.opensAt && cell.closesAt) {
           write(`${formatTime(cell.opensAt)} – ${formatTime(cell.closesAt)}`, px + 8, y + h / 2 + 5.5, 7, MUTED, false, pw - 10);
         }
-      } else if (cell.type === 'REQUESTED_OFF') {
-        chip(px, py, pw, ph, DAY_OFF_FILL, undefined, DAY_OFF_LINE);
-        // Just "Day off": where it came from (requested, reserved, …) stays in the app.
-        write('DAY OFF', cx, y + h / 2, 8, AMBER_INK, true, pw - 6, 'center');
       } else if (cell.type === 'UNSET') {
         // A blank day in a draft built by hand: a dashed empty box.
         doc.setDrawColor(...FAINT);
@@ -245,12 +241,15 @@ export async function buildSchedulePdf(s: Schedule): Promise<Blob> {
         doc.setLineDashPattern([], 0);
         write('—', cx, y + h / 2, 9, FAINT, true, pw, 'center');
       } else {
-        write('Off', cx, y + h / 2, 8, FAINT, false, pw, 'center');
+        // Any day off looks the same and just says "OFF": where it came from (asked for, regular, given by the
+        // system or a manager) stays in the app.
+        chip(px, py, pw, ph, DAY_OFF_FILL, undefined, DAY_OFF_LINE);
+        write('OFF', cx, y + h / 2, 8, AMBER_INK, true, pw - 6, 'center');
       }
     },
   });
 
-  // Key: each store's color and code, then what Off and Day off mean.
+  // Key: each store's color and code, then Off.
   let ky = lastY() + 18;
   if (ky > pageHeight - 48) {
     doc.addPage();
@@ -285,8 +284,7 @@ export async function buildSchedulePdf(s: Schedule): Promise<Blob> {
   for (const st of s.stores) {
     key(st.name, wash(st.color), rgb(st.color));
   }
-  key('Day off', DAY_OFF_FILL, undefined, DAY_OFF_LINE);
-  key('Off · not scheduled', ROW_ALT, undefined, GRID);
+  key('Off', DAY_OFF_FILL, undefined, DAY_OFF_LINE);
 
   // ---- Section 2: schedule by store, always starting on its own page ----------------------------------------
   if (s.stores.length > 0) {
