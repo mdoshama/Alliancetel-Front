@@ -914,6 +914,11 @@ export class SchedulePage implements OnInit {
     if (s.coverageGaps.length > 0) {
       notes.push(`${s.coverageGaps.length} store-day(s) are below their minimum staffing.`);
     }
+    const overRequests = s.rows.filter((r) => r.days.some((c) => c.type === 'WORK' && !!c.approvedRequestId));
+    if (overRequests.length) {
+      const names = overRequests.map((r) => r.employeeName.split(' ')[0]).join(', ');
+      notes.push(`${names} will work on a day off they had approved. Publishing turns that day off down.`);
+    }
     const main = this.drafts().find((d) => d.kind === 'MAIN');
     notes.push(main
       ? 'It replaces the week\'s current schedule' + (main.status === 'PUBLISHED' ? ' (only people whose days change are told).' : '.')
@@ -1688,8 +1693,9 @@ export class SchedulePage implements OnInit {
   protected openCell(row: EmployeeRow, dayIndex: number): void {
     const cell = row.days[dayIndex];
     if (this.isHandDraft()) {
-      // Drafts built by hand: a simple picker (a store, Off, or Empty). An approved day off stays locked.
-      if (cell.type === 'REQUESTED_OFF') {
+      // Drafts built by hand: a simple picker (a store, Off, or Empty). In the days-off draft an approved day off
+      // stays locked; the empty draft is the manager's to decide.
+      if (cell.type === 'REQUESTED_OFF' && this.tab() !== 'EMPTY') {
         const day = formatDay(cell.date, { weekday: 'long', month: 'short', day: 'numeric' });
         this.toast.info(`${row.employeeName.split(' ')[0]} has an approved day off on ${day}. It is locked.`);
       } else if (this.canEdit()) {

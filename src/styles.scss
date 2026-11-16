@@ -6585,3 +6585,19 @@ tr.is-regular-row {
     flex-shrink: 0;
   }
 }
+
+/* Empty draft: a small moon on a day the person has off approved (a hint; the manager decides). */
+.day-chip .approved-hint {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #198754;
+  color: #fff;
+  font-size: 0.6rem;
+  box-shadow: 0 0 0 2px #fff;
+}

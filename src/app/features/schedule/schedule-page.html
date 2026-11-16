@@ -443,8 +443,8 @@
       <span class="draft-start-icon"><i class="bi {{ currentTab().icon }}"></i></span>
       <p class="fw-semibold text-body mb-1 fs-5">{{ currentTab().title }} · {{ weekLabel() }}</p>
       @if (tab() === 'EMPTY') {
-        <p class="mb-3">Every day starts empty. Tap a box and pick a store, or Day off.<br />
-          Days off that were already approved are shown and locked.</p>
+        <p class="mb-3">Every day starts empty. You give the days off: tap a box and pick <strong>Day off</strong>.<br />
+          Then press <strong>Fill the rest</strong> and the system places everyone else, or place them yourself.</p>
       } @else {
         <p class="mb-3">The days off people asked for, and their regular days off, are already filled in.<br />
           Place everyone else yourself, or press <strong>Fill the rest</strong> and the system does it.</p>
@@ -1083,6 +1083,9 @@
                       } @else {
                         {{ dayTypeLabels[cell.type] }}
                       }
+                      @if (tab() === 'EMPTY' && cell.approvedRequestId && cell.type !== 'REQUESTED_OFF' && cell.type !== 'OFF') {
+                        <span class="approved-hint" title="This day off was approved"><i class="bi bi-moon-fill"></i></span>
+                      }
                       @if (cell.manuallyEdited && auth.canManage()) { <span class="edited-dot"></span> }
                       @if (cell.request; as rq) {
                         <span class="req-flag" [class.is-emergency]="rq.emergency" [class.is-reserved]="rq.reserved && !rq.regular" [class.is-regular]="rq.regular"
@@ -1407,6 +1410,11 @@
         <span class="small">{{ pc.row.scheduledWorkDays }}/{{ pc.row.expectedWorkDays }} days</span>
       </div>
     </div>
+    @if (tab() === 'EMPTY' && pc.cell.approvedRequestId) {
+      <div class="place-note">
+        <i class="bi bi-moon-fill me-1"></i>{{ pc.row.employeeName.split(' ')[0] }} has this day off approved. Tap <strong>Day off</strong> to keep it.
+      </div>
+    }
     @if (pc.cell.request; as rq) {
       <div class="place-note" [class.is-emergency]="rq.emergency">
         @if (rq.regular) {
@@ -1437,10 +1445,10 @@
           @if (o.here) { <span class="pb-here"><i class="bi bi-check-lg"></i></span> }
         </button>
       }
-      <button type="button" class="place-btn is-off" [disabled]="working()" [class.is-here]="pc.cell.type === 'OFF'" (click)="place('OFF')">
+      <button type="button" class="place-btn is-off" [disabled]="working()" [class.is-here]="pc.cell.type === 'OFF' || pc.cell.type === 'REQUESTED_OFF'" (click)="place('OFF')">
         <span class="pb-swatch"><i class="bi bi-moon-fill"></i></span>
         <span class="pb-name">Day off</span>
-        @if (pc.cell.type === 'OFF') { <span class="pb-here"><i class="bi bi-check-lg"></i></span> }
+        @if (pc.cell.type === 'OFF' || pc.cell.type === 'REQUESTED_OFF') { <span class="pb-here"><i class="bi bi-check-lg"></i></span> }
       </button>
       @if (pc.cell.type !== 'UNSET') {
         <button type="button" class="place-btn is-clear" [disabled]="working()" (click)="place('UNSET')">
