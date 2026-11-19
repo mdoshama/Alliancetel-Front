@@ -261,6 +261,12 @@
               <div class="er-week is-compact mt-1"><i class="bi bi-calendar-week"></i><span>{{ ws }}</span></div>
             }
           </div>
+          @if (g.phone) {
+            <a class="btn btn-sm btn-outline-primary rg-call" [href]="'tel:' + g.phone" [attr.title]="'Call ' + g.name + ' · ' + formatPhone(g.phone)">
+              <i class="bi bi-telephone-fill"></i><span class="ms-1">Call</span>
+              <span class="rg-call-num d-none d-xl-inline ms-1">{{ formatPhone(g.phone) }}</span>
+            </a>
+          }
           @if (decidable(g.items).length > 1) {
             <div class="rg-actions">
               <button type="button" class="btn btn-sm btn-success" [disabled]="busyId() !== null" (click)="approveAll(g.name, g.items)">

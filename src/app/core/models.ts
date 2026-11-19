@@ -447,6 +447,8 @@ export interface DayOffRequest {
   reviewedBy?: string | null;
   /** A day the system would give, waiting with their emergency for a manager to decide. */
   heldForEmergency?: boolean;
+  /** Their phone (+1…), for a manager to call and confirm. */
+  employeePhone?: string | null;
   /** Screen only: another day off that week shown next to their emergency (from weekDaysOff). */
   companion?: WeekDayOff['kind'];
 }

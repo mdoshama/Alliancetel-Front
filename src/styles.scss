@@ -8757,3 +8757,21 @@ code {
     background: var(--at-red);
   }
 }
+
+/* ---- Call button on request cards ---- */
+.rg-call {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  align-self: flex-start;
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: none;
+  }
+
+  .rg-call-num {
+    font-weight: 500;
+    opacity: 0.8;
+  }
+}

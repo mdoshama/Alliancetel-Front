@@ -14,7 +14,7 @@ import { ConfirmService } from '../../core/confirm.service';
 import { ToastService } from '../../core/toast.service';
 import { Modal } from '../../shared/modal';
 import { Pagination } from '../../shared/pagination';
-import { RULES, clean } from '../../core/validation';
+import { RULES, clean, formatPhone } from '../../core/validation';
 import { matchesSearch, savePageSize, savedPageSize } from '../../core/paging';
 
 /** Weeks after the current one that people asking for themselves can reach (the server checks the same). */
@@ -1125,11 +1125,13 @@ export class DayOffPage implements OnInit {
 
   /** The page's requests grouped by person (the server sends them A to Z, each person's days together). */
   protected readonly personGroups = computed(() => {
-    const groups: { employeeId: number; name: string; code: string; areaName: string | null; items: DayOffRequest[] }[] = [];
+    const groups: { employeeId: number; name: string; code: string; areaName: string | null; phone: string | null;
+      items: DayOffRequest[] }[] = [];
     for (const r of this.requests()) {
       const last = groups[groups.length - 1];
       if (last && last.employeeId === r.employeeId) last.items.push(r);
-      else groups.push({ employeeId: r.employeeId, name: r.employeeName, code: r.employeeCode, areaName: r.areaName, items: [r] });
+      else groups.push({ employeeId: r.employeeId, name: r.employeeName, code: r.employeeCode, areaName: r.areaName,
+        phone: r.employeePhone ?? null, items: [r] });
     }
     // Next to an emergency: their other days off that week, each one a row, so a manager can keep or approve one
     // day or all of them.
@@ -1265,6 +1267,8 @@ export class DayOffPage implements OnInit {
     const system = items.filter((r) => r.reserved || r.regular).length;
     return { asked: items.length - system, system };
   }
+
+  protected readonly formatPhone = formatPhone;
 
   protected initials(name: string): string {
     return name.split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0].toUpperCase()).join('');
