@@ -31,7 +31,7 @@
               @if (fieldError(form.controls.phone, 'Phone'); as msg) {
                 <div class="invalid-feedback">{{ msg }}</div>
               } @else {
-                <div class="form-text">Used for WhatsApp and text updates, if an admin turns them on for you.</div>
+                <div class="form-text">For WhatsApp and text updates.</div>
               }
             </div>
             <div class="col-md-6">
@@ -42,7 +42,7 @@
               @if (fieldError(form.controls.birthDate, 'Birth date'); as msg) {
                 <div class="invalid-feedback">{{ msg }}</div>
               } @else {
-                <div class="form-text">So your team can celebrate with you. Only admins and managers see it.</div>
+                <div class="form-text">Only managers see it.</div>
               }
             </div>
           </div>
@@ -80,11 +80,25 @@
             <dd class="col-sm-8 mb-0">{{ user.homeStoreName || '—' }}</dd>
           }
         </dl>
-        <div class="card-footer small text-muted-2">Something wrong here? Ask your manager or an admin to fix it.</div>
+        <div class="card-footer small text-muted-2">Wrong? Ask your manager.</div>
       </div>
     </div>
 
     <div class="col-lg-5">
+      @if (user.role !== 'ADMIN' && user.worksShifts !== false) {
+        <!-- Their usual week: set by a manager or admin. -->
+        <div class="card mb-4 profile-days">
+          <div class="card-body d-flex align-items-center gap-3">
+            <span class="profile-days-icon" [class.is-regular]="regularDays().length"><i class="bi" [class]="regularDays().length ? 'bi-arrow-repeat' : 'bi-calendar-heart'"></i></span>
+            <div class="min-w-0 flex-grow-1">
+              <div class="small text-muted-2">{{ regularDays().length ? 'Regular day off' : 'Days off a week' }}</div>
+              <div class="fw-bold fs-5 lh-sm">{{ regularDays().length ? regularDays().join(' & ') : (7 - (user.workDaysPerWeek ?? 6)) }}</div>
+              <div class="small text-muted-2">{{ user.workDaysPerWeek ?? 6 }}-day week</div>
+            </div>
+            <a class="btn btn-sm btn-outline-primary" routerLink="/day-off-requests">Days off</a>
+          </div>
+        </div>
+      }
       @if (user.role !== 'ADMIN') {
         <!-- How updates reach them: decided by an admin, shown here for information only. -->
         <div class="card mb-4">
@@ -95,7 +109,7 @@
               <span class="msg-reach-chip" [class.is-on]="!!user.whatsappOptIn"><i class="bi bi-whatsapp"></i>WhatsApp</span>
               <span class="msg-reach-chip" [class.is-on]="!!user.smsOptIn"><i class="bi bi-chat-text"></i>Text</span>
             </div>
-            <div class="small text-muted-2">How you get schedule updates is set by an admin. Ask them if something should change.</div>
+            <div class="small text-muted-2">Set by an admin.</div>
           </div>
         </div>
       }
@@ -118,9 +132,7 @@
         @if (deleteOpen()) {
           <div class="card-body border-top">
             <p class="small mb-2">
-              Deleting your account erases your personal details (name, NTID, email, phone, birth date) and your messages,
-              and signs you out everywhere. Past schedules and time records stay with the company as "Deleted user".
-              This can't be undone.
+              Permanent · signs you out everywhere.
             </p>
             <label class="form-label small fw-semibold" for="deletePassword">Your password</label>
             <input id="deletePassword" type="password" class="form-control" autocomplete="current-password" maxlength="100"

@@ -291,11 +291,8 @@ export class MessagesPage implements OnInit, OnDestroy {
       icon: 'bi-megaphone',
       tone: 'primary',
       notes: [
-        'Everyone gets it by email (unless they turned email off)' +
-          (s?.connected ? ', on WhatsApp if they agreed' : '') +
-          (s?.smsConnected ? ', and by text if they agreed' : '') +
-          '.',
-        ...(s && !s.emailConnected ? ["Email isn't connected yet, so it will only be recorded here."] : []),
+        'Email' + (s?.connected ? ', WhatsApp' : '') + (s?.smsConnected ? ', text' : '') + ' · as each person allows',
+        ...(s && !s.emailConnected ? ['Email not connected: saved here only.'] : []),
       ],
       confirmText: 'Send announcement',
     });
@@ -324,10 +321,10 @@ export class MessagesPage implements OnInit, OnDestroy {
     const days = this.clearDays;
     const ok = await this.confirm.ask({
       title: `Clear messages older than ${days} days?`,
-      message: 'They are removed from the Messages page for every area. This can\'t be undone.',
+      message: 'Removed for every area. Can\'t be undone.',
       icon: 'bi-trash3',
       tone: 'danger',
-      notes: ['Messages still being sent are kept.', 'People keep the emails, texts and WhatsApp messages they already got.'],
+      notes: ['Sending ones stay · people keep what they got.'],
       confirmText: 'Clear messages',
     });
     if (!ok) return;
@@ -348,7 +345,7 @@ export class MessagesPage implements OnInit, OnDestroy {
   protected async remove(item: NotificationItem): Promise<void> {
     const ok = await this.confirm.ask({
       title: 'Delete this message?',
-      message: `The message to ${item.employeeName} is removed from this page. It isn't recalled from their phone or inbox.`,
+      message: `Removed here only · ${item.employeeName} keeps their copy.`,
       icon: 'bi-trash3',
       tone: 'danger',
       confirmText: 'Delete',
@@ -371,7 +368,7 @@ export class MessagesPage implements OnInit, OnDestroy {
     this.api.retryNotification(item.id).subscribe({
       next: () => {
         this.retrying.set(null);
-        this.toast.info(`Sending the message to ${item.employeeName} again.`);
+        this.toast.info(`Resending to ${item.employeeName}.`);
         this.loadStatus();
         this.load(true);
       },

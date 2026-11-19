@@ -20,6 +20,7 @@ import {
 } from '../../core/store-hours';
 import { ConfirmService } from '../../core/confirm.service';
 import { ToastService } from '../../core/toast.service';
+import { HolidaysDialog } from './holidays-dialog';
 import { Modal } from '../../shared/modal';
 import { applyServerErrors, clean, codeRule, fieldError, notBlank, placeName, safeText, wholeNumber } from '../../core/validation';
 import { matchesSearch } from '../../core/paging';
@@ -33,7 +34,7 @@ interface AreaGroup {
 
 @Component({
   selector: 'app-stores-page',
-  imports: [ReactiveFormsModule, FormsModule, RouterLink, Modal],
+  imports: [ReactiveFormsModule, FormsModule, RouterLink, Modal, HolidaysDialog],
   templateUrl: './stores-page.html',
 })
 export class StoresPage implements OnInit {
@@ -82,6 +83,17 @@ export class StoresPage implements OnInit {
   protected readonly areas = signal<Area[]>([]);
   protected readonly stores = signal<Store[]>([]);
   protected readonly loading = signal(true);
+
+  /** The Holidays dialog's area (null when closed). */
+  protected readonly holidays = signal<{ areaId: number; areaName: string } | null>(null);
+  protected readonly holidayStores = computed(() => {
+    const h = this.holidays();
+    return h ? this.stores().filter((s) => s.areaId === h.areaId) : [];
+  });
+
+  protected openHolidays(areaId: number | null, areaName: string): void {
+    if (areaId != null) this.holidays.set({ areaId, areaName });
+  }
   protected readonly saving = signal(false);
   protected readonly modalOpen = signal(false);
   protected readonly editing = signal<Store | null>(null);

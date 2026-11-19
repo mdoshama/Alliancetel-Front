@@ -49,6 +49,11 @@ interface AreaWeek {
   templateUrl: './dashboard-page.html',
 })
 export class DashboardPage implements OnInit {
+  /** The signed-in manager's own regular days off, e.g. ['Tuesday']. */
+  protected readonly myRegularDays = computed(() =>
+    (this.auth.user()?.regularDaysOff ?? []).map((d) => d.charAt(0) + d.slice(1).toLowerCase()),
+  );
+
   private readonly api = inject(ApiService);
   private readonly live = inject(LiveService);
   private readonly destroyRef = inject(DestroyRef);

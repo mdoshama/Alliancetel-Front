@@ -563,7 +563,7 @@ export class EmployeesPage implements OnInit {
       // One day off a week: picking another day moves it.
       next = [day];
     } else {
-      this.toast.info(`${e.firstName} works ${e.workDaysPerWeek} days, so they can have ${usual} regular days off. Remove one first.`);
+      this.toast.info(`Only ${usual} regular day${usual === 1 ? '' : 's'} off · remove one first.`);
       return;
     }
     this.regularSavingId.set(e.id);
@@ -641,13 +641,10 @@ export class EmployeesPage implements OnInit {
   protected async resetPassword(e: Employee): Promise<void> {
     const ok = await this.confirm.ask({
       title: 'Reset password?',
-      message: `${e.fullName} will get a new temporary password and must choose their own at next sign-in.`,
+      message: `${e.fullName} gets a link to set a new one.`,
       icon: 'bi-key',
       tone: 'warning',
-      notes: [
-        'Their current password stops working immediately.',
-        `We'll email them a link to choose a new one${e.smsOptIn ? ' and text it to them' : ''}.`,
-      ],
+      notes: [`Old password stops working now · link by email${e.smsOptIn ? ' and text' : ''}.`],
       confirmText: 'Reset password',
     });
     if (!ok) {
@@ -678,10 +675,10 @@ export class EmployeesPage implements OnInit {
   protected async deactivate(e: Employee): Promise<void> {
     const ok = await this.confirm.ask({
       title: `Deactivate ${e.fullName}?`,
-      message: 'They will be signed out, can no longer sign in, and won\'t appear on new schedules.',
+      message: 'Signed out, can\'t sign in, off new schedules.',
       icon: 'bi-person-dash',
       tone: 'danger',
-      notes: ['Past schedules keep their history. You can reactivate them later from Edit.'],
+      notes: ['History stays · reactivate anytime from Edit.'],
       confirmText: 'Deactivate',
     });
     if (!ok) {

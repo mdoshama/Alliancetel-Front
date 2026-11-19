@@ -27,6 +27,7 @@ import {
   EmployeeRequest,
   Schedule,
   Store,
+  StoreClosure,
   StoreRequest,
   UpcomingBirthday,
   RequestWindow,
@@ -73,6 +74,18 @@ export class ApiService {
   }
 
   // Stores
+  storeClosures(areaId: number): Observable<StoreClosure[]> {
+    return this.http.get<StoreClosure[]>(`${this.base}/stores/closures`, { params: toParams({ areaId }) });
+  }
+
+  closeStores(body: { areaId: number; date: string; label: string | null; storeIds: number[] }): Observable<StoreClosure[]> {
+    return this.http.post<StoreClosure[]>(`${this.base}/stores/closures`, body);
+  }
+
+  reopenStores(areaId: number, date: string, storeId?: number | null): Observable<StoreClosure[]> {
+    return this.http.delete<StoreClosure[]>(`${this.base}/stores/closures`, { params: toParams({ areaId, date, storeId }) });
+  }
+
   stores(areaId?: number | null): Observable<Store[]> {
     return this.http.get<Store[]>(`${this.base}/stores`, { params: toParams({ areaId }) });
   }
@@ -243,6 +256,20 @@ export class ApiService {
   /** Starts (or starts over) a draft built by hand; the main schedule isn't touched. */
   createScheduleDraft(areaId: number, weekStart: string, kind: ScheduleKind): Observable<Schedule> {
     return this.http.post<Schedule>(`${this.base}/schedules/drafts`, { areaId, weekStart, kind });
+  }
+  /** "Schedule by System": built and kept current by the system until someone edits it; null when nothing to build. */
+  systemSchedule(areaId: number, weekStart: string): Observable<Schedule | null> {
+    return this.http
+      .get<Schedule>(`${this.base}/schedules/system`, { params: toParams({ areaId, weekStart }), observe: 'response' })
+      .pipe(map((res) => (res.status === 204 ? null : res.body)));
+  }
+  /** Builds "Schedule by System" again from scratch (changes made there are lost). */
+  rebuildSystemSchedule(areaId: number, weekStart: string): Observable<Schedule> {
+    return this.http.post<Schedule>(`${this.base}/schedules/system/rebuild`, { areaId, weekStart });
+  }
+  /** Day-off draft: every primary (or secondary) at their home store on their blank days. */
+  fillScheduleRole(scheduleId: number, role: 'PRIMARY' | 'SECONDARY'): Observable<Schedule> {
+    return this.http.post<Schedule>(`${this.base}/schedules/${scheduleId}/fill-role`, { role });
   }
   /** The system decides every blank day of a draft (same rules as Generate). */
   fillScheduleBlanks(scheduleId: number): Observable<Schedule> {

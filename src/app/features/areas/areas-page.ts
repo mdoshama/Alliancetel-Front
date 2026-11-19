@@ -116,7 +116,7 @@ export class AreasPage implements OnInit {
       message: 'This permanently removes the area.',
       icon: 'bi-trash',
       tone: 'danger',
-      notes: ['Only possible when no employees are assigned. Otherwise, edit the area and mark it inactive.'],
+      notes: ['Only when no one is assigned. Otherwise mark it inactive.'],
       confirmText: 'Delete area',
     });
     if (!ok) {

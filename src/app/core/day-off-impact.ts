@@ -18,40 +18,27 @@ export function approvalCard(impact: DayOffImpact): {
 } {
   const first = impact.employeeName.split(' ')[0];
   const notes: string[] = [];
-  if (impact.emergency) {
-    notes.push('Emergency request: sent outside the usual one-per-store and weekly limits.');
-  }
   if (impact.sameStoreOff.length) {
-    notes.push(`Also off at the same store that day: ${impact.sameStoreOff.join(', ')}.`);
+    notes.push(`Same store off: ${impact.sameStoreOff.join(', ')}`);
   }
   for (const g of impact.newShortages.slice(0, 3)) {
-    notes.push(`${g.storeName} would have ${g.scheduled} of ${g.required} needed on ${dayLabel(g.date)}.`);
+    notes.push(`${g.storeName}: ${g.scheduled}/${g.required} on ${dayLabel(g.date)}`);
   }
   if (impact.newShortages.length > 3) {
-    notes.push(`…and ${impact.newShortages.length - 3} more short store-days.`);
+    notes.push(`+${impact.newShortages.length - 3} more short`);
   }
-  if (impact.workingAfter === impact.workingBefore) {
-    notes.push(`No change to who works that day: ${impact.workingAfter} working; stores need ${impact.neededThatDay}.`);
-  } else {
-    notes.push(
-      `${impact.workingAfter} working that day after approving (${impact.workingBefore} now); stores need ${impact.neededThatDay}.`,
-    );
-  }
+  notes.push(`${impact.workingAfter} working · ${impact.neededThatDay} needed`);
   if (impact.alreadyOff.length) {
-    notes.push(`Already off that day: ${impact.alreadyOff.join(', ')}.`);
+    notes.push(`Off: ${impact.alreadyOff.join(', ')}`);
   }
   if (impact.alsoRequested.length) {
-    notes.push(`Also asked for this day: ${impact.alsoRequested.join(', ')} (waiting).`);
+    notes.push(`Also asked: ${impact.alsoRequested.join(', ')}`);
   }
   if (impact.replacementWorkDay) {
-    notes.push(`${dayLabel(impact.replacementWorkDay)}, ${first}'s regular day off, becomes a work day so the week stays full.`);
+    notes.push(`${first} works ${dayLabel(impact.replacementWorkDay)} (regular day)`);
   }
   if (impact.scheduleStatus === 'PUBLISHED') {
-    notes.push('This week is already published. It will be updated, so let the team know.');
-  } else if (impact.scheduleStatus === 'DRAFT') {
-    notes.push('The draft schedule for that week will be updated right away.');
-  } else {
-    notes.push("That week isn't scheduled yet; the day off is used when you generate it.");
+    notes.push('Published week: tell the team');
   }
   return {
     tone: impact.level === 'SHORT' ? 'danger' : impact.level === 'TIGHT' ? 'warning' : 'success',

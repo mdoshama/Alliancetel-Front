@@ -3,7 +3,7 @@
   <div class="min-w-0">
     <div class="dash-hero-date">{{ format(today, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) }}</div>
     <h2 class="dash-hero-title">{{ greeting() }}</h2>
-    <p class="dash-hero-sub mb-2">Here's the schedule picture for {{ scopeName() }} today.</p>
+    <p class="dash-hero-sub mb-2">{{ scopeName() }}</p>
     @if (window(); as w) {
       <a class="portal-chip" [class.is-open]="w.openWeeks.length > 0" routerLink="/day-off-requests">
         <span class="portal-chip-dot"></span>
@@ -13,6 +13,11 @@
         } @else {
           Day-off requests closed · emergencies only
         }
+      </a>
+    }
+    @if (myRegularDays().length && auth.user()?.worksShifts !== false) {
+      <a class="portal-chip my-regular-chip" routerLink="/profile" title="Your regular day off">
+        <i class="bi bi-arrow-repeat"></i> Your regular day off · {{ myRegularDays().join(' & ') }}
       </a>
     }
   </div>
@@ -32,7 +37,7 @@
         <span class="dash-kpi-value">{{ hasThisWeek() ? workingToday() : '–' }}</span>
         <span class="dash-kpi-label">Working today</span>
         @if (hasThisWeek()) { <span class="dash-kpi-sub">of {{ onSchedule() }} on the schedule</span> }
-        @else if (loaded()) { <span class="dash-kpi-sub">No schedule this week</span> }
+        @else if (loaded()) { <span class="dash-kpi-sub">No schedule yet</span> }
       </span>
     </a>
   </div>
@@ -42,7 +47,7 @@
       <span class="dash-kpi-body">
         <span class="dash-kpi-value">{{ hasThisWeek() ? offToday() : '–' }}</span>
         <span class="dash-kpi-label">Off today</span>
-        <span class="dash-kpi-sub">Days off and approved requests</span>
+        <span class="dash-kpi-sub">Days off</span>
       </span>
     </a>
   </div>
@@ -52,7 +57,7 @@
       <span class="dash-kpi-body">
         <span class="dash-kpi-value">{{ emergencyCount() }}</span>
         <span class="dash-kpi-label">Emergency requests</span>
-        <span class="dash-kpi-sub">{{ emergencyCount() ? 'Waiting for a decision' : 'All caught up' }}</span>
+        <span class="dash-kpi-sub">{{ emergencyCount() ? 'Waiting' : 'All caught up' }}</span>
       </span>
     </a>
   </div>
@@ -62,7 +67,7 @@
       <span class="dash-kpi-body">
         <span class="dash-kpi-value">{{ gapsThisWeek() }}</span>
         <span class="dash-kpi-label">Short-staffed days</span>
-        <span class="dash-kpi-sub">{{ gapsThisWeek() ? 'Stores below their minimum this week' : 'Every store covered this week' }}</span>
+        <span class="dash-kpi-sub">{{ gapsThisWeek() ? 'Below minimum' : 'All covered' }}</span>
       </span>
     </a>
   </div>
@@ -91,7 +96,7 @@
             <span class="week-card-icon"><i class="bi bi-geo-alt-fill"></i></span>
             <div class="min-w-0">
               <div class="week-card-title text-truncate">{{ w.area.name }}</div>
-              <div class="small text-muted-2">{{ w.area.employeeCount }} on the team</div>
+              <div class="small text-muted-2">{{ w.area.employeeCount }} people</div>
             </div>
           </header>
 

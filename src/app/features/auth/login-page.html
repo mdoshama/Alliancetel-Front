@@ -22,13 +22,13 @@
         <span class="brand-text text-body">AllianceTel</span>
       </div>
       <h1 class="h4 fw-bold mb-1">Sign in</h1>
-      <p class="text-muted-2 mb-4">Use the email or phone number your administrator registered for you.</p>
+      <p class="text-muted-2 mb-4">Welcome back.</p>
 
       @if (reason() === 'expired' && !error()) {
         <div class="alert alert-info py-2 small">Your session ended. Please sign in again.</div>
       }
       @if (reason() === 'deleted' && !error()) {
-        <div class="alert alert-success py-2 small">Your account was deleted and you were signed out everywhere.</div>
+        <div class="alert alert-success py-2 small">Account deleted. You're signed out.</div>
       }
       @if (error()) {
         <div class="alert alert-danger py-2 small d-flex align-items-center" role="alert">
@@ -69,13 +69,12 @@
         }
         @case ('sent') {
           <div class="alert alert-success small mt-4 mb-0" role="status">
-            <i class="bi bi-envelope-check me-1"></i>If that account exists, we've sent a link to set a new password to its
-            email (or by text if there's no email). Your current password keeps working until you choose a new one.
+            <i class="bi bi-envelope-check me-1"></i>If it exists, a link is on its way.
           </div>
         }
         @default {
           <div class="border rounded-3 p-3 mt-4">
-            <label class="form-label small fw-semibold" for="forgotLogin">Send me a link to set a new password</label>
+            <label class="form-label small fw-semibold" for="forgotLogin">Send reset link</label>
             <input id="forgotLogin" type="text" class="form-control" maxlength="120" autocapitalize="off" spellcheck="false"
                    autocomplete="username" placeholder="Email or phone number"
                    [value]="forgotLogin()" (input)="forgotLogin.set($any($event.target).value)"
@@ -87,7 +86,7 @@
               </button>
               <button type="button" class="btn btn-link btn-sm" (click)="forgot.set('closed')">Cancel</button>
             </div>
-            <div class="small text-muted-2 mt-2">No email or phone on file? Ask your manager or an admin to reset it.</div>
+            <div class="small text-muted-2 mt-2">No email or phone? Ask your manager.</div>
           </div>
         }
       }

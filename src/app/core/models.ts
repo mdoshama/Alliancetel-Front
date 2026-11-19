@@ -3,7 +3,7 @@ export type DayOffStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 /** UNSET: not decided yet, a blank day in a draft a manager builds by hand. */
 export type DayType = 'WORK' | 'OFF' | 'REQUESTED_OFF' | 'UNSET';
 /** The week's main schedule, or one of the drafts built by hand next to it. */
-export type ScheduleKind = 'MAIN' | 'EMPTY' | 'DAYS_OFF';
+export type ScheduleKind = 'SYSTEM' | 'MAIN' | 'EMPTY' | 'DAYS_OFF';
 
 /** One of the week's schedules, for the tabs. */
 export interface DraftSummary {
@@ -12,6 +12,8 @@ export interface DraftSummary {
   status: ScheduleStatus;
   blankDays: number;
   updatedAt: string;
+  /** Saved (or published) at least once. */
+  saved?: boolean;
 }
 export type ScheduleStatus = 'DRAFT' | 'PUBLISHED';
 export type StoreRole = 'PRIMARY' | 'SECONDARY' | 'FLOATER';
@@ -570,6 +572,8 @@ export interface DayCell {
   approvedRequestId?: number | null;
   /** On an approved day off, where it came from. Managers and admins only: employees just see "Day off". */
   offSource?: OffSource | null;
+  /** "Schedule by System": what the system had here before a manager or admin changed it. */
+  systemLabel?: string | null;
 }
 
 export type OffSource = 'REQUESTED' | 'REGULAR' | 'RESERVED' | 'EMERGENCY' | 'MANAGER';
@@ -822,4 +826,13 @@ export interface TimeClockDay {
   graceMinutes: number;
   rows: TimeClockRow[];
   others: TimeClockRow[];
+}
+
+/** A date stores are closed (a holiday), with the stores closed that day. */
+export interface StoreClosure {
+  date: string;
+  label: string | null;
+  /** Every active store in the area is closed. */
+  wholeArea: boolean;
+  stores: { id: number; name: string; color: string }[];
 }

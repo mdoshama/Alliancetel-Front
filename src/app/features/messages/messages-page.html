@@ -39,7 +39,7 @@
   @if (!s.emailConnected) {
     <div class="msg-note is-warn mb-3">
       <i class="bi bi-exclamation-triangle-fill"></i>
-      <span>Email isn't connected, so messages are listed below but not sent.</span>
+      <span>Email not connected · not sent.</span>
     </div>
   }
   @if (s.connected && s.sandboxNumber) {
@@ -47,16 +47,15 @@
       <i class="bi bi-info-circle-fill"></i>
       <span>
         WhatsApp is sending from the <strong>test sandbox</strong> ({{ formatPhone(s.sandboxNumber) }}).
-        @if (s.sandboxJoin) { Each person first sends <strong>{{ s.sandboxJoin }}</strong> to it; they see this in their account menu. }
-        To send from your own WhatsApp number, set it as the sender in the server settings.
+        @if (s.sandboxJoin) { People join with <strong>{{ s.sandboxJoin }}</strong>. }
+
       </span>
     </div>
   } @else if (s.connected && s.whatsappProvider === 'twilio' && !s.whatsappTemplatesReady) {
     <div class="msg-note is-warn mb-3">
       <i class="bi bi-exclamation-triangle-fill"></i>
       <span>
-        WhatsApp sends from {{ formatPhone(s.whatsappFrom || '') }}, but the approved message templates aren't all set up yet.
-        Until they are, WhatsApp only reaches people who messaged you in the last 24 hours.
+        WhatsApp: only people active in the last 24 h.
       </span>
     </div>
   }
@@ -69,7 +68,7 @@
       <span class="msg-compose-icon"><i class="bi bi-megaphone-fill"></i></span>
       <div>
         <h2 id="composeTitle" class="msg-compose-title">Send a message</h2>
-        <div class="small text-muted-2">By email, and WhatsApp or text where they agreed.</div>
+        <div class="small text-muted-2">Email, WhatsApp or text.</div>
       </div>
     </div>
     <div class="msg-tabs mb-3" role="tablist" aria-label="Send to">
@@ -178,7 +177,7 @@
       <div class="msg-empty">
         <span class="msg-empty-icon"><i class="bi bi-chat-square-dots"></i></span>
         <strong>No messages here</strong>
-        <span class="small text-muted-2">Messages appear when a week is published or changed, a day off is decided, or you send an announcement.</span>
+
       </div>
     } @else {
       <div class="msg-feed" [class.is-refreshing]="loading()">

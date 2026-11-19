@@ -41,36 +41,35 @@
     @if (remoteNote(); as note) { <span class="live-note">· {{ note }}</span> }
   </div>
   <div class="ms-auto d-flex gap-2 toolbar-actions">
-    @if (isHandDraft() && canChange() && schedule(); as s) {
-      <!-- Drafts built by hand: let the system fill the rest, publish, start over, delete. -->
-      <button type="button" class="btn btn-outline-primary" [disabled]="working() || !s.blankDays" (click)="fillBlanks()"
-              title="The system decides every empty day by the usual rules. What you placed stays.">
-        <i class="bi bi-magic me-1"></i> Fill the rest
-      </button>
-      <button type="button" class="btn btn-primary" [disabled]="working()" (click)="publishDraft()"
-              title="This draft becomes the week's schedule and staff are told.">
-        <i class="bi bi-send-check me-1"></i> Publish this draft
-      </button>
-      <button type="button" class="btn btn-outline-danger" [disabled]="working()" (click)="startOver()" title="Clear this draft and start again">
-        <i class="bi bi-arrow-counterclockwise me-1"></i> Start over
-      </button>
-      <button type="button" class="btn btn-outline-danger" [disabled]="working()" (click)="deleteDraft()" title="Delete this draft">
-        <i class="bi bi-trash3"></i>
-      </button>
-    }
-    @if (!isHandDraft() && canChange() && schedule(); as s) {
+    <!-- Every tab has its own buttons; each acts on this tab's schedule only. -->
+    @if (canChange() && schedule(); as s) {
       @if (s.status === 'DRAFT') {
-        @if (s.stores.length > 0) {
+        <!-- 1. Fill -->
+        @if (tab() === 'DAYS_OFF') {
+          <button type="button" class="btn btn-outline-primary" [disabled]="working() || !s.blankDays" (click)="fillRole('PRIMARY')">
+            <i class="bi bi-star-fill me-1"></i> Fill primaries
+          </button>
+          <button type="button" class="btn btn-outline-primary" [disabled]="working() || !s.blankDays" (click)="fillRole('SECONDARY')">
+            <i class="bi bi-person-fill me-1"></i> Fill secondaries
+          </button>
+        }
+        @if (tab() === 'EMPTY' || tab() === 'DAYS_OFF') {
+          <button type="button" class="btn btn-outline-primary" [disabled]="working() || !s.blankDays" (click)="fillBlanks()"
+                  [attr.title]="tab() === 'DAYS_OFF' ? 'Floaters stay for you to place' : 'What you placed stays'">
+            <i class="bi bi-magic me-1"></i> Fill the rest
+          </button>
+        } @else if (s.stores.length > 0) {
           <button type="button" class="btn btn-outline-primary" [disabled]="working()" (click)="autoFill()"
-                  title="Re-assign stores so each meets its minimum. Days you changed by hand are kept.">
+                  title="Stores below minimum get people. Days you changed stay.">
             <i class="bi bi-magic me-1"></i> Auto-fill stores
           </button>
         }
-        <button type="button" class="btn btn-outline-success" [disabled]="working()" (click)="saveDraft()"
-                title="Save this draft up to here. You can come back and carry on later.">
+        <!-- 2. Save · Publish -->
+        <button type="button" class="btn btn-outline-success" [disabled]="working()" (click)="saveDraft()" title="Save this tab">
           <i class="bi bi-save me-1"></i> Save draft
         </button>
-        <button type="button" class="btn btn-primary" [disabled]="working()" (click)="publish()">
+        <button type="button" class="btn btn-primary" [disabled]="working()" (click)="tab() === 'MAIN' ? publish() : publishDraft()"
+                [attr.title]="tab() === 'MAIN' ? null : 'Staff see this tab as their schedule'">
           <i class="bi bi-send-check me-1"></i> Publish
         </button>
       } @else {
@@ -78,12 +77,25 @@
           <i class="bi bi-unlock me-1"></i> Revert to draft
         </button>
       }
-      <button type="button" class="btn btn-outline-danger" [disabled]="working()" (click)="deleteAndRegenerate()"
-              title="Build this week again from scratch now (everyone keeps their days off)">
-        <i class="bi bi-arrow-clockwise me-1"></i> Regenerate
-      </button>
-      <button type="button" class="btn btn-outline-danger" [disabled]="working()" (click)="reset()"
-              title="Delete this week's schedule without building a new one (days off are kept)">
+      <!-- 3. Start again · Delete (this tab only) -->
+      @switch (tab()) {
+        @case ('MAIN') {
+          <button type="button" class="btn btn-outline-danger" [disabled]="working()" (click)="deleteAndRegenerate()" title="Back to the system's version">
+            <i class="bi bi-arrow-counterclockwise me-1"></i> Reset
+          </button>
+        }
+        @case ('SYSTEM') {
+          <button type="button" class="btn btn-outline-danger" [disabled]="working()" (click)="rebuildSystem()" title="Back to the system's version">
+            <i class="bi bi-arrow-counterclockwise me-1"></i> Reset
+          </button>
+        }
+        @default {
+          <button type="button" class="btn btn-outline-danger" [disabled]="working()" (click)="startOver()" title="Start this tab again">
+            <i class="bi bi-arrow-counterclockwise me-1"></i> Reset
+          </button>
+        }
+      }
+      <button type="button" class="btn btn-outline-danger" [disabled]="working()" (click)="tab() === 'MAIN' ? reset() : deleteDraft()" title="Delete this tab">
         <i class="bi bi-trash3 me-1"></i> Delete
       </button>
     }
@@ -96,7 +108,7 @@
     }
     @if (schedule()?.status === 'PUBLISHED') {
       <button type="button" class="btn btn-outline-primary" [disabled]="pdfBusy() !== null" (click)="sharePdf()"
-              title="Share the schedule as a PDF (WhatsApp, email, messages…)">
+              title="Share PDF">
         @if (pdfBusy() === 'share') { <span class="spinner-border spinner-border-sm me-1"></span> } @else { <i class="bi bi-share me-1"></i> }
         Share PDF
       </button>
@@ -135,24 +147,24 @@
             <span>"{{ req!.reason }}" · asked {{ accessTime(req!.requestedAt) }}</span>
           } @else if (req?.open) {
             <strong>Open for {{ req!.requestedByName }} until {{ accessTime(req!.openUntil) }}.</strong>
-            <span>This week has passed; managers can change it only while it's open.</span>
+            <span>Past week · open for managers until then.</span>
           } @else {
             <strong>This week has passed.</strong>
-            <span>Managers need your approval to change it. You can still make changes.</span>
+            <span>Managers need your OK to change it.</span>
           }
         } @else if (!pw.locked) {
           <strong>Open for changes until {{ accessTime(req?.openUntil ?? null) }}.</strong>
-          <span>{{ req?.decidedBy }} gave you access to this week.</span>
+          <span>Opened by {{ req?.decidedBy }}.</span>
         } @else if (req?.status === 'PENDING') {
-          <strong>This week is locked. You've asked an admin for access.</strong>
-          <span>Asked {{ accessTime(req!.requestedAt) }}: "{{ req!.reason }}". You'll be able to make changes once it's opened.</span>
+          <strong>Locked · access requested.</strong>
+          <span>Asked {{ accessTime(req!.requestedAt) }} · waiting for an admin.</span>
         } @else {
           <strong>This week has passed, so it's locked.</strong>
           <span>
             @if (req?.status === 'REJECTED') {
-              {{ req!.decidedBy }} turned down your last request@if (req!.note) {: "{{ req!.note }}"}. You can ask again.
+              Declined by {{ req!.decidedBy }}@if (req!.note) {: "{{ req!.note }}"}. Ask again anytime.
             } @else {
-              Ask an admin for access to make changes.
+              Ask an admin for access.
             }
           </span>
         }
@@ -199,9 +211,9 @@
             <div class="glance-sub">
               <strong>{{ rs.sent }} of {{ rs.total }}</strong> picked their days.
               @if (schedule()) {
-                The schedule is made: everyone else has the day the system picked for them.
+                
               } @else if (rs.reserved.length > 0 || rs.missing.length > 0) {
-                Generating gives everyone else a day off: their regular day first, otherwise the system picks one.
+                
               }
             </div>
           </div>
@@ -322,12 +334,9 @@
             <div class="flex-grow-1">
               <h2 class="contact-title">Haven't picked a day off · {{ notPicked().length }}</h2>
               @if (schedule()) {
-                <p class="contact-sub">The week is made, so the system already gave each of them a day (see "Off
-                  assigned by system"). If they'd rather have another day, they can still ask for it: the system's pick
-                  moves to make room.</p>
+                <p class="contact-sub">System gave a day · they can change it.</p>
               } @else {
-                <p class="contact-sub">No regular day off and no request yet. Call or message them; if they don't pick,
-                  the system picks a day when the week is generated.</p>
+                <p class="contact-sub">No request · system will pick.</p>
               }
             </div>
             @if (notPicked().length > 1) {
@@ -375,9 +384,7 @@
 
 <app-modal [open]="messageTo() !== null" [title]="'Message ' + (messageTo()?.name ?? '')" (closed)="messageTo.set(null)">
   @if (messageTo(); as p) {
-    <p class="small text-muted-2 mb-2">
-      Goes to {{ p.name.split(' ')[0] }} by email, WhatsApp and text: whichever they can get.
-    </p>
+    <p class="small text-muted-2 mb-2"><i class="bi bi-envelope me-1"></i><i class="bi bi-whatsapp me-1"></i><i class="bi bi-chat-text me-1"></i>Email, WhatsApp, text</p>
     <label class="form-label" for="dmText">Message</label>
     <textarea id="dmText" class="form-control" rows="4" maxlength="500" [(ngModel)]="messageText"></textarea>
     <div class="d-flex justify-content-between small text-muted-2 mt-1">
@@ -396,10 +403,7 @@
 
 <app-modal [open]="messageAllOpen()" [title]="'Message all ' + notPicked().length + ' who haven\'t picked'"
            (closed)="messageAllOpen.set(false)">
-  <p class="small text-muted-2 mb-2">
-    Each person gets it by email, WhatsApp and text: whichever they can get. <code>{{ '{' }}first{{ '}' }}</code> becomes
-    each person's first name.
-  </p>
+  <p class="small text-muted-2 mb-2"><i class="bi bi-envelope me-1"></i><i class="bi bi-whatsapp me-1"></i><i class="bi bi-chat-text me-1"></i>Email, WhatsApp, text · <code>{{ '{' }}first{{ '}' }}</code> = first name</p>
   <label class="form-label" for="dmAllText">Message</label>
   <textarea id="dmAllText" class="form-control" rows="4" maxlength="480" [(ngModel)]="messageAllText"></textarea>
   <div class="d-flex justify-content-between small text-muted-2 mt-1">
@@ -434,7 +438,20 @@
     <div class="empty-state">
       <i class="bi bi-hourglass"></i>
       <p class="mb-1 fw-semibold text-body">Not published yet</p>
-      <p class="mb-0">Your manager hasn't published the schedule for {{ weekLabel() }}. Check back soon.</p>
+      <p class="mb-0">{{ weekLabel() }} · check back soon.</p>
+    </div>
+  </div>
+} @else if (!schedule() && tab() === 'SYSTEM' && auth.canManage()) {
+  <div class="card">
+    <div class="empty-state draft-start">
+      <span class="draft-start-icon"><i class="bi bi-cpu"></i></span>
+      <p class="fw-semibold text-body mb-1 fs-5">By system · {{ weekLabel() }}</p>
+      <p class="mb-3">Not built.</p>
+      @if (canChange()) {
+        <button type="button" class="btn btn-primary btn-lg" [disabled]="working()" (click)="rebuildSystem()">
+          <i class="bi bi-cpu me-1"></i> Build now
+        </button>
+      }
     </div>
   </div>
 } @else if (!schedule() && isHandDraft()) {
@@ -443,11 +460,9 @@
       <span class="draft-start-icon"><i class="bi {{ currentTab().icon }}"></i></span>
       <p class="fw-semibold text-body mb-1 fs-5">{{ currentTab().title }} · {{ weekLabel() }}</p>
       @if (tab() === 'EMPTY') {
-        <p class="mb-3">Every day starts empty. You give the days off: tap a box and pick <strong>Day off</strong>.<br />
-          Then press <strong>Fill the rest</strong> and the system places everyone else, or place them yourself.</p>
+        <p class="mb-3">Tap a box → <strong>Day off</strong>. Then <strong>Fill the rest</strong>.</p>
       } @else {
-        <p class="mb-3">The days off people asked for, and their regular days off, are already filled in.<br />
-          Place everyone else yourself, or press <strong>Fill the rest</strong> and the system does it.</p>
+        <p class="mb-3">Days off are filled in. Place the rest, or <strong>Fill the rest</strong>.</p>
       }
       <div class="draft-start-legend" aria-hidden="true">
         <span><span class="day-chip type-UNSET"><i class="bi bi-plus-lg"></i></span> empty</span>
@@ -459,9 +474,9 @@
           @if (working()) { <span class="spinner-border spinner-border-sm me-1"></span> }
           <i class="bi bi-play-fill me-1"></i> Start {{ currentTab().title.toLowerCase() }}
         </button>
-        <p class="small mt-3 mb-0 text-muted-2">The week's schedule is not changed until you publish this draft.</p>
+        <p class="small mt-3 mb-0 text-muted-2">Nothing changes until you publish.</p>
       } @else {
-        <p class="small mb-0"><i class="bi bi-lock me-1"></i>This week has passed. Ask an admin for access to make one.</p>
+        <p class="small mb-0"><i class="bi bi-lock me-1"></i>Past week · ask an admin for access.</p>
       }
     </div>
   </div>
@@ -470,17 +485,14 @@
     <div class="empty-state">
       <i class="bi bi-calendar-plus"></i>
       <p class="mb-3">No schedule yet for {{ selectedArea()?.name }} · {{ weekLabel() }}.</p>
-      <p class="small mb-3">
-        Generating gives everyone their days off: their regular day first, then the day they asked for,
-        otherwise the system picks one that keeps the stores covered.
-      </p>
+
       @if (canChange()) {
         <button type="button" class="btn btn-primary" [disabled]="working()" (click)="generate()">
           @if (working()) { <span class="spinner-border spinner-border-sm me-1"></span> }
           <i class="bi bi-magic me-1"></i> Generate schedule
         </button>
       } @else {
-        <p class="small mb-0"><i class="bi bi-lock me-1"></i>This week has passed. Ask an admin for access to make one.</p>
+        <p class="small mb-0"><i class="bi bi-lock me-1"></i>Past week · ask an admin for access.</p>
       }
     </div>
   </div>
@@ -517,7 +529,20 @@
     </section>
   }
 
-  @if (isHandDraft()) {
+  @if (tab() === 'SYSTEM' && auth.canManage()) {
+    <div class="system-bar" role="status">
+      <span class="system-bar-icon"><i class="bi bi-cpu"></i></span>
+      <div class="flex-grow-1 min-w-0">
+        <div class="fw-semibold">Built by the system</div>
+        <div class="small text-muted-2">
+          @if (editedCount() > 0) { {{ editedCount() }} change{{ editedCount() === 1 ? '' : 's' }} by you · kept }
+          @else { Live until you edit }
+        </div>
+      </div>
+      @if (editedCount() > 0) { <span class="system-bar-chip"><span class="edited-dot"></span> your change</span> }
+    </div>
+  }
+  @if (isHandDraft() && tab() !== 'SYSTEM') {
     <div class="draft-progress" [class.is-done]="!s.blankDays" role="status">
       <span class="dp-icon"><i class="bi" [class]="s.blankDays ? 'bi bi-hourglass-split' : 'bi bi-check-circle-fill'"></i></span>
       <div class="flex-grow-1 min-w-0">
@@ -533,7 +558,16 @@
         </div>
       </div>
       @if (canEdit()) {
-        @if (s.blankDays) {
+        @if (s.blankDays && tab() === 'DAYS_OFF') {
+          <div class="d-flex flex-wrap gap-2">
+            <button type="button" class="btn btn-outline-primary" [disabled]="working()" (click)="fillRole('PRIMARY')">
+              <i class="bi bi-star-fill me-1"></i> Primaries
+            </button>
+            <button type="button" class="btn btn-outline-primary" [disabled]="working()" (click)="fillRole('SECONDARY')">
+              <i class="bi bi-person-fill me-1"></i> Secondaries
+            </button>
+          </div>
+        } @else if (s.blankDays) {
           <button type="button" class="btn btn-outline-primary" [disabled]="working()" (click)="fillBlanks()">
             <i class="bi bi-magic me-1"></i> Fill the rest
           </button>
@@ -678,7 +712,7 @@
     } @else {
       <div class="alert alert-light border py-2 d-flex flex-wrap align-items-center gap-2">
         <i class="bi bi-info-circle"></i>
-        <span class="me-auto small">Not saved yet. Changes are kept as you make them; press <strong>Save draft</strong> to save up to here, then add people where stores are short.</span>
+        <span class="me-auto small">Not saved yet.</span>
         <button type="button" class="btn btn-sm btn-outline-success" [disabled]="working()" (click)="saveDraft()">
           <i class="bi bi-save me-1"></i> Save draft
         </button>
@@ -695,9 +729,9 @@
           </h2>
           <p class="gap-sub">
             @if (s.status === 'DRAFT') {
-              Fewer people than the store's minimum. Add someone who can be spared, or click a day on the schedule to move someone.
+              Below minimum
             } @else {
-              Fewer people than the store's minimum. Revert to draft to move people.
+              Below minimum · revert to draft to fix.
             }
           </p>
         </div>
@@ -741,29 +775,23 @@
       }
     </section>
   } @else if (s.storeCoverage.length > 0 && auth.canManage() && !(isHandDraft() && s.blankDays)) {
-    <div class="alert alert-success py-2 d-flex align-items-center">
-      <i class="bi bi-check2-circle me-2"></i> Every store meets its minimum staffing all week.
-      @if (autoMoves() > 0) {
-        <span class="ms-1">{{ autoMoves() }} day{{ autoMoves() === 1 ? ' was' : 's were' }} moved automatically to cover another store.</span>
-      }
+    <div class="status-pill is-ok mb-3">
+      <i class="bi bi-check-circle-fill"></i> All stores covered
+      @if (autoMoves() > 0) { <span class="status-pill-sub">· {{ autoMoves() }} auto-moved</span> }
     </div>
   }
   @if (noDayOff().length > 0 && auth.canManage()) {
     <div class="alert alert-warning d-flex align-items-start py-2 no-day-off">
       <i class="bi bi-calendar2-x me-2 mt-1"></i>
       <div>
-        <strong>{{ noDayOff().length }} {{ noDayOff().length === 1 ? 'person has' : 'people have' }} no day off yet this week</strong>
-        <span class="small d-block">
-          {{ noDayOffNames() }}. Approve their request above, or
-          @if (canEdit()) { click one of their days and choose Off (or drag it onto Off in By store). } @else { move the week back to draft to give one. }
-        </span>
+        <strong>No day off yet:</strong> {{ noDayOffNames() }}
       </div>
     </div>
   }
   @if (mismatchCount() > 0 && auth.canManage()) {
     <div class="alert alert-info d-flex align-items-center py-2">
       <i class="bi bi-info-circle me-2"></i>
-      {{ mismatchCount() }} employee(s) work fewer days than usual this week (highlighted below).
+      {{ mismatchCount() }} working fewer days than usual
     </div>
   }
 
@@ -799,9 +827,18 @@
         @for (st of s.stores; track st.id) {
           <span class="legend-store" [style.--store-color]="st.color"><span class="store-dot"></span>{{ st.name }}</span>
         }
-        @if (!auth.isEmployee()) {
-          <span class="legend-key"><i class="bi bi-star-fill" style="color: #e0a100"></i>Primary</span>
+        @if (auth.canManage()) {
+          <button type="button" class="btn btn-sm btn-light legend-toggle" [attr.aria-expanded]="legendOpen()"
+                  (click)="legendOpen.set(!legendOpen())">
+            <i class="bi bi-info-circle me-1"></i>Key
+          </button>
+        } @else {
+          <span><span class="day-chip type-OFF">{{ dayTypeLabels['OFF'] }}</span></span>
         }
+      </div>
+      @if (auth.canManage() && legendOpen()) {
+      <div class="legend legend-more w-100">
+        <span class="legend-key"><i class="bi bi-star-fill" style="color: #e0a100"></i>Primary</span>
         <span><span class="day-chip type-OFF">{{ dayTypeLabels['OFF'] }}</span></span>
         @if (auth.canManage()) {
           <span class="d-flex flex-wrap align-items-center gap-1">
@@ -820,12 +857,52 @@
           <span class="d-flex align-items-center gap-1"><span class="day-chip type-WORK has-store auto-moved px-2" style="--store-color: #475569"><i class="bi bi-arrow-left-right"></i></span> auto-moved</span>
           <span class="d-flex align-items-center gap-1"><span class="day-chip type-OFF px-2"><span class="edited-dot"></span>&nbsp;</span> edited</span>
           @if (canEdit()) {
-            <span class="drag-hint d-none d-lg-inline"><i class="bi bi-arrows-move me-1"></i>@if (view() === 'stores') {Drag a person to another store or day, onto someone working to swap, or onto Off} @else {Drag a work day onto a colleague's work day to swap, onto your own day off to move it, or onto a store's row}</span>
+            <span class="drag-hint d-none d-lg-inline"><i class="bi bi-arrows-move me-1"></i>Drag to move or swap</span>
           }
         }
       </div>
+      }
     </div>
     @if (auth.canManage() && view() === 'stores') {
+      @if (isHandDraft() && canEdit()) {
+        <!-- Team: drag a name onto a store's day (or the store's name for the whole week, or Off). Drag a placed name
+             back here to remove it. Phones: tap a name, then a day. -->
+        <div class="team-strip" aria-label="Team"
+             [class.is-drop]="canDropOnBlank()" [class.drop-hover]="dropKey() === 'team'"
+             (dragover)="onDragOver($event, 'team', canDropOnBlank())" (dragleave)="onDragLeave('team')"
+             (drop)="onDropOnBlank($event)">
+          <div class="team-head">
+            <span class="team-strip-label">
+              @if (canDropOnBlank()) { <i class="bi bi-arrow-return-left"></i> Drop to remove }
+              @else { <i class="bi bi-people-fill"></i> Team }
+            </span>
+            @if (teamShort() > 0) {
+              <span class="team-sum is-short"><i class="bi bi-exclamation-circle-fill"></i> {{ teamShort() }} missing days</span>
+            } @else {
+              <span class="team-sum is-ok"><i class="bi bi-check-circle-fill"></i> Everyone placed</span>
+            }
+          </div>
+          @for (g of teamGroups(); track g.role) {
+            <div class="team-group">
+              <span class="team-group-label"><span class="tc-role role-{{ g.role }}">{{ g.role[0] }}</span>{{ g.label }}</span>
+              <div class="team-group-chips" role="list">
+                @for (t of g.people; track t.row.employeeId) {
+                  <button type="button" role="listitem" class="team-chip"
+                          [class.is-short]="t.placed < t.row.expectedWorkDays" [class.is-done]="t.placed === t.row.expectedWorkDays"
+                          [class.is-over]="t.placed > t.row.expectedWorkDays"
+                          [class.is-picked]="teamPick()?.employeeId === t.row.employeeId"
+                          draggable="true" (dragstart)="onTeamDragStart($event, t.row)" (dragend)="onTeamDragEnd()"
+                          (click)="pickFromTeam(t.row)" [attr.aria-pressed]="teamPick()?.employeeId === t.row.employeeId"
+                          [attr.title]="t.placed < t.row.expectedWorkDays ? (t.row.expectedWorkDays - t.placed) + ' more day(s) to place' : 'All days placed'">
+                    <span class="tc-name">{{ shortName(t.row.employeeName) }}</span>
+                    <span class="tc-count">{{ t.placed }}/{{ t.row.expectedWorkDays }}</span>
+                  </button>
+                }
+              </div>
+            </div>
+          }
+        </div>
+      }
       <div class="table-responsive">
         <table class="table store-board">
           <thead>
@@ -843,24 +920,11 @@
             </tr>
           </thead>
           <tbody>
-            @if (isHandDraft() && s.blankDays) {
-              <tr class="sb-blank-row">
-                <td class="sb-store">
-                  <div class="fw-semibold"><i class="bi bi-plus-square-dotted me-1"></i>Not placed yet</div>
-                  <div class="small text-muted-2 sb-full">Tap a person to place them</div>
-                </td>
-                @for (list of storeView().blank; track $index; let i = $index) {
-                  <td class="sb-cell">
-                    @for (p of list; track p.row.employeeId) {
-                      <ng-container *ngTemplateOutlet="personChip; context: { $implicit: p }" />
-                    }
-                  </td>
-                }
-              </tr>
-            }
             @for (st of storeView().stores; track st.storeId) {
               <tr [class.sb-unassigned]="st.storeId === null">
-                <td class="sb-store">
+                <td class="sb-store" [class.is-target]="!!teamPick() && st.storeId !== null"
+                    (dragover)="onStoreHeadDragOver($event)" (drop)="onStoreHeadDrop($event, st.storeId)"
+                    (click)="teamPick() && st.storeId !== null && placeForWeek(teamPick()!, st.storeId)">
                   @if (st.storeId !== null) {
                     <div class="sb-full">
                       <div class="fw-semibold"><span class="store-dot me-1" [style.--store-color]="st.color"></span>{{ st.name }}</div>
@@ -887,7 +951,8 @@
                       [class.drag-other-day]="drag() !== null && !canDropOnStoreCell(st.storeId, i)"
                       (dragover)="onDragOver($event, 'ss' + st.storeId + '-' + i, canDropOnStoreCell(st.storeId, i))"
                       (dragleave)="onDragLeave('ss' + st.storeId + '-' + i)"
-                      (drop)="onDropOnStoreCell($event, st.storeId, i)">
+                      (drop)="onDropOnStoreCell($event, st.storeId, i)"
+                      [class.is-target]="!!teamPick() && st.storeId !== null" (click)="tapCell(i, st.storeId)">
                     @if (st.storeId !== null) {
                       <div class="sb-cell-head">
                         <span class="sb-count" [class.short]="c.short">
@@ -907,7 +972,6 @@
             <tr class="sb-off-row">
               <td class="sb-store">
                 <div class="fw-semibold"><i class="bi bi-moon me-1"></i>Off</div>
-                <div class="small text-muted-2 sb-full">Days off and approved requests</div>
               </td>
               @for (list of storeView().off; track $index; let i = $index) {
                 <td class="sb-cell"
@@ -915,10 +979,26 @@
                     [class.drop-hover]="dropKey() === 'so' + i"
                     (dragover)="onDragOver($event, 'so' + i, canDropOnOff(i))"
                     (dragleave)="onDragLeave('so' + i)"
-                    (drop)="onDropOnOff($event, i)">
+                    (drop)="onDropOnOff($event, i)"
+                    [class.is-target]="!!teamPick()" (click)="tapCell(i, null, true)">
                   @for (p of list; track p.row.employeeId) {
                     <ng-container *ngTemplateOutlet="personChip; context: { $implicit: p }" />
                   }
+                </td>
+              }
+            </tr>
+            <tr class="sb-working-row">
+              <td class="sb-store">
+                <div class="fw-semibold"><i class="bi bi-people me-1"></i>Working</div>
+                <div class="small text-muted-2 sb-full">/ needed</div>
+              </td>
+              @for (c of dayCounts(); track $index) {
+                <td class="sb-cell">
+                  <span class="work-need" [class.is-short]="c.diff < 0" [class.is-exact]="c.diff === 0" [class.is-spare]="c.diff > 0"
+                        [attr.title]="c.working + ' working, the stores need ' + c.needed">
+                    <span class="wn-num">{{ c.working }}<small>/{{ c.needed }}</small></span>
+                    <span class="wn-label">{{ c.label }}</span>
+                  </span>
                 </td>
               }
             </tr>
@@ -939,10 +1019,11 @@
                 (dragstart)="onDragStart($event, p.row, p.dayIndex)" (dragend)="onDragEnd()"
                 (dragover)="onPersonDragOver($event, p.row, p.dayIndex)"
                 (drop)="onPersonDrop($event, p.row, p.dayIndex)"
-                [disabled]="!canEdit() || working()" (click)="openCell(p.row, p.dayIndex)"
+                [disabled]="!canEdit() || working()" (click)="$event.stopPropagation(); openCell(p.row, p.dayIndex)"
                 [attr.title]="p.row.employeeName + ' · ' + describe(p.cell) + (canEdit() ? ' · drag to move, click to edit' : '')">
           <span class="sb-avatar" [class.is-floater]="p.row.storeRole === 'FLOATER'">
             {{ initials(p.row.employeeName) }}
+            @if (isHandDraft()) { <span class="sb-role role-{{ p.row.storeRole ?? 'FLOATER' }}">{{ p.row.storeRole === 'PRIMARY' ? 'P' : p.row.storeRole === 'SECONDARY' ? 'S' : 'F' }}</span> }
             @if (p.row.storeRole === 'PRIMARY') { <span class="emp-star"><i class="bi bi-star-fill"></i></span> }
           </span>
           <span class="sb-name">{{ shortName(p.row.employeeName) }}</span>
@@ -958,7 +1039,7 @@
                   [attr.title]="rq.regular ? 'Regular day off (waiting for approval)' : rq.reserved ? 'Day off assigned by the system' : 'Asked for this day off'">@if (rq.regular) {<i class="bi bi-arrow-repeat"></i>} @else if (rq.reserved) {<i class="bi bi-cpu"></i>} @else {Off?}</span>
           }
           @if (p.cell.autoAssigned) { <i class="bi bi-arrow-left-right sb-moved" title="Moved automatically"></i> }
-          @if (p.cell.manuallyEdited) { <span class="edited-dot"></span> }
+          @if (p.cell.manuallyEdited && showEdits()) { <span class="edited-dot"></span> }
         </button>
       </ng-template>
     } @else {
@@ -1059,7 +1140,7 @@
                             [class.has-reserved]="!!cell.request?.reserved && !cell.request?.regular"
                             [class.has-regular]="!!cell.request?.regular"
                             [disabled]="(!canEdit() && !canRevoke(cell)) || working()" (click)="openCell(row, i)"
-                            [attr.title]="describe(cell) + (canRevoke(cell) ? ' · click to revoke this day off' : canEdit() ? ' · click to change or swap' : '')">
+                            [attr.title]="describe(cell) + (canEdit() ? ' · click to change' : canRevoke(cell) ? ' · click to revoke' : '')">
                       @if (cell.type === 'WORK') {
                         <span class="chip-name">@if (cell.autoAssigned) {<i class="bi bi-arrow-left-right me-1"></i>}{{ cell.storeName ?? 'Work · no store' }}</span>
                         @if (cell.storeClosed) {
@@ -1086,7 +1167,7 @@
                       @if (tab() === 'EMPTY' && cell.approvedRequestId && cell.type !== 'REQUESTED_OFF' && cell.type !== 'OFF') {
                         <span class="approved-hint" title="This day off was approved"><i class="bi bi-moon-fill"></i></span>
                       }
-                      @if (cell.manuallyEdited && auth.canManage()) { <span class="edited-dot"></span> }
+                      @if (cell.manuallyEdited && auth.canManage() && showEdits()) { <span class="edited-dot"></span> }
                       @if (cell.request; as rq) {
                         <span class="req-flag" [class.is-emergency]="rq.emergency" [class.is-reserved]="rq.reserved && !rq.regular" [class.is-regular]="rq.regular"
                               [attr.title]="rq.regular ? 'Regular day off (waiting for approval)' : rq.reserved ? 'Day off assigned by the system' : 'Asked for this day off' + (rq.reason ? ': ' + rq.reason : '')">@if (rq.regular) {<i class="bi bi-arrow-repeat"></i>} @else if (rq.reserved) {<i class="bi bi-cpu"></i>} @else {Off?}</span>
@@ -1097,7 +1178,7 @@
               </tr>
             } @empty {
               <tr><td colspan="9" class="text-center text-muted-2 py-4">
-                <i class="bi bi-search me-1"></i>No one on this week's schedule matches these filters.
+                <i class="bi bi-search me-1"></i>No matches.
               </td></tr>
             }
           </tbody>
@@ -1177,10 +1258,10 @@
         <div class="flex-grow-1">
           @if (rq.regular) {
             <strong>{{ e.row.employeeName.split(' ')[0] }}'s regular day off</strong>
-            <div class="small">Set because they're off on this day every week. It waits for you to approve or reject.</div>
+            <div class="small">Off this day every week.</div>
           } @else if (rq.reserved) {
             <strong>Off assigned to {{ e.row.employeeName.split(' ')[0] }} by the system</strong>
-            <div class="small">They didn't pick a day, so this one is held. It stays pending until approved.</div>
+            <div class="small">They didn't pick a day.</div>
           } @else {
             <strong>{{ e.row.employeeName.split(' ')[0] }} asked for this day off</strong>
           }
@@ -1234,7 +1315,7 @@
       <div class="col-lg-6">
         <div class="border rounded-3 p-3 h-100">
           <h6 class="fw-semibold mb-1"><i class="bi bi-arrow-left-right me-1 text-primary"></i>Swap with a colleague</h6>
-          <p class="small text-muted-2 mb-2">Two people working {{ format(e.cell.date, { weekday: 'long' }) }} trade stores. Someone who is off is never put to work by a swap.</p>
+          <p class="small text-muted-2 mb-2">Trade stores for {{ format(e.cell.date, { weekday: 'long' }) }}.</p>
           <div style="max-height: 220px; overflow-y: auto" class="mb-2">
             @for (c of swapCandidates(); track c.cell.entryId) {
               <button type="button" class="swap-option" [class.selected]="swapWith() === c.cell.entryId"
@@ -1251,7 +1332,7 @@
               </button>
             } @empty {
               <p class="small text-muted-2 mb-0">
-                @if (e.cell.type === 'WORK') { Nobody else is working at a different store that day. }
+                @if (e.cell.type === 'WORK') { No one at another store that day. }
                 @else { {{ e.row.employeeName.split(' ')[0] }} is off, so there's no shift to swap. }
               </p>
             }
@@ -1299,10 +1380,7 @@
 </app-modal>
 
 <app-modal [open]="fillOpen()" size="lg" [title]="'Add people where needed'" (closed)="fillOpen.set(false)">
-  <p class="small text-muted-2">
-    Stores below their minimum, and who can be added. Only people who work that day are listed — anyone who is off
-    stays off. People come from no store or from a store with more than it needs, so nothing else goes short.
-  </p>
+
   @for (g of fillGaps(); track g.gap.storeId + g.gap.date) {
     <div class="border rounded-3 p-3 mb-2">
       <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
@@ -1330,8 +1408,7 @@
         </div>
       } @empty {
         <div class="small text-muted-2 border-top pt-2">
-          Nobody can be spared that day without leaving another store short, and people who are off aren't used.
-          Lower the minimum, or reject a day-off request for that day.
+          Nobody to spare.
         </div>
       }
     </div>
@@ -1345,11 +1422,7 @@
 
 <!-- Suggested days off for people without a request (or turned down) -->
 <app-modal [open]="suggestOpen()" title="Suggested days off" size="lg" (closed)="suggestOpen.set(false)">
-  <p class="small text-muted-2">
-    Each person gets the day the stores can best spare, avoiding days someone from their store is already off. People who
-    take two days off a week get two days. Change any day, or untick one to leave it out. Days given here are approved, and
-    each person is told.
-  </p>
+  <p class="small text-muted-2">Best days picked · each person is told.</p>
   <div class="table-responsive">
     <table class="table table-sm align-middle mb-0">
       <thead>
@@ -1412,7 +1485,7 @@
     </div>
     @if (tab() === 'EMPTY' && pc.cell.approvedRequestId) {
       <div class="place-note">
-        <i class="bi bi-moon-fill me-1"></i>{{ pc.row.employeeName.split(' ')[0] }} has this day off approved. Tap <strong>Day off</strong> to keep it.
+        <i class="bi bi-moon-fill me-1"></i>Approved day off
       </div>
     }
     @if (pc.cell.request; as rq) {

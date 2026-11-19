@@ -48,6 +48,11 @@ export class ProfilePage implements OnInit {
   protected readonly smsConsentOpen = signal(false);
   protected readonly smsAgreed = signal(false);
 
+  /** Their regular days off, e.g. ['Tuesday'] (set by a manager or admin). */
+  protected readonly regularDays = computed(() =>
+    (this.auth.user()?.regularDaysOff ?? []).map((d) => d.charAt(0) + d.slice(1).toLowerCase()),
+  );
+
   protected readonly initials = computed(() =>
     (this.auth.user()?.fullName ?? '')
       .split(' ')
@@ -99,7 +104,7 @@ export class ProfilePage implements OnInit {
     if (user?.phone && phone !== user.phone && user.smsOptIn) {
       const ok = await this.confirm.ask({
         title: 'Change your phone number?',
-        message: 'Text messages will be turned off for the new number until you agree to them again.',
+        message: 'Texts turn off until you agree again.',
         icon: 'bi-telephone',
         confirmText: 'Save number',
       });
@@ -190,14 +195,10 @@ export class ProfilePage implements OnInit {
     }
     const sure = await this.confirm.ask({
       title: 'Delete your account?',
-      message: 'This permanently deletes your AllianceTel account. It can\'t be undone.',
+      message: 'This can\'t be undone.',
       icon: 'bi-person-x',
       tone: 'danger',
-      notes: [
-        'Your name, NTID, email, phone number, birth date and messages are erased.',
-        'You are signed out on every device and can no longer sign in.',
-        'Past schedules and time records stay with the company, shown as "Deleted user".',
-      ],
+      notes: ['Your details and messages are erased.', 'Signed out everywhere.', 'Past schedules show "Deleted user".'],
       confirmText: 'Delete my account',
     });
     if (!sure) {

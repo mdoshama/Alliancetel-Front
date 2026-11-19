@@ -1,5 +1,5 @@
 import { Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
-import { catchError, forkJoin, of } from 'rxjs';
+import { catchError, firstValueFrom, forkJoin, of } from 'rxjs';
 import { TitleCasePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -19,6 +19,23 @@ import { matchesSearch, savePageSize, savedPageSize } from '../../core/paging';
 
 /** Weeks after the current one that people asking for themselves can reach (the server checks the same). */
 const SELF_SERVICE_WEEKS_AHEAD = 2;
+
+/** Where a day off someone already has this week came from (the request form). */
+type OffKind = 'ASKED' | 'REGULAR' | 'HELD';
+interface CurrentOff {
+  date: string;
+  kind: OffKind;
+  request?: DayOffRequest;
+}
+
+/** Start of the reason the server writes when a manager takes a day off back on the schedule. */
+const TAKEN_BACK = 'Changed on the schedule';
+
+/** A day off a manager took back by changing the schedule: it can be asked for again as an emergency. */
+export function isTakenBack(r: DayOffRequest | undefined | null): boolean {
+  return !!r && r.status === 'REJECTED' && r.previousStatus === 'APPROVED'
+    && (r.decisionChangeReason ?? '').startsWith(TAKEN_BACK);
+}
 
 /** For managers PENDING means the emergency requests waiting for them. */
 type StatusTab = DayOffStatus | 'ALL';
@@ -97,11 +114,17 @@ export class DayOffPage implements OnInit {
   });
   protected readonly formWeek = signal(addDays(weekStartOf(today()), 7));
   protected readonly formDays = signal<Set<string>>(new Set());
+  /** Why it's an emergency (required for emergencies; normal days off need no reason). */
   protected formReason = '';
 
   /** Message when the reason has characters the server won't accept. */
   protected reasonError(): string {
     return RULES.safeText.re.test(this.formReason) ? '' : `Reason: ${RULES.safeText.msg}`;
+  }
+
+  /** An emergency is part of this request but no reason was given yet. */
+  protected reasonMissing(): boolean {
+    return this.emergencyMode() && !(this.formOverride() && this.canOverride()) && !clean(this.formReason);
   }
   /** Urgent request: lifts the one-per-store and weekly limits (still needs approval). */
   protected readonly formEmergency = signal(false);
@@ -232,6 +255,473 @@ export class DayOffPage implements OnInit {
     () => !this.auth.isEmployee() && this.formEmployeeId() != null && this.formEmployeeId() !== this.auth.user()?.id,
   );
 
+  // ---------- One row per day: tap to pick, swap, cancel or ask for an emergency ----------
+
+  /**
+   * The simple picker is used for everyone (yourself, or a manager entering it for someone on the team), except when
+   * a manager gives the day straight away ("Give it now"), which can pick any day.
+   */
+  protected readonly inline = computed(() => !(this.formOverride() && this.canOverride()));
+
+  /** The person the form is for (their regular days and usual days off). */
+  private readonly pickerPerson = computed(() => {
+    const id = this.formEmployeeId();
+    if (this.selfService()) {
+      const me = this.auth.user();
+      return { regular: me?.regularDaysOff ?? [], workDays: me?.workDaysPerWeek ?? 6, first: '' };
+    }
+    const e = this.formEmployees().find((x) => x.id === id);
+    return { regular: (e?.regularDaysOff ?? []) as string[], workDays: e?.workDaysPerWeek ?? 6, first: e?.firstName ?? 'They' };
+  });
+  /** Their regular days as names, for the key. */
+  protected readonly pickerRegular = computed(() => this.pickerPerson().regular);
+
+  /**
+   * A week whose schedule is made, for someone asking for themselves: only an emergency. (A manager entering it for
+   * someone there gives it straight away.)
+   */
+  private lockedWeek(date: string): boolean {
+    return this.selfService() && this.madeWeek(date);
+  }
+
+
+  /** Days off they already have in the week shown (asked for, their regular day, or held for them). */
+  protected readonly currentOff = computed<CurrentOff[]>(() => {
+    if (!this.inline() || !this.formWeekLoaded()) return [];
+    const mine = this.formMine();
+    const out: CurrentOff[] = [];
+    for (const r of mine) {
+      if (r.emergency || r.status === 'REJECTED' || r.date < this.todayIso) continue;
+      out.push({ date: r.date, kind: !r.reserved ? 'ASKED' : r.regular ? 'REGULAR' : 'HELD', request: r });
+    }
+    // Their regular weekday, before the system has put it in (it does so when the week opens). Not on a week whose
+    // schedule is made: what they have there is what the schedule gave them.
+    const asked = out.some((c) => c.kind === 'ASKED');
+    if (!asked && !this.madeWeek(this.formWeek())) {
+      const weekdays = new Set(this.pickerPerson().regular);
+      for (const d of this.formWeekDates()) {
+        if (out.length >= Math.max(0, 7 - this.pickerPerson().workDays)) break;
+        if (weekdays.has(weekdayOf(d)) && d > this.todayIso && !mine.some((r) => r.date === d)) {
+          out.push({ date: d, kind: 'REGULAR' });
+        }
+      }
+    }
+    return out.sort((a, b) => a.date.localeCompare(b.date));
+  });
+
+  /** Days off they have that they're giving up in this request (they'll work them). */
+  protected readonly dropped = signal<Set<string>>(new Set());
+  /** For each new day picked in place of one they had: the day it replaces. */
+  private readonly swapOf = signal<Map<string, string>>(new Map());
+
+  protected readonly keptOff = computed(() => this.currentOff().filter((c) => !this.dropped().has(c.date)));
+  protected currentOn(date: string): CurrentOff | undefined {
+    return this.currentOff().find((c) => c.date === date);
+  }
+
+  /** "Tue 24 → Thu 26" pairs shown before sending. */
+  protected readonly swaps = computed(() => {
+    const from = [...this.dropped()].sort();
+    const to = [...this.formDays()].sort();
+    return from.map((d, i) => ({ from: d, to: to[i] ?? null }));
+  });
+
+  /** Days they gave up that they had asked for (these can simply be cancelled). */
+  private readonly droppedAsked = computed(() =>
+    this.currentOff().filter((c) => c.kind === 'ASKED' && c.request && this.dropped().has(c.date)),
+  );
+
+  /** Only cancelling: they gave up days they asked for and picked nothing new. */
+  protected readonly cancelOnly = computed(
+    () => this.dropped().size > 0 && this.formDays().size === 0 && this.formEmergencyDays().size === 0
+      && this.droppedAsked().length === this.dropped().size,
+  );
+
+  /** They gave up a day but haven't picked the one they want instead (a regular day can't just be dropped). */
+  protected readonly swapIncomplete = computed(() => !this.cancelOnly() && this.dropped().size > this.formDays().size);
+
+  /** What the self-service form is about to do, for its button. */
+  protected readonly selfAction = computed<'change' | 'cancel' | 'request' | 'emergency' | 'both' | 'none'>(() => {
+    if (this.cancelOnly()) return 'cancel';
+    const picks = this.formDays().size;
+    const extra = this.formEmergencyDays().size;
+    if (this.dropped().size && picks) return 'change';
+    if (picks && extra) return 'both';
+    if (picks) return 'request';
+    if (extra) return 'emergency';
+    return 'none';
+  });
+
+  /** The tile's state, for its look and its one-word label. */
+  protected tileState(date: string): { css: string; label: string; icon: string } {
+    if (this.formEmergencyDays().has(date)) return { css: 'is-emergency', label: 'Emergency', icon: 'bi-exclamation-octagon-fill' };
+    const cur = this.currentOn(date);
+    if (cur && this.dropped().has(date)) return { css: 'is-dropped', label: 'Work', icon: 'bi-briefcase' };
+    if (this.formDays().has(date)) return { css: 'is-picked', label: cur ? 'Off' : 'New', icon: 'bi-check-lg' };
+    if (cur) {
+      return cur.kind === 'REGULAR'
+        ? { css: 'is-regular', label: 'Regular', icon: 'bi-arrow-repeat' }
+        : { css: 'is-mine', label: 'Off', icon: 'bi-moon-stars-fill' };
+    }
+    const mine = this.myRequestOn(date);
+    if (mine?.emergency && mine.status === 'PENDING') return { css: 'is-waiting', label: 'Waiting', icon: 'bi-hourglass-split' };
+    if (mine?.emergency && mine.status === 'APPROVED') return { css: 'is-mine', label: 'Off', icon: 'bi-moon-stars-fill' };
+    if (date < this.todayIso) return { css: 'is-past', label: '', icon: '' };
+    if (isTakenBack(mine)) return { css: 'is-changed', label: 'Changed', icon: 'bi-arrow-counterclockwise' };
+    if (mine?.status === 'REJECTED') return { css: 'is-full', label: 'Not given', icon: 'bi-x-lg' };
+    if (this.lockedWeek(date)) return { css: 'is-locked', label: 'Work', icon: 'bi-lock-fill' };
+    const t = this.formTaken().get(date);
+    if (t) return { css: 'is-full', label: t.full ? 'Full' : 'Taken', icon: 'bi-lock-fill' };
+    if (this.windowApplies() && !this.isOpenDay(date)) return { css: 'is-past', label: 'Closed', icon: '' };
+    return { css: 'is-open', label: 'Open', icon: '' };
+  }
+
+  /** A tile that can't be tapped: past, waiting for a manager, or outside the request window. */
+  protected selfTileDisabled(date: string): boolean {
+    if (this.currentOn(date) && this.lockedWeek(date)) return true;
+    if (this.formEmergencyDays().has(date) || this.formDays().has(date) || this.currentOn(date)) return false;
+    if (date < this.todayIso) return true;
+    const mine = this.myRequestOn(date);
+    if (mine?.emergency && mine.status !== 'REJECTED') return true;
+    if (this.lockedWeek(date) || mine?.status === 'REJECTED' || this.formTaken().has(date)) return false;
+    return this.windowApplies() && !this.isOpenDay(date);
+  }
+
+  /** Tapping a day when asking for yourself. */
+  private selfToggle(date: string): void {
+    const limit = this.maxDaysPerWeek();
+    if (this.formEmergencyDays().has(date)) {
+      this.formEmergencyDays.update((set) => this.without(set, date));
+      return;
+    }
+    const cur = this.currentOn(date);
+    if (cur && this.lockedWeek(date)) {
+      // The schedule is made: their day off there is the manager's to move.
+      return;
+    }
+    if (cur) {
+      if (this.dropped().has(date)) {
+        // Keep it after all: make room by letting go of the newest day picked.
+        this.dropped.update((set) => this.without(set, date));
+        const picks = [...this.formDays()].sort();
+        while (this.keptOff().length + picks.length > limit && picks.length) {
+          const last = picks.pop()!;
+          this.formDays.update((set) => this.without(set, last));
+          this.swapOf.update((m) => { const n = new Map(m); n.delete(last); return n; });
+        }
+      } else {
+        // Give this day up (they'll work it); the day they want instead is tapped next.
+        this.dropped.update((set) => new Set(set).add(date));
+      }
+      return;
+    }
+    if (this.formDays().has(date)) {
+      this.formDays.update((set) => this.without(set, date));
+      const replaced = this.swapOf().get(date);
+      if (replaced) {
+        this.swapOf.update((m) => { const n = new Map(m); n.delete(date); return n; });
+        this.dropped.update((set) => this.without(set, replaced));
+      }
+      return;
+    }
+    const mine = this.myRequestOn(date);
+    // Full, taken, turned down, changed by a manager, or a week whose schedule is made: only an emergency.
+    if (this.lockedWeek(date) || mine?.status === 'REJECTED' || this.formTaken().has(date)) {
+      this.addEmergency(date, mine);
+      return;
+    }
+    if (this.keptOff().length + this.formDays().size < limit) {
+      this.formDays.update((set) => new Set(set).add(date));
+      return;
+    }
+    // Their days off are used: swap. Days the system held go first, then the regular day, then a day they asked for.
+    const order: Record<OffKind, number> = { HELD: 0, REGULAR: 1, ASKED: 2 };
+    const give = [...this.keptOff()].sort((a, b) => order[a.kind] - order[b.kind] || b.date.localeCompare(a.date))[0];
+    if (give) {
+      this.dropped.update((set) => new Set(set).add(give.date));
+      this.swapOf.update((m) => new Map(m).set(date, give.date));
+      this.formDays.update((set) => new Set(set).add(date));
+      return;
+    }
+    // Only new picks so far: move the earliest one here.
+    const first = [...this.formDays()].sort()[0];
+    if (first) {
+      const replaced = this.swapOf().get(first);
+      this.formDays.update((set) => new Set(this.without(set, first)).add(date));
+      if (replaced) this.swapOf.update((m) => { const n = new Map(m); n.delete(first); n.set(date, replaced); return n; });
+    }
+  }
+
+  /** Keeps the day they had and sends the new one as an emergency instead (they need both off). */
+  protected keepBoth(date: string): void {
+    const replaced = this.swapOf().get(date);
+    this.formDays.update((set) => this.without(set, date));
+    if (replaced) {
+      this.swapOf.update((m) => { const n = new Map(m); n.delete(date); return n; });
+      this.dropped.update((set) => this.without(set, replaced));
+    }
+    this.addEmergency(date, this.myRequestOn(date));
+  }
+
+  private addEmergency(date: string, mine?: DayOffRequest): void {
+    const w = this.window();
+    if (this.selfService() && !isTakenBack(mine) && w?.oneEmergencyPerMonth && w.emergencyUsedThisMonth) {
+      this.toast.error("Emergency used this month.");
+      return;
+    }
+    this.formEmergencyDays.update((set) => new Set(set).add(date));
+  }
+
+  private without(set: Set<string>, value: string): Set<string> {
+    const next = new Set(set);
+    next.delete(value);
+    return next;
+  }
+
+  /** Sends what was picked: swaps (after one last check), new days off, then any emergency. */
+  private async submitSelf(): Promise<void> {
+    const employeeId = this.formEmployeeId();
+    if (!employeeId) return;
+    const picks = [...this.formDays()].sort();
+    const extra = [...this.formEmergencyDays()].sort();
+    const given = [...this.dropped()].sort().map((d) => this.currentOn(d)).filter((c): c is CurrentOff => !!c);
+    const reason = clean(this.formReason);
+    if (extra.length && !reason) {
+      this.toast.error('Add the reason for the emergency.');
+      return;
+    }
+    const day = (d: string) => formatDay(d, { weekday: 'short', month: 'short', day: 'numeric' });
+    // "You" when asking for yourself, their first name when a manager enters it for them.
+    const me = this.selfService();
+    const who = me ? 'You' : this.pickerPerson().first;
+    const whose = me ? 'your' : 'their';
+    if (this.cancelOnly()) {
+      const regular = this.pickerRegular().map((d) => d.charAt(0) + d.slice(1).toLowerCase());
+      const ok = await this.confirm.ask({
+        title: `Cancel ${whose} day off?`,
+        message: `${me ? "You'll" : who + ' will'} work ${given.map((c) => day(c.date)).join(' and ')}.`,
+        icon: 'bi-calendar-x',
+        tone: 'danger',
+        notes: regular.length ? [`Regular ${regular.join(' & ')} off comes back.`] : undefined,
+        confirmText: 'Cancel day off',
+        cancelText: 'Keep it',
+      });
+      if (!ok) return;
+      this.saving.set(true);
+      try {
+        for (const c of given) await firstValueFrom(this.api.cancelDayOff(c.request!.id));
+      } catch {
+        this.saving.set(false);
+        this.resetPicks();
+        this.loadTaken();
+        return;
+      }
+      this.saving.set(false);
+      this.modalOpen.set(false);
+      this.toast.info(`Day off cancelled: ${me ? "you're" : who + ' is'} working ${given.map((c) => day(c.date)).join(' and ')}.`);
+      this.load();
+      this.loadMyWeeks();
+      return;
+    }
+    if (given.length) {
+      const ok = await this.confirm.ask({
+        title: `Change ${whose} day off?`,
+        message: `${me ? "You'll" : who + ' will'} work ${given.map((c) => day(c.date)).join(' and ')} and be off ${picks.map(day).join(' and ')}.`,
+        icon: 'bi-arrow-left-right',
+        tone: 'primary',
+        notes: extra.length ? [`${extra.map(day).join(' and ')}: emergency, a manager approves.`] : undefined,
+        confirmText: 'Yes, change it',
+        cancelText: 'Go back',
+      });
+      if (!ok) return;
+    }
+    this.saving.set(true);
+    const done: string[] = [];
+    try {
+      // A day they asked for moves to the new day; a regular or held day simply gives way when the new day is given.
+      const asked = given.filter((c) => c.kind === 'ASKED' && c.request);
+      const moved = Math.min(asked.length, picks.length);
+      for (let i = 0; i < moved; i++) {
+        await firstValueFrom(this.api.moveDayOff(asked[i].request!.id, picks[i]));
+      }
+      const rest = picks.slice(moved);
+      if (rest.length) {
+        await firstValueFrom(this.api.createDayOff({ employeeId, dates: rest, reason: null, emergency: false, override: false }));
+      }
+      if (picks.length) done.push(`${me ? "You're" : who + ' is'} off ${picks.map(day).join(' and ')}.`);
+      if (extra.length) {
+        await firstValueFrom(this.api.createDayOff({ employeeId, dates: extra, reason, emergency: true, override: false }));
+        done.push(`Emergency sent for ${extra.map(day).join(' and ')}.`);
+      }
+    } catch {
+      // The error is shown already; whatever went through stays. Show the week as it is now.
+      this.saving.set(false);
+      if (done.length) this.toast.success(done.join(' '));
+      this.resetPicks();
+      this.loadTaken();
+      this.load();
+      this.loadMyWeeks();
+      return;
+    }
+    this.saving.set(false);
+    this.modalOpen.set(false);
+    this.toast.success(done.join(' '));
+    this.status.set(extra.length ? 'PENDING' : 'ALL');
+    this.load();
+    this.loadMyWeeks();
+  }
+
+  protected resetPicks(): void {
+    this.formDays.set(new Set());
+    this.formEmergencyDays.set(new Set());
+    this.dropped.set(new Set());
+    this.swapOf.set(new Map());
+  }
+
+  // ---------- Their own weeks (employees, and managers on the schedule) ----------
+
+  /** Their days off in the weeks they can ask for, for the overview and the main button. */
+  protected readonly myWeekRequests = signal<DayOffRequest[]>([]);
+  protected readonly myWindow = signal<RequestWindow | null>(null);
+  /** Shown for people who ask for themselves: employees, and managers who work shifts. */
+  protected readonly asksForSelf = computed(() => this.auth.isEmployee() || this.canAskForMe());
+  /** The weeks shown in the overview: the ones open now, else next week. */
+  protected readonly myWeeks = computed(() => {
+    const w = this.myWindow();
+    const next = addDays(weekStartOf(today()), 7);
+    const weeks = w?.openWeeks?.length ? [...w.openWeeks] : [next];
+    return weeks.filter((wk) => wk >= next).slice(0, SELF_SERVICE_WEEKS_AHEAD);
+  });
+  /** Their regular days off as names, e.g. ['Tuesday']. */
+  protected readonly myRegularNames = computed(() =>
+    (this.auth.user()?.regularDaysOff ?? []).map((d) => d.charAt(0) + d.slice(1).toLowerCase()),
+  );
+
+  /** What the main button says: change a day they asked for, change their regular day, or ask for one. */
+  protected readonly mainActionLabel = computed(() => {
+    const week = this.myWeeks()[0];
+    if (!week) return 'Request day off';
+    const end = addDays(week, 6);
+    const inWeek = this.myWeekRequests().filter((r) => r.date >= week && r.date <= end && r.status !== 'REJECTED');
+    if (inWeek.some((r) => !r.reserved && !r.emergency)) return 'Change day off';
+    if (this.myRegularNames().length || inWeek.some((r) => r.regular)) return 'Change your day off for this week';
+    return 'Request day off';
+  });
+
+  /** One week's seven days for the overview: what each day is for them. */
+  protected myWeekDays(week: string): { date: string; css: string; label: string }[] {
+    const regular = new Set(this.auth.user()?.regularDaysOff ?? []);
+    const list = this.myWeekRequests();
+    const asked = list.some((r) => !r.reserved && !r.emergency && r.status !== 'REJECTED'
+      && r.date >= week && r.date <= addDays(week, 6));
+    return weekDates(week).map((date) => {
+      const r = list.find((x) => x.date === date);
+      if (r && r.status !== 'REJECTED') {
+        if (r.emergency) return { date, css: r.status === 'PENDING' ? 'is-waiting' : 'is-emergency', label: r.status === 'PENDING' ? 'Waiting' : 'Off' };
+        return { date, css: r.regular ? 'is-regular' : 'is-mine', label: r.regular ? 'Regular' : 'Off' };
+      }
+      if (isTakenBack(r)) return { date, css: 'is-changed', label: 'Changed' };
+      if (!r && !asked && regular.has(weekdayOf(date)) && !this.myWindow()?.publishedWeeks?.includes(week)) {
+        return { date, css: 'is-regular', label: 'Regular' };
+      }
+      return { date, css: '', label: '' };
+    });
+  }
+
+  private loadMyWeeks(): void {
+    if (!this.asksForSelf()) return;
+    const me = this.auth.user()?.id;
+    if (me == null) return;
+    this.api.dayOffWindow().subscribe({
+      next: (w) => {
+        this.myWindow.set(w);
+        const weeks = this.myWeeks();
+        if (!weeks.length) return;
+        this.api.dayOffRequests({ employeeId: me, from: weeks[0], to: addDays(weeks[weeks.length - 1], 6) }).subscribe({
+          next: (list) => this.myWeekRequests.set(list),
+          error: () => undefined,
+        });
+      },
+      error: () => undefined,
+    });
+  }
+
+  /** Taken-back or turned-down days off can be asked for again, as an emergency, straight from the list. */
+  protected canAskAgain(r: DayOffRequest): boolean {
+    return r.employeeId === this.auth.user()?.id && r.status === 'REJECTED' && !r.emergency && r.date >= this.todayIso;
+  }
+
+  protected async askAgain(r: DayOffRequest): Promise<void> {
+    const when = formatDay(r.date, { weekday: 'long', month: 'short', day: 'numeric' });
+    const w = this.window() ?? this.myWindow();
+    if (!isTakenBack(r) && w?.oneEmergencyPerMonth && w.emergencyUsedThisMonth) {
+      this.toast.error("Emergency used this month.");
+      return;
+    }
+    const reason = await this.confirm.askWithInput({
+      title: `Ask for ${formatDay(r.date, { weekday: 'short', month: 'short', day: 'numeric' })} again?`,
+      message: `It goes to your manager as an emergency request for ${when}.`,
+      icon: 'bi-exclamation-octagon',
+      tone: 'danger',
+      input: { label: 'Reason', placeholder: 'e.g. Doctor appointment', required: true, maxLength: 255 },
+      confirmText: 'Send emergency',
+    });
+    if (!reason) return;
+    if (!RULES.safeText.re.test(reason)) {
+      this.toast.error(`Reason: ${RULES.safeText.msg}`);
+      return;
+    }
+    this.busyId.set(r.id);
+    this.api.createDayOff({ employeeId: r.employeeId, dates: [r.date], reason, emergency: true, override: false }).subscribe({
+      next: () => {
+        this.busyId.set(null);
+        this.toast.success(`Emergency sent for ${when}.`);
+        this.status.set('PENDING');
+        this.load();
+        this.loadMyWeeks();
+      },
+      error: () => this.busyId.set(null),
+    });
+  }
+
+  protected readonly isTakenBack = isTakenBack;
+
+  /** "Tue 24" */
+  protected dayNum(d: string): string {
+    return `${formatDay(d, { weekday: 'short' })} ${formatDay(d, { day: 'numeric' })}`;
+  }
+
+  /** The day the manager gave instead of a day they took back ('2026-12-02'), when there is one. */
+  protected newDayFor(r: DayOffRequest): string | null {
+    const m = /: off \w+ (\w+) (\d+) instead/.exec(r.decisionChangeReason ?? '');
+    if (!m) return null;
+    const month = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].indexOf(m[1]);
+    if (month < 0) return null;
+    // Same week as the day taken back: pick the year that keeps it within a week of it.
+    const base = new Date(r.date + 'T00:00:00');
+    for (const y of [base.getFullYear(), base.getFullYear() + 1, base.getFullYear() - 1]) {
+      const d = new Date(y, month, Number(m[2]));
+      if (Math.abs(d.getTime() - base.getTime()) < 8 * 864e5) {
+        return `${y}-${String(month + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      }
+    }
+    return null;
+  }
+
+  /** Every week that can be picked, for the week chips. */
+  protected readonly formWeekChoices = computed(() => {
+    const out: string[] = [];
+    for (let w = this.firstWeek(); w <= this.lastWeek() && out.length < 12; w = addDays(w, 7)) out.push(w);
+    return out;
+  });
+
+  protected pickWeek(week: string): void {
+    if (week === this.formWeek()) return;
+    this.formWeek.set(week);
+    this.resetPicks();
+    this.loadTaken();
+  }
+
   protected readonly formWeekDates = computed(() => weekDates(this.formWeek()));
   protected readonly formWeekLabel = computed(() => formatWeekRange(this.formWeek()));
   protected readonly todayIso = today();
@@ -246,6 +736,7 @@ export class DayOffPage implements OnInit {
     this.api.dayOffWindow().subscribe({ next: (w) => this.portal.set(w), error: () => this.portal.set(null) });
     this.load();
     this.loadExtraDays();
+    this.loadMyWeeks();
     // Requests decided or sent from another device show up here without a manual refresh. The open form is left
     // alone; the list reloads when it's saved anyway.
     this.live.on(['dayoff', 'schedule', 'people'], this.destroyRef, (change) => {
@@ -253,6 +744,7 @@ export class DayOffPage implements OnInit {
         this.auth.refresh().subscribe({ error: () => undefined });
       }
       if (this.modalOpen()) return;
+      this.loadMyWeeks();
       this.api.dayOffWindow().subscribe({ next: (w) => this.portal.set(w), error: () => undefined });
       this.load();
     });
@@ -593,19 +1085,33 @@ export class DayOffPage implements OnInit {
   }
 
   protected async cancel(r: DayOffRequest): Promise<void> {
+    const when = formatDay(r.date, { weekday: 'long', month: 'short', day: 'numeric' });
+    const mine = r.employeeId === this.auth.user()?.id;
+    const given = r.status === 'APPROVED';
+    const regular = this.myRegularNames();
     const ok = await this.confirm.ask({
-      title: 'Withdraw request?',
-      message: `${r.employeeName}'s request for ${formatDay(r.date, { weekday: 'long', month: 'short', day: 'numeric' })} will be removed.`,
-      icon: 'bi-trash',
+      title: given ? 'Cancel this day off?' : 'Withdraw request?',
+      message: given
+        ? `${mine ? "You'll" : `${r.employeeName.split(' ')[0]} will`} work ${when}.`
+        : `${mine ? 'Your' : `${r.employeeName}'s`} request for ${when} will be removed.`,
+      icon: given ? 'bi-calendar-x' : 'bi-trash',
       tone: 'danger',
-      confirmText: 'Withdraw',
+      notes: given && mine && regular.length ? [`Your regular ${regular.join(' & ')} off comes back for that week.`] : undefined,
+      confirmText: given ? 'Cancel day off' : 'Withdraw',
+      cancelText: 'Keep it',
     });
     if (!ok) {
       return;
     }
-    this.api.cancelDayOff(r.id).subscribe(() => {
-      this.toast.info('Request withdrawn.');
-      this.load();
+    this.busyId.set(r.id);
+    this.api.cancelDayOff(r.id).subscribe({
+      next: () => {
+        this.busyId.set(null);
+        this.toast.info(given ? `Day off cancelled: ${mine ? "you're" : 'they are'} working ${when}.` : 'Request withdrawn.');
+        this.load();
+        this.loadMyWeeks();
+      },
+      error: () => this.busyId.set(null),
     });
   }
 
@@ -728,15 +1234,10 @@ export class DayOffPage implements OnInit {
     const n = this.extraCount();
     const ok = await this.confirm.ask({
       title: `Move ${n} extra day${n === 1 ? '' : 's'} off to emergency requests?`,
-      message: `${this.extraDays().length} ${this.extraDays().length === 1 ? 'person has' : 'people have'} more days off in a week than they normally get. ` +
-        'The extra days become emergency requests for a manager to approve or reject.',
+      message: `${this.extraDays().length} ${this.extraDays().length === 1 ? 'person has' : 'people have'} too many days off.`,
       icon: 'bi-exclamation-octagon',
       tone: 'warning',
-      notes: [
-        'Until a manager approves them, they are back on the schedule those days.',
-        'A day the system only planned (nobody asked for it) is dropped: they work that day.',
-        'Days a manager or admin gave directly are left alone.',
-      ],
+      notes: ['They work those days until approved.', 'Days given by a manager stay.'],
       confirmText: 'Move to emergency requests',
     });
     if (!ok) return;
@@ -827,8 +1328,16 @@ export class DayOffPage implements OnInit {
 
   protected canWithdraw(r: DayOffRequest): boolean {
     // Planned days (regular, reserved) aren't requests anyone sent: they change when someone picks another day.
-    if (r.reserved) return false;
-    return r.status === 'PENDING' && (this.auth.canManage() || r.employeeId === this.auth.user()?.id);
+    if (r.reserved || r.companion || r.date < this.todayIso) return false;
+    const mine = r.employeeId === this.auth.user()?.id;
+    if (r.status === 'PENDING') return this.auth.canManage() || mine;
+    // A day off they have (asked for, or an approved emergency) can be cancelled until that week's schedule is made.
+    return r.status === 'APPROVED' && mine && !this.weekIsMade(r.date);
+  }
+
+  /** That week's schedule is made (its days off are the manager's to change, on the schedule). */
+  private weekIsMade(date: string): boolean {
+    return (this.myWindow()?.publishedWeeks ?? this.window()?.publishedWeeks ?? []).includes(weekStartOf(date));
   }
 
   /**
@@ -838,6 +1347,8 @@ export class DayOffPage implements OnInit {
   protected canMove(r: DayOffRequest): boolean {
     if (r.emergency || r.reserved || r.companion || r.status === 'REJECTED') return false;
     if (r.date < this.todayIso || weekStartOf(r.date) < this.firstWeek()) return false;
+    // Once that week's schedule is made, the manager moves days off there (on the schedule).
+    if ((this.myWindow()?.publishedWeeks ?? this.window()?.publishedWeeks ?? []).includes(weekStartOf(r.date))) return false;
     return r.employeeId === this.auth.user()?.id || (this.auth.canManage() && !this.auth.isEmployee());
   }
 
@@ -852,7 +1363,7 @@ export class DayOffPage implements OnInit {
       this.loadTaken();
     }
     const day = formatDay(r.date, { weekday: 'long', month: 'short', day: 'numeric' });
-    this.toast.info(`Tap the day you'd like instead of ${day}. A day that still has room is given straight away.`);
+    this.toast.info(`Tap the day you want instead of ${day}.`);
   }
 
   /** Managers on the schedule can take days off for themselves too (they decide their own emergencies too). */
@@ -865,8 +1376,7 @@ export class DayOffPage implements OnInit {
     this.formEmployeeId.set(on ? (this.auth.user()?.id ?? null) : null);
     if (this.formWeek() < this.firstWeek()) this.formWeek.set(this.firstWeek());
     if (this.formWeek() > this.lastWeek()) this.formWeek.set(this.lastWeek());
-    this.formDays.set(new Set());
-    this.formEmergencyDays.set(new Set());
+    this.resetPicks();
     this.formEmergency.set(false);
     this.formOverride.set(false);
     this.loadTaken();
@@ -901,8 +1411,7 @@ export class DayOffPage implements OnInit {
       },
       error: () => this.window.set(null),
     });
-    this.formDays.set(new Set());
-    this.formEmergencyDays.set(new Set());
+    this.resetPicks();
     this.formReason = '';
     this.formEmergency.set(false);
     this.formOverride.set(false);
@@ -914,6 +1423,7 @@ export class DayOffPage implements OnInit {
 
   protected onFormEmployeeChange(id: number | null): void {
     this.formEmployeeId.set(id);
+    this.resetPicks();
     if (this.formWeek() < this.firstWeek()) this.formWeek.set(this.firstWeek());
     if (this.formWeek() > this.lastWeek()) this.formWeek.set(this.lastWeek());
     this.loadTaken();
@@ -1031,12 +1541,15 @@ export class DayOffPage implements OnInit {
       return;
     }
     this.formWeek.set(next);
-    this.formDays.set(new Set());
-    this.formEmergencyDays.set(new Set());
+    this.resetPicks();
     this.loadTaken();
   }
 
   protected async toggleDay(date: string): Promise<void> {
+    if (this.inline()) {
+      this.selfToggle(date);
+      return;
+    }
     if (this.formEmergencyDays().has(date)) {
       this.formEmergencyDays.update((set) => {
         const next = new Set(set);
@@ -1054,7 +1567,7 @@ export class DayOffPage implements OnInit {
       // With room for a normal day again, extra days can't go as an emergency (the week isn't full): pick again.
       if (this.formEmergencyDays().size && !this.overflowsToEmergency()) {
         this.formEmergencyDays.set(new Set());
-        this.toast.info('Emergency days cleared: you have a normal day off to pick again.');
+        this.toast.info('Emergency cleared · pick a normal day off.');
       }
       return;
     }
@@ -1119,12 +1632,7 @@ export class DayOffPage implements OnInit {
           : `${me ? 'You' : 'They'} picked ${long(c.date)}. Take ${long(date)} instead?`,
         icon: 'bi-arrow-left-right',
         tone: 'primary',
-        notes: [
-          `${long(date)} still has room, so ${c.request ? "it's given straight away" : 'it can be a normal day off'}: `
-            + 'no emergency request needed.',
-          ...(c.request ? [`${long(c.date)} becomes a work day.`] : []),
-          ...(last ? [`Need both days off? Choose "Keep ${short(c.date)}" to send ${short(date)} as an emergency request.`] : []),
-        ],
+        notes: last ? [`Need both? Keep ${short(c.date)} → emergency.`] : undefined,
         confirmText: `Move to ${short(date)}`,
         cancelText: `Keep ${short(c.date)}`,
       });
@@ -1170,7 +1678,7 @@ export class DayOffPage implements OnInit {
   private async askEmergency(date: string, full = false, rejected = false, made = false): Promise<void> {
     const me = this.selfService() || this.auth.isEmployee();
     if (me && this.window()?.oneEmergencyPerMonth && this.window()?.emergencyUsedThisMonth) {
-      this.toast.error("You've already used this month's emergency request. Please talk to your manager.");
+      this.toast.error("Emergency used this month.");
       return;
     }
     const limit = this.maxDaysPerWeek();
@@ -1198,10 +1706,8 @@ export class DayOffPage implements OnInit {
       icon: 'bi-exclamation-octagon',
       tone: 'danger',
       notes: [
-        ...(stillOpen.length
-          ? [`These days still have room for a normal day off: ${openList}. Please pick one of those instead.`]
-          : []),
-        'An emergency request is only for something urgent. A manager or admin approves or rejects it.',
+        ...(stillOpen.length ? [`Open days: ${openList}`] : []),
+        'A manager approves it.',
         ...(this.window()?.oneEmergencyPerMonth ? ['Only one emergency request is allowed each month.'] : []),
       ],
       confirmText: stillOpen.length ? 'It\'s urgent: send emergency' : 'Yes, emergency request',
@@ -1213,6 +1719,10 @@ export class DayOffPage implements OnInit {
   }
 
   protected submit(): void {
+    if (this.inline()) {
+      void this.submitSelf();
+      return;
+    }
     const employeeId = this.formEmployeeId();
     const dates = [...this.formDays()].sort();
     const extra = [...this.formEmergencyDays()].sort();
@@ -1222,7 +1732,9 @@ export class DayOffPage implements OnInit {
     this.saving.set(true);
     const emergency = this.formEmergency();
     const override = this.formOverride() && this.canOverride();
-    const reason = clean(this.formReason);
+    // Only emergencies carry a reason.
+    const reason = emergency ? clean(this.formReason) : null;
+    const extraReason = clean(this.formReason);
     const fmt = (list: { date: string }[]) =>
       list.map((c) => formatDay(c.date, { weekday: 'short', month: 'short', day: 'numeric' })).join(' and ');
     const done = (created: DayOffRequest[], sentEmergency: DayOffRequest[]) => {
@@ -1255,7 +1767,7 @@ export class DayOffPage implements OnInit {
         done(created, []);
         return;
       }
-      this.api.createDayOff({ employeeId, dates: extra, reason, emergency: true, override: false }).subscribe({
+      this.api.createDayOff({ employeeId, dates: extra, reason: extraReason, emergency: true, override: false }).subscribe({
         next: (sent) => done(created, sent),
         // The normal days went through; the emergency didn't (the reason is shown by the error toast).
         error: () => (created.length ? done(created, []) : this.saving.set(false)),

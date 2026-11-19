@@ -11,7 +11,11 @@ import { PAGE_SIZES, pageItems } from '../core/paging';
     @if (total() > 0) {
       <nav class="pager" [attr.aria-label]="label() + ' pages'">
         <div class="pager-info">
-          Showing <strong>{{ from() }}–{{ to() }}</strong> of <strong>{{ total() }}</strong> {{ label() }}
+          @if (total() > size()) {
+            <strong>{{ from() }}–{{ to() }}</strong> of <strong>{{ total() }}</strong> {{ label() }}
+          } @else {
+            <strong>{{ total() }}</strong> {{ label() }}
+          }
         </div>
         @if (total() > sizes[0]) {
           <label class="pager-size">

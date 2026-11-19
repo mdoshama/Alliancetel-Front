@@ -28,12 +28,12 @@ describe('approvalCard', () => {
     const card = approvalCard(impact());
     expect(card.tone).toBe('success');
     expect(card.confirmText).toBe('Approve');
-    expect(card.notes.join(' ')).toContain("isn't scheduled yet");
+    expect(card.notes.join(' ')).toContain('working');
   });
 
   it('says nothing changes when the day was already their regular day off', () => {
     const card = approvalCard(impact({ workingBefore: 7, workingAfter: 7, neededThatDay: 5 }));
-    expect(card.notes.join(' ')).toContain('No change to who works that day: 7 working');
+    expect(card.notes.join(' ')).toContain('7 working · 5 needed');
   });
 
   it('warns in red and lists the stores left short', () => {
@@ -46,14 +46,13 @@ describe('approvalCard', () => {
     );
     expect(card.tone).toBe('danger');
     expect(card.confirmText).toBe('Approve anyway');
-    expect(card.notes[0]).toContain('Oceanside would have 1 of 2');
-    expect(card.notes.join(' ')).toContain('already published');
+    expect(card.notes[0]).toContain('Oceanside: 1/2');
+    expect(card.notes.join(' ')).toContain('Published week');
   });
 
   it('flags emergencies and colleagues off at the same store first', () => {
     const card = approvalCard(impact({ emergency: true, sameStoreOff: ['Ben Ito (waiting)'] }));
-    expect(card.notes[0]).toContain('Emergency request');
-    expect(card.notes[1]).toContain('Also off at the same store that day: Ben Ito (waiting)');
+    expect(card.notes[0]).toContain('Same store off: Ben Ito (waiting)');
   });
 
   it('mentions who else is off and the day that becomes a work day', () => {
@@ -68,9 +67,8 @@ describe('approvalCard', () => {
     );
     const text = card.notes.join(' ');
     expect(card.tone).toBe('warning');
-    expect(text).toContain('Already off that day: Ben Ito');
-    expect(text).toContain('Also asked for this day: Cara Diaz');
-    expect(text).toContain("Anna's regular day off, becomes a work day");
-    expect(text).toContain('draft schedule');
+    expect(text).toContain('Off: Ben Ito');
+    expect(text).toContain('Also asked: Cara Diaz');
+    expect(text).toContain('Anna works');
   });
 });

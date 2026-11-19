@@ -12,7 +12,7 @@
       }
     </div>
   </div>
-  <p class="text-muted-2 mb-1 small d-none d-lg-block">Regions your stores are grouped into. Each employee belongs to one area.</p>
+  <p class="text-muted-2 mb-1 small d-none d-lg-block">Groups of stores.</p>
   <button type="button" class="btn btn-primary ms-auto" (click)="openCreate()">
     <i class="bi bi-plus-lg me-1"></i> Add area
   </button>
@@ -24,7 +24,7 @@
   } @else if (areas().length === 0) {
     <div class="empty-state">
       <i class="bi bi-geo-alt"></i>
-      No areas yet. Add San Diego, Los Angeles, San Francisco and so on to get started.
+      No areas yet.
     </div>
   } @else if (matching().length === 0) {
     <div class="empty-state"><i class="bi bi-search"></i>No area matches “{{ search().trim() }}”.</div>

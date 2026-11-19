@@ -1,7 +1,14 @@
 @if (!auth.isAdmin()) {
-  <p class="text-muted-2 small mb-3">
-    <i class="bi bi-geo-alt me-1"></i>Stores in {{ auth.areaName() }}. Your schedule shows which one you work at each day.
-  </p>
+  <div class="d-flex align-items-center gap-2 mb-3">
+    <p class="text-muted-2 small mb-0">
+      <i class="bi bi-geo-alt me-1"></i>Stores in {{ auth.areaName() }}
+    </p>
+    @if (auth.canManage()) {
+      <button type="button" class="btn btn-outline-primary ms-auto" (click)="openHolidays(auth.areaId(), auth.areaName() ?? '')">
+        <i class="bi bi-calendar-x me-1"></i> Holidays
+      </button>
+    }
+  </div>
   @if (stores().length > 6) {
     <div class="mb-3" style="max-width: 360px">
     <div class="input-group">
@@ -95,7 +102,7 @@
   <div class="card"><div class="empty-state"><div class="spinner-border text-primary"></div></div></div>
 } @else if (stores().length === 0) {
   <div class="card">
-    <div class="empty-state"><i class="bi bi-shop"></i>No stores yet. Add the store locations for each area.</div>
+    <div class="empty-state"><i class="bi bi-shop"></i>No stores yet.</div>
   </div>
 } @else if (groups().length === 0) {
   <div class="card">
@@ -104,16 +111,16 @@
     </div>
   </div>
 } @else {
-  <p class="text-muted-2 small mb-2">
-    Every employee has a home store. Managers rotate staff between stores from the schedule or the team list.
-  </p>
   @for (g of groups(); track g.areaId) {
     <div class="card mb-3">
       <div class="card-header d-flex flex-wrap align-items-center column-gap-2 row-gap-1">
         <i class="bi bi-geo-alt text-primary"></i>
         <span class="fw-semibold text-nowrap">{{ g.areaName }}</span>
         <span class="text-muted-2 small text-nowrap">· {{ g.stores.length }} stores · {{ g.staff }} staff</span>
-        <button type="button" class="btn btn-sm btn-link ms-auto px-0 text-nowrap" (click)="openCreate(g.areaId)">
+        <button type="button" class="btn btn-sm btn-outline-primary ms-auto text-nowrap" (click)="openHolidays(g.areaId, g.areaName)">
+          <i class="bi bi-calendar-x me-1"></i> Holidays
+        </button>
+        <button type="button" class="btn btn-sm btn-link px-0 text-nowrap" (click)="openCreate(g.areaId)">
           <i class="bi bi-plus"></i> Add store here
         </button>
       </div>
@@ -220,7 +227,7 @@
         @if (fieldError(form.controls.maxFloatersPerDay, 'Max floaters'); as msg) {
           <div class="invalid-feedback">{{ msg }}</div>
         } @else {
-          <div class="form-text">Most floaters auto-fill sends here on a day. 0 = no limit.</div>
+          <div class="form-text">Max floaters a day · 0 = no limit</div>
         }
       </div>
       <div class="col-12">
@@ -261,7 +268,7 @@
           <div class="hours-row hours-head d-none d-sm-flex">
             <span class="hours-day"></span>
             <span class="hours-head-times">Open – close</span>
-            <span class="hours-head-min" title="Fewest people needed that day. Leave empty to use the store's minimum.">Min</span>
+            <span class="hours-head-min" title="Fewest people that day">Min</span>
           </div>
           @for (h of hoursRows; track h.day) {
             <div class="hours-row" [class.is-closed]="h.closed">
@@ -300,9 +307,7 @@
     </div>
   </form>
   <p class="small text-muted-2 mt-3 mb-0">
-    The short code appears in the weekly schedule grid. Days with fewer people than the minimum are shown in red
-    (0 = no minimum). To need a different number on some days (e.g. 2 on Sunday), fill in that day's <strong>Min staff</strong>;
-    empty days use the store's minimum.
+    A day's <strong>Min staff</strong> overrides the store's.
   </p>
   <ng-container modal-footer>
     <button type="button" class="btn btn-light" (click)="modalOpen.set(false)">Cancel</button>
@@ -312,3 +317,6 @@
     </button>
   </ng-container>
 </app-modal>
+
+<app-holidays-dialog [open]="holidays() !== null" [areaId]="holidays()?.areaId ?? null"
+                     [areaName]="holidays()?.areaName ?? ''" [stores]="holidayStores()" (closed)="holidays.set(null)" />

@@ -203,7 +203,7 @@
                     <select #wd class="form-select form-select-sm work-days-select" [value]="e.workDaysPerWeek"
                             [disabled]="workDaysSavingId() === e.id"
                             [attr.aria-label]="'Days a week ' + e.fullName + ' works'"
-                            title="Days a week they work. Change it to give more or fewer days off."
+                            title="Work days a week"
                             (change)="setWorkDays(e, wd.value, wd)">
                       @for (n of workDayOptions; track n) {
                         <option [value]="n" [selected]="n === e.workDaysPerWeek">{{ n }} day{{ n === 1 ? '' : 's' }}</option>
@@ -354,11 +354,10 @@
                 </label>
               </div>
               @if (form.controls.smsOptIn.value && phoneChanged() && editing()?.smsOptIn) {
-                <div class="form-text text-warning-emphasis">New number: texts stay off until they agree again for it.</div>
+                <div class="form-text text-warning-emphasis">New number: texts off until they agree.</div>
               } @else if (form.controls.smsOptIn.value && !editing()?.smsOptIn) {
                 <div class="form-text">
-                  Only turn on if they agreed to get texts. Your name is recorded with their agreement, and they get a text
-                  confirming it (they can reply STOP anytime).
+                  Only if they agreed. They get a confirming text (STOP to quit).
                 </div>
               } @else if (editing()?.smsOptIn && form.controls.smsOptIn.value) {
                 <div class="form-text">
@@ -367,12 +366,12 @@
                   {{ editing()!.smsConsentBy ? '· recorded by ' + editing()!.smsConsentBy : '· by themselves' }}
                 </div>
               } @else if (!auth.isAdmin() && !form.controls.smsOptIn.value) {
-                <div class="form-text">They turn this on in their account menu, or an admin can.</div>
+                <div class="form-text">Turned on from their account menu.</div>
               }
             </div>
           </div>
           @if (signInMissing()) {
-            <div class="signin-error"><i class="bi bi-exclamation-circle-fill"></i> Add an email or a phone number so they can sign in.</div>
+            <div class="signin-error"><i class="bi bi-exclamation-circle-fill"></i> Add email or phone to sign in.</div>
           }
         </fieldset>
       </div>
@@ -424,7 +423,7 @@
               }
             }
           </div>
-          <div class="form-text">Auto-fill only sends them to these stores. Managers can still move anyone by hand.</div>
+          <div class="form-text">Auto-fill uses only these stores.</div>
         </div>
       }
       @if (form.controls.role.value === 'MARKET_MANAGER' && auth.isAdmin()) {
@@ -443,8 +442,7 @@
             <div class="small text-danger mt-1"><i class="bi bi-exclamation-circle-fill"></i> Pick at least one area.</div>
           }
           <div class="form-text">
-            A Market Manager has no home area. They manage these areas like each area's manager: schedules, day-off
-            requests, their team and messages, and switch between them at the top of the app.
+            Areas they manage.
           </div>
         </div>
       }
@@ -455,8 +453,7 @@
             <label class="form-check-label fw-semibold" for="eOnSchedule">Works shifts (on the schedule)</label>
           </div>
           <div class="form-text">
-            Turn off for a manager who only manages: they're left out of the weekly schedule, day-off requests,
-            reserved days, store coverage and the time clock. They can still manage everything.
+            Off = only manages, not on the schedule.
           </div>
         </div>
       }
@@ -471,13 +468,13 @@
           <div class="alert alert-light border small mb-0 d-flex gap-2 align-items-start">
             <i class="bi bi-envelope-paper text-primary fs-5"></i>
             <div class="flex-grow-1">
-              We'll email them a link to choose their own password (you'll also get a temporary password as a backup).
+              They get a link to set their password.
               @if (form.controls.phone.value.trim()) {
                 <div class="form-check mt-1 mb-0">
                   <input class="form-check-input" type="checkbox" id="eTextLink" [checked]="textLink()"
                          (change)="textLink.set($any($event.target).checked)" />
                   <label class="form-check-label" for="eTextLink">
-                    Also text the link to their phone. They agreed to get it by text.
+                    Also text it (they agreed)
                   </label>
                 </div>
               }
@@ -493,7 +490,7 @@
         @if (fieldError(form.controls.birthDate, 'Birth date'); as msg) {
           <div class="invalid-feedback">{{ msg }}</div>
         } @else {
-          <div class="form-text"><i class="bi bi-cake2"></i> Admins and managers get a reminder a week before.</div>
+          <div class="form-text"><i class="bi bi-cake2"></i> Reminder a week before.</div>
         }
       </div>
       @if (form.controls.role.value !== 'MARKET_MANAGER') {
@@ -561,11 +558,9 @@
     }
     <p class="mb-2">
       @if (c.linkEmailed || c.linkTexted) {
-        If they can't use the link, give <strong>{{ c.employee.fullName }}</strong> this temporary password instead. They'll be
-        asked to choose their own the first time they sign in.
+        Backup for <strong>{{ c.employee.fullName }}</strong> if the link doesn't work:
       } @else {
-        Give <strong>{{ c.employee.fullName }}</strong> these details. They'll be asked to choose their own password the first
-        time they sign in.
+        Give <strong>{{ c.employee.fullName }}</strong> these details:
       }
     </p>
     <dl class="row small mb-2">
@@ -574,7 +569,7 @@
     </dl>
     <div class="temp-password mb-2">{{ c.temporaryPassword }}</div>
     <p class="small text-muted-2 mb-0">
-      <i class="bi bi-info-circle me-1"></i>This password is shown only once. If it's lost, use Reset password.
+      <i class="bi bi-info-circle me-1"></i>Shown only once.
     </p>
   }
   <ng-container modal-footer>

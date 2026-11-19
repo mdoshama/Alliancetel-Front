@@ -14,7 +14,7 @@ describe('Pagination', () => {
 
   it('shows the range and page links', () => {
     const el: HTMLElement = render(1, 25, 132).nativeElement;
-    expect(el.querySelector('.pager-info')?.textContent?.replace(/\s+/g, ' ').trim()).toBe('Showing 26–50 of 132 people');
+    expect(el.querySelector('.pager-info')?.textContent?.replace(/\s+/g, ' ').trim()).toBe('26–50 of 132 people');
     const nums = [...el.querySelectorAll('.pager-num')].map((li) => li.textContent?.trim());
     expect(nums).toEqual(['1', '2', '3', '4', '5', '6']);
     expect(el.querySelector('.pager-num.active')?.textContent?.trim()).toBe('2');
