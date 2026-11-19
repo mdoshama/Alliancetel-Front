@@ -250,8 +250,12 @@
           <span class="rg-avatar">{{ initials(g.name) }}</span>
           <div class="min-w-0 flex-grow-1">
             <div class="rg-name">{{ g.name }} <span class="er-meta">{{ g.code }}@if (auth.isAdmin() && g.areaName) { · {{ g.areaName }} }</span></div>
-            <div class="small text-muted-2">{{ g.items.length }} day{{ g.items.length === 1 ? '' : 's' }}
-              @if (decidable(g.items).length) { · <span class="text-danger fw-semibold">{{ decidable(g.items).length }} waiting</span> }
+            <div class="rg-origin">
+              @if (origin(g.items); as o) {
+                @if (o.asked) { <span class="rg-origin-chip is-asked"><i class="bi bi-send"></i> {{ o.asked }} asked</span> }
+                @if (o.system) { <span class="rg-origin-chip is-system"><i class="bi bi-cpu"></i> {{ o.system }} from the system</span> }
+              }
+              @if (decidable(g.items).length) { <span class="rg-origin-chip is-waiting">{{ decidable(g.items).length }} waiting</span> }
             </div>
             @if (weekSummary(g.items); as ws) {
               <div class="er-week is-compact mt-1"><i class="bi bi-calendar-week"></i><span>{{ ws }}</span></div>
@@ -279,9 +283,12 @@
               <div class="rg-day-main">
                 <div class="d-flex flex-wrap align-items-center gap-1">
                   @if (r.companion) { <span class="companion-badge"><i class="bi bi-calendar-check"></i> {{ companionLabel(r.companion) }}</span> }
+                  @else if (r.heldForEmergency) { <span class="companion-badge"><i class="bi bi-calendar-check"></i> {{ r.regular ? 'Regular day off' : r.reserved ? 'Given by the system' : 'Asked for' }}</span> }
                   @if (r.emergency) { <span class="emergency-badge"><i class="bi bi-exclamation-octagon-fill"></i> Emergency</span> }
                   @if (r.status === 'APPROVED') {
                     <span class="badge status-badge status-APPROVED"><i class="bi bi-check-circle-fill me-1"></i>Approved</span>
+                  } @else if (r.status === 'PENDING' && r.heldForEmergency) {
+                    <span class="badge status-badge status-PENDING">Waiting</span>
                   } @else if (r.status === 'PENDING' && r.companion && r.reserved) {
                     <span class="badge status-badge status-PENDING">Planned</span>
                   } @else if (r.status === 'PENDING') {
@@ -289,7 +296,9 @@
                   } @else {
                     <span class="badge status-badge status-REJECTED">Rejected</span>
                   }
-                  @if (r.companion) {
+                  @if (r.heldForEmergency) {
+                    <span class="small text-muted-2">Not asked · held with the emergency</span>
+                  } @else if (r.companion) {
                     <span class="small text-muted-2">Same week as the emergency</span>
                   } @else {
                     <span class="small text-muted-2">{{ r.reason || 'No reason given' }}</span>
@@ -321,7 +330,7 @@
                 }
               </div>
               <div class="rg-day-actions">
-                @if (r.companion && (r.status === 'APPROVED' || (r.status === 'PENDING' && r.reserved)) && canRemoveCompanion(r)) {
+                @if (r.companion && !r.heldForEmergency && (r.status === 'APPROVED' || (r.status === 'PENDING' && r.reserved)) && canRemoveCompanion(r)) {
                   <button type="button" class="btn btn-sm btn-outline-danger" [disabled]="busyId() !== null" (click)="removeCompanion(r)"
                           title="Take back · they work this day">
                     <i class="bi bi-x-lg"></i><span class="d-none d-md-inline ms-1">Remove (they work)</span>

@@ -445,6 +445,8 @@ export interface DayOffRequest {
   weekDaysOff?: WeekDayOff[] | null;
   /** Who decided: a manager's or admin's name, "System" when it was automatic, null while waiting. */
   reviewedBy?: string | null;
+  /** A day the system would give, waiting with their emergency for a manager to decide. */
+  heldForEmergency?: boolean;
   /** Screen only: another day off that week shown next to their emergency (from weekDaysOff). */
   companion?: WeekDayOff['kind'];
 }
@@ -478,6 +480,7 @@ export interface WeekDayOff {
   reviewedAt?: string | null;
   /** When it was asked for (or reserved). */
   createdAt?: string | null;
+  heldForEmergency?: boolean;
 }
 
 export type ImpactLevel = 'OK' | 'TIGHT' | 'SHORT';

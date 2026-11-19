@@ -961,7 +961,7 @@ export class DayOffPage implements OnInit {
     const ids = new Set<number>();
     for (const r of list) {
       // Planned days (regular, reserved) aren't decided by anyone: the system gives them at generate.
-      if (r.status === 'PENDING' && !r.reserved && this.canReview(r)) ids.add(r.id);
+      if (r.status === 'PENDING' && (!r.reserved || r.heldForEmergency) && this.canReview(r)) ids.add(r.id);
     }
     this.impactsLoading.set(new Set(ids));
     const done = (id: number) => this.impactsLoading.update((s) => {
@@ -1158,6 +1158,7 @@ export class DayOffPage implements OnInit {
             reviewedAt: w.reviewedAt ?? null,
             createdAt: w.createdAt ?? '',
             companion: w.kind,
+            heldForEmergency: !!w.heldForEmergency,
           });
         }
       }
@@ -1203,7 +1204,7 @@ export class DayOffPage implements OnInit {
     }).filter((x): x is string => !!x);
     if (!parts.length) return null;
     const text = parts.join(', ');
-    return `If you approve all, ${text}. Approve or remove each day to give fewer.`;
+    return `If you approve all, ${text}. Reject a day to give fewer.`;
   }
 
   protected canRemoveCompanion(r: DayOffRequest): boolean {
@@ -1256,7 +1257,13 @@ export class DayOffPage implements OnInit {
 
   /** A person's requests a manager can decide now. */
   protected decidable(items: DayOffRequest[]): DayOffRequest[] {
-    return items.filter((r) => r.status === 'PENDING' && !r.reserved && this.canReview(r));
+    return items.filter((r) => r.status === 'PENDING' && (!r.reserved || r.heldForEmergency) && this.canReview(r));
+  }
+
+  /** "1 asked · 1 by the system": what this person sent, and what the system gave them, so nothing is mistaken. */
+  protected origin(items: DayOffRequest[]): { asked: number; system: number } {
+    const system = items.filter((r) => r.reserved || r.regular).length;
+    return { asked: items.length - system, system };
   }
 
   protected initials(name: string): string {

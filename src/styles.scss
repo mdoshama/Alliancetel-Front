@@ -8724,3 +8724,36 @@ code {
 .store-board .sb-working-row td.sb-cell {
   text-align: center;
 }
+
+/* ---- Day-off requests: what was asked vs given by the system ---- */
+.rg-origin {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.2rem;
+}
+
+.rg-origin-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.12rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+
+  &.is-asked {
+    color: var(--at-primary);
+    background: rgba(var(--at-primary-rgb), 0.1);
+  }
+
+  &.is-system {
+    color: #3a3a3c;
+    background: var(--at-fill);
+  }
+
+  &.is-waiting {
+    color: #fff;
+    background: var(--at-red);
+  }
+}
